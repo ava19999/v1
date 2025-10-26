@@ -93,6 +93,9 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onLogout, activePage, onNa
                         {userProfile?.username && (
                             <>
                                 <div className="hidden md:flex items-center gap-2">
+                                  {userProfile.googleProfilePicture && (
+                                    <img src={userProfile.googleProfilePicture} alt="Avatar" className="h-8 w-8 rounded-full" />
+                                  )}
                                   <div className="text-right">
                                       <p className="text-sm font-bold text-white truncate max-w-[100px]">{userProfile.username}</p>
                                       <div className="-mt-1">

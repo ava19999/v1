@@ -1,9 +1,8 @@
-
-
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { jwtDecode } from 'jwt-decode';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import type { ForumMessageItem, Room, CoinListItem, CryptoData, ChatMessage, Page, Currency, NewsArticle, User } from './types';
+import type { ForumMessageItem, Room, CoinListItem, CryptoData, ChatMessage, Page, Currency, NewsArticle, User, GoogleProfile } from './types';
 import HomePage from './components/HomePage';
 import ForumPage from './components/ForumPage';
 import AboutPage from './components/AboutPage';
@@ -57,10 +56,10 @@ const App = () => {
   const [idrRate, setIdrRate] = useState<number | null>(null);
   const [isRateLoading, setIsRateLoading] = useState(true);
 
-  // Authentication State
-  const [users, setUsers] = useState<{ [email: string]: User }>({});
+  // --- New Authentication State ---
+  const [users, setUsers] = useState<{ [username: string]: User }>({});
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [verification, setVerification] = useState<{ email: string; pass: string; code: string } | null>(null);
+  const [pendingGoogleUser, setPendingGoogleUser] = useState<GoogleProfile | null>(null);
 
   const [analysisCounts, setAnalysisCounts] = useState<{ [key: string]: number }>({});
   const baseAnalysisCount = 1904;
@@ -137,68 +136,58 @@ const App = () => {
     }
   }, [currentUser]);
 
-  const handleLogin = useCallback(async (email: string, password: string): Promise<string | void> => {
-    const user = users[email];
+  const handleGoogleRegisterSuccess = useCallback((credentialResponse: any) => {
+    const profile: GoogleProfile = jwtDecode(credentialResponse.credential);
+    
+    // Check if a user with this Google email already exists
+    const existingUser = Object.values(users).find(u => u.email === profile.email);
+
+    if (existingUser) {
+        // Automatically log in the existing user
+        setCurrentUser(existingUser);
+    } else {
+        // It's a new user, so proceed to profile completion step
+        setPendingGoogleUser(profile);
+    }
+  }, [users]);
+
+  const handleLogin = useCallback(async (username: string, password: string): Promise<string | void> => {
+    const user = users[username.toLowerCase()];
     if (user && user.password === password) {
       setCurrentUser(user);
     } else {
-      return 'Email atau kata sandi salah.';
+      return 'Username atau kata sandi salah.';
     }
   }, [users]);
 
-  const handleGoogleLogin = useCallback(async (email: string, name: string, picture: string): Promise<void> => {
-    const existingUser = users[email];
+  const handleProfileComplete = useCallback(async (username: string, password: string): Promise<string | void> => {
+    if (!pendingGoogleUser) {
+        return 'Sesi pendaftaran tidak valid. Silakan coba lagi.';
+    }
     
-    if (existingUser) {
-      setCurrentUser(existingUser);
-    } else {
-      const newUser: User = {
-        email,
-        username: name,
-        createdAt: Date.now(),
-        picture,
-        googleId: email,
-      };
-      setUsers(prev => ({ ...prev, [email]: newUser }));
-      setCurrentUser(newUser);
+    const lowercasedUsername = username.toLowerCase();
+    
+    if (users[lowercasedUsername]) {
+        return 'Username ini sudah digunakan. Silakan pilih yang lain.';
     }
-  }, [users]);
 
-  const handleRegister = useCallback(async (email: string, password: string): Promise<{ code: string } | string> => {
-    if (users[email]) {
-      return 'Email ini sudah terdaftar. Silakan login.';
-    }
-    // Generate a 6-digit code for simulation
-    const code = Math.floor(100000 + Math.random() * 900000).toString();
-    setVerification({ email, pass: password, code });
-    // In a real app, you would email this code. Here, we return it to the UI.
-    return { code };
-  }, [users]);
-  
-  const handleVerify = useCallback(async (email: string, code: string): Promise<string | void> => {
-      if (verification && verification.email === email && verification.code === code) {
-          const newUser: User = { email: verification.email, password: verification.pass, createdAt: Date.now() };
-          setUsers(prev => ({ ...prev, [email]: newUser }));
-          setCurrentUser(newUser);
-          setVerification(null); // Clear verification data
-      } else {
-          return 'Kode verifikasi salah.';
-      }
-  }, [verification]);
+    const newUser: User = {
+        email: pendingGoogleUser.email,
+        username: username, // Keep original casing for display
+        password: password,
+        googleProfilePicture: pendingGoogleUser.picture,
+        createdAt: Date.now()
+    };
+
+    const newUsers = { ...users, [lowercasedUsername]: newUser };
+    setUsers(newUsers);
+    setCurrentUser(newUser);
+    setPendingGoogleUser(null); // Clear pending state
+  }, [users, pendingGoogleUser]);
 
   const handleLogout = useCallback(() => {
     setCurrentUser(null);
   }, []);
-
-  const handleIdCreated = useCallback((username: string, email: string) => {
-    const userToUpdate = users[email];
-    if (userToUpdate) {
-      const updatedUser: User = { ...userToUpdate, username };
-      setUsers(prev => ({ ...prev, [email]: updatedUser }));
-      setCurrentUser(updatedUser);
-    }
-  }, [users]);
-
 
   useEffect(() => {
     const getRate = async () => {
@@ -642,12 +631,12 @@ const App = () => {
     }
   };
   
-  if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} onRegister={handleRegister} onVerify={handleVerify} onGoogleLogin={handleGoogleLogin} />;
+  if (!currentUser && !pendingGoogleUser) {
+    return <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} onLogin={handleLogin} />;
   }
 
-  if (!currentUser.username) {
-      return <CreateIdPage onIdCreated={handleIdCreated} email={currentUser.email} />;
+  if (pendingGoogleUser) {
+      return <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
   }
 
 

@@ -1,15 +1,19 @@
-// Fix: Removed incorrect import of Page and Currency from App.tsx. Page is defined in this file, and Currency is defined below.
 export type Page = 'home' | 'rooms' | 'forum' | 'about';
 export type Currency = 'usd' | 'idr';
 
 // --- New Authentication Types ---
-export interface User {
+export interface GoogleProfile {
   email: string;
-  password?: string;
-  username?: string;
+  name: string;
+  picture: string;
+}
+
+export interface User {
+  email: string; // From Google, used as a unique identifier
+  username: string;
+  password?: string; // Set during profile completion
+  googleProfilePicture?: string; // From Google
   createdAt: number;
-  googleId?: string;
-  picture?: string;
 }
 
 
@@ -173,13 +177,11 @@ export interface AnalysisModalProps {
 }
 
 export interface LoginPageProps {
-    onLogin: (email: string, password: string) => Promise<string | void>;
-    onRegister: (email: string, password: string) => Promise<{ code: string } | string>;
-    onVerify: (email: string, code: string) => Promise<string | void>;
-    onGoogleLogin: (email: string, name: string, picture: string) => Promise<void>;
+    onGoogleRegisterSuccess: (credentialResponse: any) => void;
+    onLogin: (username: string, password: string) => Promise<string | void>;
 }
 
 export interface CreateIdPageProps {
-    onIdCreated: (username: string, email: string) => void;
-    email: string;
+    onProfileComplete: (username: string, password: string) => Promise<string | void>;
+    googleProfile: GoogleProfile;
 }
