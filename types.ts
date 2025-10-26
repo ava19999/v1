@@ -5,10 +5,11 @@ export type Currency = 'usd' | 'idr';
 // --- New Authentication Types ---
 export interface User {
   email: string;
-  // FIX: Corrected typo from `password; string;` to `password: string;`
-  password: string; // In a real app, this would be a hash
+  password?: string;
   username?: string;
   createdAt: number;
+  googleId?: string;
+  picture?: string;
 }
 
 
@@ -175,6 +176,7 @@ export interface LoginPageProps {
     onLogin: (email: string, password: string) => Promise<string | void>;
     onRegister: (email: string, password: string) => Promise<{ code: string } | string>;
     onVerify: (email: string, code: string) => Promise<string | void>;
+    onGoogleLogin: (email: string, name: string, picture: string) => Promise<void>;
 }
 
 export interface CreateIdPageProps {
