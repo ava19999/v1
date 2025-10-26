@@ -1,7 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import type { LoginPageProps } from '../types';
 
-const InitialStep = ({ onContinue }: { onContinue: () => void }) => (
+const InitialStep = ({ onContinue, onGoogleLogin }: { onContinue: () => void; onGoogleLogin: () => void }) => (
     <div className="w-full max-w-md text-center animate-fade-in-up">
         <div className="flex items-center justify-center space-x-3 mb-4">
             <svg className="h-12 w-12 text-electric" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
@@ -18,7 +18,7 @@ const InitialStep = ({ onContinue }: { onContinue: () => void }) => (
             Selamat datang di basecamp para pejuang cuan. Masuk untuk mulai analisis pasar dan diskusi bareng komunitas.
         </p>
         <button
-            onClick={onContinue}
+            onClick={onGoogleLogin}
             className="mt-8 flex items-center justify-center gap-3 w-full max-w-xs mx-auto bg-white/10 border border-white/20 text-white font-semibold py-3 px-6 rounded-lg transition-all duration-300 hover:bg-electric/20 hover:border-electric focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-electric"
         >
             <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -29,6 +29,12 @@ const InitialStep = ({ onContinue }: { onContinue: () => void }) => (
                 <path d="M1 1h22v22H1z" fill="none"/>
             </svg>
             <span>Masuk dengan Google</span>
+        </button>
+        <button
+            onClick={onContinue}
+            className="mt-4 text-sm text-gray-400 hover:text-white transition-colors"
+        >
+            Atau masuk dengan email
         </button>
     </div>
 );
@@ -171,7 +177,7 @@ const VerifyStep: React.FC<{ email: string; mockCode: string; onVerify: (email: 
     );
 };
 
-const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, onVerify }) => {
+const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, onVerify, onGoogleLogin }) => {
     const [step, setStep] = useState<'initial' | 'form' | 'verify'>('initial');
     const [verificationData, setVerificationData] = useState<{ email: string; code: string } | null>(null);
     
@@ -185,9 +191,48 @@ const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, onVerify }) 
         setStep('form');
     }
 
+    const handleGoogleLogin = async () => {
+        try {
+            const response = await fetch('/.netlify/functions/auth-url');
+            const { url } = await response.json();
+            
+            const width = 500;
+            const height = 600;
+            const left = (window.screen.width - width) / 2;
+            const top = (window.screen.height - height) / 2;
+            
+            const authWindow = window.open(
+                url,
+                'Google Login',
+                `width=${width},height=${height},left=${left},top=${top}`
+            );
+
+            const handleMessage = async (event: MessageEvent) => {
+                if (event.origin !== window.location.origin) return;
+                
+                if (event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+                    window.removeEventListener('message', handleMessage);
+                    const { email, name, picture } = event.data.user;
+                    await onGoogleLogin(email, name, picture);
+                }
+            };
+
+            window.addEventListener('message', handleMessage);
+
+            const checkWindow = setInterval(() => {
+                if (authWindow?.closed) {
+                    clearInterval(checkWindow);
+                    window.removeEventListener('message', handleMessage);
+                }
+            }, 500);
+        } catch (error) {
+            console.error('Google login error:', error);
+        }
+    };
+
     return (
         <div className="min-h-screen bg-transparent text-white font-sans flex flex-col items-center justify-center p-4">
-             {step === 'initial' && <InitialStep onContinue={() => setStep('form')} />}
+             {step === 'initial' && <InitialStep onContinue={() => setStep('form')} onGoogleLogin={handleGoogleLogin} />}
              {step === 'form' && <FormStep onLogin={onLogin} onRegister={onRegister} onCodeSent={handleCodeSent} />}
              {step === 'verify' && verificationData && (
                 <VerifyStep 

@@ -83,9 +83,14 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onLogout, activePage, onNa
                             <NavLink page="about" activePage={activePage} onNavigate={onNavigate}>Tentang</NavLink>
                         </nav>
                         
+                        <div className="hidden lg:flex items-center gap-2 text-xs font-heading">
+                          <span className='text-gray-400'>Lagi Rame 🔥:</span>
+                          <HotCoinTicker hotCoin={hotCoin} currency={currency} idrRate={idrRate} />
+                        </div>
+                        
                         <CurrencySwitcher currency={currency} onCurrencyChange={onCurrencyChange} />
                         
-                        {userProfile?.username ? (
+                        {userProfile?.username && (
                             <>
                                 <div className="hidden md:flex items-center gap-2">
                                   <div className="text-right">
@@ -105,11 +110,6 @@ const Header: React.FC<HeaderProps> = ({ userProfile, onLogout, activePage, onNa
                                     </svg>
                                 </button>
                             </>
-                        ) : (
-                            <div className="hidden lg:flex items-center gap-2 text-xs font-heading">
-                              <span className='text-gray-400'>Lagi Rame 🔥:</span>
-                              <HotCoinTicker hotCoin={hotCoin} currency={currency} idrRate={idrRate} />
-                            </div>
                         )}
                     </div>
                 </div>

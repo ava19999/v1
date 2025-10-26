@@ -146,6 +146,24 @@ const App = () => {
     }
   }, [users]);
 
+  const handleGoogleLogin = useCallback(async (email: string, name: string, picture: string): Promise<void> => {
+    const existingUser = users[email];
+    
+    if (existingUser) {
+      setCurrentUser(existingUser);
+    } else {
+      const newUser: User = {
+        email,
+        username: name,
+        createdAt: Date.now(),
+        picture,
+        googleId: email,
+      };
+      setUsers(prev => ({ ...prev, [email]: newUser }));
+      setCurrentUser(newUser);
+    }
+  }, [users]);
+
   const handleRegister = useCallback(async (email: string, password: string): Promise<{ code: string } | string> => {
     if (users[email]) {
       return 'Email ini sudah terdaftar. Silakan login.';
@@ -625,7 +643,7 @@ const App = () => {
   };
   
   if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} onRegister={handleRegister} onVerify={handleVerify} />;
+    return <LoginPage onLogin={handleLogin} onRegister={handleRegister} onVerify={handleVerify} onGoogleLogin={handleGoogleLogin} />;
   }
 
   if (!currentUser.username) {
