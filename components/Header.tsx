@@ -1,5 +1,6 @@
 import React from 'react';
-import type { Page, HeaderProps, Currency } from '../types';
+import type { Page, HeaderProps, Currency, User } from '../types';
+import UserTag from './UserTag';
 
 const NavLink: React.FC<{ page: Page; activePage: Page; onNavigate: (page: Page) => void; children: React.ReactNode; }> = ({ page, activePage, onNavigate, children }) => {
     const isActive = activePage === page || (page === 'rooms' && activePage === 'forum');
@@ -59,7 +60,7 @@ const HotCoinTicker = ({ hotCoin, currency, idrRate }: { hotCoin: HeaderProps['h
 };
 
 
-const Header: React.FC<HeaderProps> = ({ activePage, onNavigate, currency, onCurrencyChange, hotCoin, idrRate }) => {
+const Header: React.FC<HeaderProps> = ({ userProfile, onLogout, activePage, onNavigate, currency, onCurrencyChange, hotCoin, idrRate }) => {
     return (
         <header className="bg-black/30 backdrop-blur-xl border-b border-white/10 sticky top-0 z-20 shadow-lg shadow-black/20">
             <div className="container mx-auto px-4 sm:px-6 lg:px-8">
@@ -76,22 +77,54 @@ const Header: React.FC<HeaderProps> = ({ activePage, onNavigate, currency, onCur
                         </h1>
                     </div>
                     <div className="flex items-center space-x-3">
-                        <div className="hidden lg:flex items-center gap-2 text-xs font-heading">
-                          <span className='text-gray-400'>Lagi Rame 🔥:</span>
-                          <HotCoinTicker hotCoin={hotCoin} currency={currency} idrRate={idrRate} />
-                        </div>
                         <nav className="hidden sm:flex items-center space-x-1">
                             <NavLink page="home" activePage={activePage} onNavigate={onNavigate}>Beranda</NavLink>
                             <NavLink page="rooms" activePage={activePage} onNavigate={onNavigate}>Forum</NavLink>
                             <NavLink page="about" activePage={activePage} onNavigate={onNavigate}>Tentang</NavLink>
                         </nav>
+                        
                         <CurrencySwitcher currency={currency} onCurrencyChange={onCurrencyChange} />
+                        
+                        {userProfile?.username ? (
+                            <>
+                                <div className="hidden md:flex items-center gap-2">
+                                  <div className="text-right">
+                                      <p className="text-sm font-bold text-white truncate max-w-[100px]">{userProfile.username}</p>
+                                      <div className="-mt-1">
+                                          <UserTag sender={userProfile.username} userCreationDate={userProfile.createdAt} />
+                                      </div>
+                                  </div>
+                                </div>
+                                <button
+                                    onClick={onLogout}
+                                    title="Logout"
+                                    className="flex items-center justify-center h-8 w-8 rounded-full bg-white/5 hover:bg-magenta/80 hover:text-white text-gray-400 transition-colors"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                                    </svg>
+                                </button>
+                            </>
+                        ) : (
+                            <div className="hidden lg:flex items-center gap-2 text-xs font-heading">
+                              <span className='text-gray-400'>Lagi Rame 🔥:</span>
+                              <HotCoinTicker hotCoin={hotCoin} currency={currency} idrRate={idrRate} />
+                            </div>
+                        )}
                     </div>
                 </div>
-                 <nav className="sm:hidden flex items-center justify-around pb-2">
+                <nav className="sm:hidden flex items-center justify-around pb-2">
                     <NavLink page="home" activePage={activePage} onNavigate={onNavigate}>Beranda</NavLink>
                     <NavLink page="rooms" activePage={activePage} onNavigate={onNavigate}>Forum</NavLink>
                     <NavLink page="about" activePage={activePage} onNavigate={onNavigate}>Tentang</NavLink>
+                    {userProfile?.username && (
+                         <button
+                            onClick={onLogout}
+                            className={`px-3 py-1.5 text-sm font-medium rounded-md transition-all duration-300 text-gray-400 hover:text-white hover:bg-white/10`}
+                        >
+                            Logout
+                        </button>
+                    )}
                 </nav>
             </div>
         </header>

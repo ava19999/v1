@@ -94,6 +94,8 @@ export type ForumMessageItem = NewsArticle | ChatMessage;
 
 // Props Interfaces
 export interface HeaderProps {
+    userProfile: User | null;
+    onLogout: () => void;
     activePage: Page;
     onNavigate: (page: Page) => void;
     currency: Currency;
@@ -171,7 +173,8 @@ export interface AnalysisModalProps {
 
 export interface LoginPageProps {
     onLogin: (email: string, password: string) => Promise<string | void>;
-    onRegister: (email: string, password: string) => Promise<string | void>;
+    onRegister: (email: string, password: string) => Promise<{ code: string } | string>;
+    onVerify: (email: string, code: string) => Promise<string | void>;
 }
 
 export interface CreateIdPageProps {

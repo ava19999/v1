@@ -33,7 +33,8 @@ const InitialStep = ({ onContinue }: { onContinue: () => void }) => (
     </div>
 );
 
-const FormStep: React.FC<LoginPageProps> = ({ onLogin, onRegister }) => {
+const FormStep: React.FC<Pick<LoginPageProps, 'onLogin' | 'onRegister' > & { onCodeSent: (email: string, code: string) => void }> = 
+({ onLogin, onRegister, onCodeSent }) => {
     const [activeTab, setActiveTab] = useState<'login' | 'register'>('login');
     const [email, setEmail] = useState('');
     const [password, setPassword] = useState('');
@@ -45,11 +46,16 @@ const FormStep: React.FC<LoginPageProps> = ({ onLogin, onRegister }) => {
         setError('');
         setIsLoading(true);
         
-        const action = activeTab === 'login' ? onLogin : onRegister;
-        const result = await action(email, password);
-
-        if (result) {
-            setError(result);
+        if (activeTab === 'login') {
+            const result = await onLogin(email, password);
+            if (result) setError(result);
+        } else {
+            const result = await onRegister(email, password);
+            if (typeof result === 'string') {
+                setError(result);
+            } else {
+                onCodeSent(email, result.code);
+            }
         }
         setIsLoading(false);
     };
@@ -115,15 +121,81 @@ const FormStep: React.FC<LoginPageProps> = ({ onLogin, onRegister }) => {
     );
 };
 
-const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister }) => {
-    const [step, setStep] = useState<'initial' | 'form'>('initial');
+const VerifyStep: React.FC<{ email: string; mockCode: string; onVerify: (email: string, code: string) => Promise<string | void>; onBack: () => void; }> = 
+({ email, mockCode, onVerify, onBack }) => {
+    const [code, setCode] = useState('');
+    const [error, setError] = useState('');
+    const [isLoading, setIsLoading] = useState(false);
+
+    const handleSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        setError('');
+        setIsLoading(true);
+        const result = await onVerify(email, code);
+        if (result) setError(result);
+        setIsLoading(false);
+    }
+    
+    return (
+         <div className="w-full max-w-sm bg-gray-900/50 border border-white/10 rounded-2xl p-6 backdrop-blur-md animate-fade-in-up">
+             <h2 className="text-xl font-bold text-white text-center mb-1">Verifikasi Email Anda</h2>
+             <p className="text-center text-gray-400 text-sm mb-3">
+                 Kami telah mengirimkan kode ke <strong className="text-electric">{email}</strong>.
+             </p>
+              <div className="text-center bg-lime/10 border border-lime/50 rounded-lg p-2 mb-4">
+                  <p className="text-xs text-lime">Untuk simulasi, kode Anda adalah: <strong className="text-lg tracking-widest">{mockCode}</strong></p>
+              </div>
+             <form onSubmit={handleSubmit} className="space-y-4">
+                <div>
+                     <input
+                        type="text"
+                        value={code}
+                        onChange={e => setCode(e.target.value)}
+                        placeholder="Masukkan kode 6 digit"
+                        required
+                        className="w-full bg-white/5 border border-white/10 rounded-lg py-2.5 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all text-center tracking-[0.5em]"
+                        maxLength={6}
+                    />
+                </div>
+                 {error && <p className="text-magenta text-sm text-center">{error}</p>}
+                <button
+                    type="submit"
+                    disabled={isLoading || code.length !== 6}
+                    className="w-full bg-electric hover:bg-electric/80 text-white font-bold py-2.5 px-6 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-electric disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center"
+                >
+                     {isLoading ? 'Memverifikasi...' : 'Verifikasi & Selesaikan'}
+                </button>
+             </form>
+             <button onClick={onBack} className="text-sm text-gray-500 hover:text-white mt-4 w-full">Kembali</button>
+        </div>
+    );
+};
+
+const LoginPage: React.FC<LoginPageProps> = ({ onLogin, onRegister, onVerify }) => {
+    const [step, setStep] = useState<'initial' | 'form' | 'verify'>('initial');
+    const [verificationData, setVerificationData] = useState<{ email: string; code: string } | null>(null);
+    
+    const handleCodeSent = (email: string, code: string) => {
+        setVerificationData({ email, code });
+        setStep('verify');
+    }
+
+    const handleBackToForm = () => {
+        setVerificationData(null);
+        setStep('form');
+    }
 
     return (
         <div className="min-h-screen bg-transparent text-white font-sans flex flex-col items-center justify-center p-4">
-             {step === 'initial' ? (
-                <InitialStep onContinue={() => setStep('form')} />
-             ) : (
-                <FormStep onLogin={onLogin} onRegister={onRegister} />
+             {step === 'initial' && <InitialStep onContinue={() => setStep('form')} />}
+             {step === 'form' && <FormStep onLogin={onLogin} onRegister={onRegister} onCodeSent={handleCodeSent} />}
+             {step === 'verify' && verificationData && (
+                <VerifyStep 
+                    email={verificationData.email} 
+                    mockCode={verificationData.code} 
+                    onVerify={onVerify} 
+                    onBack={handleBackToForm}
+                />
              )}
              <style>{`
                 @keyframes fade-in-up { 

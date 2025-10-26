@@ -57,9 +57,10 @@ const App = () => {
   const [idrRate, setIdrRate] = useState<number | null>(null);
   const [isRateLoading, setIsRateLoading] = useState(true);
 
-  // New Authentication State
+  // Authentication State
   const [users, setUsers] = useState<{ [email: string]: User }>({});
   const [currentUser, setCurrentUser] = useState<User | null>(null);
+  const [verification, setVerification] = useState<{ email: string; pass: string; code: string } | null>(null);
 
   const [analysisCounts, setAnalysisCounts] = useState<{ [key: string]: number }>({});
   const baseAnalysisCount = 1904;
@@ -145,14 +146,31 @@ const App = () => {
     }
   }, [users]);
 
-  const handleRegister = useCallback(async (email: string, password: string): Promise<string | void> => {
+  const handleRegister = useCallback(async (email: string, password: string): Promise<{ code: string } | string> => {
     if (users[email]) {
       return 'Email ini sudah terdaftar. Silakan login.';
     }
-    const newUser: User = { email, password, createdAt: Date.now() };
-    setUsers(prev => ({ ...prev, [email]: newUser }));
-    setCurrentUser(newUser);
+    // Generate a 6-digit code for simulation
+    const code = Math.floor(100000 + Math.random() * 900000).toString();
+    setVerification({ email, pass: password, code });
+    // In a real app, you would email this code. Here, we return it to the UI.
+    return { code };
   }, [users]);
+  
+  const handleVerify = useCallback(async (email: string, code: string): Promise<string | void> => {
+      if (verification && verification.email === email && verification.code === code) {
+          const newUser: User = { email: verification.email, password: verification.pass, createdAt: Date.now() };
+          setUsers(prev => ({ ...prev, [email]: newUser }));
+          setCurrentUser(newUser);
+          setVerification(null); // Clear verification data
+      } else {
+          return 'Kode verifikasi salah.';
+      }
+  }, [verification]);
+
+  const handleLogout = useCallback(() => {
+    setCurrentUser(null);
+  }, []);
 
   const handleIdCreated = useCallback((username: string, email: string) => {
     const userToUpdate = users[email];
@@ -607,7 +625,7 @@ const App = () => {
   };
   
   if (!currentUser) {
-    return <LoginPage onLogin={handleLogin} onRegister={handleRegister} />;
+    return <LoginPage onLogin={handleLogin} onRegister={handleRegister} onVerify={handleVerify} />;
   }
 
   if (!currentUser.username) {
@@ -618,7 +636,16 @@ const App = () => {
   return (
     <div className="min-h-screen bg-transparent text-white font-sans flex flex-col">
       <Particles />
-      <Header activePage={activePage} onNavigate={handleNavigate} currency={currency} onCurrencyChange={setCurrency} hotCoin={hotCoin} idrRate={idrRate} />
+      <Header 
+        userProfile={currentUser} 
+        onLogout={handleLogout} 
+        activePage={activePage} 
+        onNavigate={handleNavigate} 
+        currency={currency} 
+        onCurrencyChange={setCurrency} 
+        hotCoin={hotCoin} 
+        idrRate={idrRate} 
+      />
       <main className="flex-grow">
         {renderActivePage()}
       </main>
