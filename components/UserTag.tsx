@@ -4,6 +4,7 @@ import React from 'react';
 // Ganti 'Admin_RTC' atau tambahkan nama pengguna admin baru di sini.
 const ADMIN_USERNAMES = [
     'Admin_RTC',
+    'ava',
     // 'TraderMaster', // Contoh admin lain
     // 'CryptoQueen', // Contoh admin lain
 ];
