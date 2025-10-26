@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import UserTag from './UserTag';
-import type { NewsArticle, ChatMessage, ForumPageProps, ForumMessageItem } from '../types';
+import type { NewsArticle, ChatMessage, ForumPageProps, ForumMessageItem, User } from '../types';
 
 // --- Helper Functions & Type Guards ---
 
@@ -80,7 +80,7 @@ const NewsMessage: React.FC<{ article: NewsArticle; username: string; onReact: (
     </MessageContainer>
 );
 
-const UserMessage: React.FC<{ message: ChatMessage; userProfile: { username: string; createdAt: number; } | null; onReact: (messageId: string, emoji: string) => void; }> = ({ message, userProfile, onReact }) => {
+const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; onReact: (messageId: string, emoji: string) => void; }> = ({ message, userProfile, onReact }) => {
     const currentUsername = userProfile?.username || '';
     const isCurrentUser = message.sender === currentUsername;
 

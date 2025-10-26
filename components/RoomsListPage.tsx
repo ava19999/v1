@@ -1,6 +1,6 @@
 import React, { useState, useMemo } from 'react';
 import UserTag from './UserTag';
-import type { Room, RoomsListPageProps } from '../types';
+import type { Room, RoomsListPageProps, User } from '../types';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 

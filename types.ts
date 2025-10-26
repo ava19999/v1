@@ -2,6 +2,16 @@
 export type Page = 'home' | 'rooms' | 'forum' | 'about';
 export type Currency = 'usd' | 'idr';
 
+// --- New Authentication Types ---
+export interface User {
+  email: string;
+  // FIX: Corrected typo from `password; string;` to `password: string;`
+  password: string; // In a real app, this would be a hash
+  username?: string;
+  createdAt: number;
+}
+
+
 export interface CryptoData {
   id: string;
   name: string;
@@ -111,7 +121,7 @@ export interface HomePageProps {
 export interface ForumPageProps {
   room: Room | null;
   messages: ForumMessageItem[];
-  userProfile: { username: string; createdAt: number } | null;
+  userProfile: User | null;
   onSendMessage: (message: ChatMessage) => void;
   onLeaveRoom: () => void;
   onReact: (messageId: string, emoji: string) => void;
@@ -123,7 +133,7 @@ export interface RoomsListPageProps {
   onCreateRoom: (roomName: string) => void;
   totalUsers: number;
   hotCoin: { name: string; logo: string } | null;
-  userProfile: { username: string; createdAt: number } | null;
+  userProfile: User | null;
   currentRoomId: string | null;
   joinedRoomIds: Set<string>;
   onLeaveJoinedRoom: (roomId: string) => void;
@@ -160,9 +170,11 @@ export interface AnalysisModalProps {
 }
 
 export interface LoginPageProps {
-    onLoginSuccess: () => void;
+    onLogin: (email: string, password: string) => Promise<string | void>;
+    onRegister: (email: string, password: string) => Promise<string | void>;
 }
 
 export interface CreateIdPageProps {
-    onIdCreated: (username: string) => void;
+    onIdCreated: (username: string, email: string) => void;
+    email: string;
 }

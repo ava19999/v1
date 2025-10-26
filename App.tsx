@@ -1,8 +1,9 @@
 
+
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import type { ForumMessageItem, Room, CoinListItem, CryptoData, ChatMessage, Page, Currency, NewsArticle } from './types';
+import type { ForumMessageItem, Room, CoinListItem, CryptoData, ChatMessage, Page, Currency, NewsArticle, User } from './types';
 import HomePage from './components/HomePage';
 import ForumPage from './components/ForumPage';
 import AboutPage from './components/AboutPage';
@@ -55,8 +56,10 @@ const App = () => {
   const [currency, setCurrency] = useState<Currency>('usd');
   const [idrRate, setIdrRate] = useState<number | null>(null);
   const [isRateLoading, setIsRateLoading] = useState(true);
-  const [userProfile, setUserProfile] = useState<{ username: string; createdAt: number } | null>(null);
-  const [needsIdCreation, setNeedsIdCreation] = useState(false); 
+
+  // New Authentication State
+  const [users, setUsers] = useState<{ [email: string]: User }>({});
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
 
   const [analysisCounts, setAnalysisCounts] = useState<{ [key: string]: number }>({});
   const baseAnalysisCount = 1904;
@@ -94,6 +97,72 @@ const App = () => {
     }
     return defaultMessages;
   });
+
+  // Load users and currentUser from localStorage on initial render
+  useEffect(() => {
+    try {
+      const storedUsers = localStorage.getItem('cryptoUsers');
+      if (storedUsers) {
+        setUsers(JSON.parse(storedUsers));
+      }
+      const storedCurrentUser = localStorage.getItem('currentUser');
+      if (storedCurrentUser) {
+        setCurrentUser(JSON.parse(storedCurrentUser));
+      }
+    } catch (e) {
+      console.error("Gagal memuat data pengguna dari localStorage", e);
+    }
+  }, []);
+
+  // Persist users to localStorage whenever it changes
+  useEffect(() => {
+    try {
+      localStorage.setItem('cryptoUsers', JSON.stringify(users));
+    } catch (e) {
+      console.error("Gagal menyimpan data pengguna ke localStorage", e);
+    }
+  }, [users]);
+
+  // Persist currentUser to localStorage
+  useEffect(() => {
+    try {
+      if (currentUser) {
+        localStorage.setItem('currentUser', JSON.stringify(currentUser));
+      } else {
+        localStorage.removeItem('currentUser');
+      }
+    } catch (e) {
+      console.error("Gagal menyimpan pengguna saat ini ke localStorage", e);
+    }
+  }, [currentUser]);
+
+  const handleLogin = useCallback(async (email: string, password: string): Promise<string | void> => {
+    const user = users[email];
+    if (user && user.password === password) {
+      setCurrentUser(user);
+    } else {
+      return 'Email atau kata sandi salah.';
+    }
+  }, [users]);
+
+  const handleRegister = useCallback(async (email: string, password: string): Promise<string | void> => {
+    if (users[email]) {
+      return 'Email ini sudah terdaftar. Silakan login.';
+    }
+    const newUser: User = { email, password, createdAt: Date.now() };
+    setUsers(prev => ({ ...prev, [email]: newUser }));
+    setCurrentUser(newUser);
+  }, [users]);
+
+  const handleIdCreated = useCallback((username: string, email: string) => {
+    const userToUpdate = users[email];
+    if (userToUpdate) {
+      const updatedUser: User = { ...userToUpdate, username };
+      setUsers(prev => ({ ...prev, [email]: updatedUser }));
+      setCurrentUser(updatedUser);
+    }
+  }, [users]);
+
 
   useEffect(() => {
     const getRate = async () => {
@@ -173,29 +242,6 @@ const App = () => {
       setSearchedCoin(null);
       fetchTrendingData(true);
   }, [fetchTrendingData]);
-
-    useEffect(() => {
-        const storedProfile = localStorage.getItem('userProfile');
-        if (storedProfile) {
-            try {
-                setUserProfile(JSON.parse(storedProfile));
-            } catch (e) {
-                console.error("Gagal mem-parsing profil pengguna dari localStorage", e);
-                localStorage.removeItem('userProfile');
-            }
-        }
-    }, []);
-
-    const handleLoginSuccess = useCallback(() => {
-        setNeedsIdCreation(true);
-    }, []);
-
-    const handleIdCreated = useCallback((username: string) => {
-        const newUserProfile = { username, createdAt: Date.now() };
-        localStorage.setItem('userProfile', JSON.stringify(newUserProfile));
-        setUserProfile(newUserProfile);
-        setNeedsIdCreation(false);
-    }, []);
 
     useEffect(() => {
         const savedCounts = localStorage.getItem('unreadCounts');
@@ -380,11 +426,11 @@ const App = () => {
           return newIds;
       });
 
-      if (!messages[room.id] && userProfile) {
+      if (!messages[room.id] && currentUser?.username) {
           const welcomeMessage: ChatMessage = {
               id: new Date().toISOString(),
               type: 'system',
-              text: `Selamat datang di room "${room.name}". Anda bergabung sebagai ${userProfile.username}.`,
+              text: `Selamat datang di room "${room.name}". Anda bergabung sebagai ${currentUser.username}.`,
               sender: 'system',
               timestamp: Date.now(),
           };
@@ -410,7 +456,7 @@ const App = () => {
       }
 
       setActivePage('forum');
-  }, [messages, userProfile]);
+  }, [messages, currentUser]);
 
   const handleLeaveRoom = useCallback(() => {
       setCurrentRoom(null);
@@ -461,31 +507,26 @@ const App = () => {
       });
   }, [currentRoom]);
 
-  // FIX: Refactored to be more type-safe and efficient.
-  // Using a shallow copy `{...}` is sufficient for immutability and preserves types,
-  // avoiding the performance overhead and type erasure of `JSON.parse(JSON.stringify(...))`.
   const handleReaction = useCallback((messageId: string, emoji: string) => {
-    if (!currentRoom || !userProfile) return;
+    if (!currentRoom || !currentUser?.username) return;
+    const username = currentUser.username;
 
     setMessages(prevMessages => {
         const roomMessages = prevMessages[currentRoom.id] || [];
         const newRoomMessages = roomMessages.map(msg => {
             if (msg.id === messageId) {
-                // Create a mutable copy of reactions for this message. A shallow copy is sufficient.
                 const newReactions = { ...(msg.reactions || {}) };
                 const users = newReactions[emoji] || [];
 
-                if (users.includes(userProfile.username)) {
-                    // User is removing their reaction
-                    const updatedUsers = users.filter(u => u !== userProfile.username);
+                if (users.includes(username)) {
+                    const updatedUsers = users.filter(u => u !== username);
                     if (updatedUsers.length === 0) {
                         delete newReactions[emoji];
                     } else {
                         newReactions[emoji] = updatedUsers;
                     }
                 } else {
-                    // User is adding a reaction
-                    newReactions[emoji] = [...users, userProfile.username];
+                    newReactions[emoji] = [...users, username];
                 }
                 return { ...msg, reactions: newReactions };
             }
@@ -497,7 +538,7 @@ const App = () => {
             [currentRoom.id]: newRoomMessages
         };
     });
-  }, [currentRoom, userProfile]);
+  }, [currentRoom, currentUser]);
 
   const totalUsers = useMemo(() => rooms.reduce((sum, room) => sum + room.userCount, 0), [rooms]);
   const heroCoin = searchedCoin || (trendingCoins.length > 0 ? trendingCoins[0] : null);
@@ -529,7 +570,7 @@ const App = () => {
                     onCreateRoom={handleCreateRoom}
                     totalUsers={totalUsers}
                     hotCoin={hotCoin}
-                    userProfile={userProfile}
+                    userProfile={currentUser}
                     currentRoomId={currentRoom?.id || null}
                     joinedRoomIds={joinedRoomIds}
                     onLeaveJoinedRoom={handleLeaveJoinedRoom}
@@ -539,7 +580,7 @@ const App = () => {
          return <ForumPage 
                     room={currentRoom}
                     messages={currentRoom ? messages[currentRoom.id] || [] : []}
-                    userProfile={userProfile}
+                    userProfile={currentUser}
                     onSendMessage={handleSendMessage}
                     onLeaveRoom={handleLeaveRoom}
                     onReact={handleReaction}
@@ -564,12 +605,13 @@ const App = () => {
                 />;
     }
   };
+  
+  if (!currentUser) {
+    return <LoginPage onLogin={handleLogin} onRegister={handleRegister} />;
+  }
 
-  if (!userProfile) {
-    if (needsIdCreation) {
-        return <CreateIdPage onIdCreated={handleIdCreated} />;
-    }
-    return <LoginPage onLoginSuccess={handleLoginSuccess} />;
+  if (!currentUser.username) {
+      return <CreateIdPage onIdCreated={handleIdCreated} email={currentUser.email} />;
   }
 
 
