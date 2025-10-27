@@ -1,8 +1,10 @@
+// components/UserTag.tsx
 import React from 'react';
 
 // --- ATUR ID ADMIN ANDA DI SINI ---
 // Ganti 'Admin_RTC' atau tambahkan nama pengguna admin baru di sini.
-const ADMIN_USERNAMES = [
+// Pastikan 'export' ditambahkan di sini
+export const ADMIN_USERNAMES = [
     'Admin_RTC',
     'ava',
     // 'TraderMaster', // Contoh admin lain
@@ -19,7 +21,8 @@ const UserTag: React.FC<UserTagProps> = ({ sender, userCreationDate }) => {
     let tagColor = 'text-gray-400';
 
     // Prioritaskan pemeriksaan admin (case-insensitive)
-    if (sender && ADMIN_USERNAMES.map(name => name.toLowerCase()).includes(sender.toLowerCase())) {
+    // Perbaiki map untuk menggunakan tipe string eksplisit
+    if (sender && ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(sender.toLowerCase())) {
         tagName = 'atmin';
         tagColor = 'text-yellow-400';
     } else if (userCreationDate) {

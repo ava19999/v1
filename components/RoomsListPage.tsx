@@ -1,19 +1,19 @@
 // components/RoomsListPage.tsx
 import React, { useState, useMemo } from 'react';
+// Perbaiki impor: gunakan kurung kurawal untuk named export
 import UserTag, { ADMIN_USERNAMES } from './UserTag';
 import type { Room, RoomsListPageProps as BaseRoomsListPageProps, User } from '../types';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
-// Komponen RoomListItem diupdate untuk menampilkan tombol aksi inline
 const RoomListItem: React.FC<{
     room: Room;
-    currentUser: User | null; // <-- Tambahkan currentUser
-    onJoinRoom: (room: Room) => void; // <-- Perlu onJoinRoom di sini
+    currentUser: User | null;
+    onJoinRoom: (room: Room) => void;
     onLeaveRoom: (roomId: string) => void;
     onDeleteRoom: (roomId: string) => void;
     isActive: boolean;
-    isJoined: boolean; // <-- Tambahkan isJoined
+    isJoined: boolean;
     unreadData: { count: number; lastUpdate: number; } | undefined;
 }> = ({
     room,
@@ -28,31 +28,28 @@ const RoomListItem: React.FC<{
     const unreadCount = unreadData?.count || 0;
     const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
 
-    // Cek hak akses hapus/keluar
-    const isAdmin = currentUser?.username ? ADMIN_USERNAMES.map(name => name.toLowerCase()).includes(currentUser.username.toLowerCase()) : false;
+    // Pastikan currentUser ada sebelum mengakses username
+    const isAdmin = currentUser?.username ? ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(currentUser.username.toLowerCase()) : false;
+    // Pastikan properti createdBy ada sebelum membandingkan (perbaikan dari error TS2339)
     const isCreator = room.createdBy === currentUser?.username;
     const canDelete = (isAdmin || isCreator) && !isDefaultRoom;
     const canLeave = isJoined && !isDefaultRoom;
 
-    // Handler untuk tombol aksi agar tidak trigger join
     const handleActionClick = (e: React.MouseEvent, action: () => void) => {
-        e.stopPropagation(); // Mencegah event klik menyebar ke div utama
+        e.stopPropagation();
         action();
     };
 
     return (
         <div
-            onClick={() => onJoinRoom(room)} // Klik div utama akan join room
+            onClick={() => onJoinRoom(room)}
             className={`flex items-center justify-between gap-2 p-2.5 rounded-lg cursor-pointer transition-all duration-200 group relative ${isActive ? 'bg-electric/20 border-electric/50' : 'bg-gray-900/70 hover:bg-gray-800/50 border-transparent'} border`}
         >
-            {/* Informasi Room */}
             <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <div className="flex-1 overflow-hidden">
                     <h3 className="font-bold text-gray-100 truncate text-sm">{room.name}</h3>
                 </div>
             </div>
-
-            {/* Indikator & Tombol Aksi (muncul di kanan) */}
             <div className="flex items-center gap-2 flex-shrink-0">
                 {unreadCount > 0 && (
                      <div className="bg-magenta text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse-notification flex-shrink-0">
@@ -68,28 +65,29 @@ const RoomListItem: React.FC<{
                         <span>{room.userCount.toLocaleString('id-ID')}</span>
                     </div>
                  )}
-
-                 {/* Tombol Aksi - muncul saat hover di parent atau jika room aktif */}
                  <div className={`flex items-center gap-1 transition-opacity duration-200 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                    {canLeave && !canDelete && ( // Tampilkan Leave jika bisa leave TAPI tidak bisa delete
+                    {canLeave && !canDelete && (
                         <button
                             onClick={(e) => handleActionClick(e, () => onLeaveRoom(room.id))}
                             title="Keluar Room"
                             className="p-1 rounded-full text-gray-400 hover:bg-gray-600/50 hover:text-white transition-colors"
                         >
-                            {/* Ikon Keluar */}
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                             </svg>
                         </button>
                     )}
-                    {canDelete && ( // Tampilkan Delete jika bisa delete
+                    {canDelete && (
                          <button
-                            onClick={(e) => handleActionClick(e, () => onDeleteRoom(room.id))}
+                            onClick={(e) => handleActionClick(e, () => {
+                                // Tambahkan konfirmasi lagi di sini jika diinginkan
+                                // if (window.confirm(`Hapus room "${room.name}"?`)) {
+                                     onDeleteRoom(room.id);
+                                // }
+                            })}
                             title="Hapus Room"
                             className="p-1 rounded-full text-red-500 hover:bg-red-500/20 hover:text-red-400 transition-colors"
                         >
-                             {/* Ikon Hapus */}
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
@@ -101,11 +99,9 @@ const RoomListItem: React.FC<{
     );
 };
 
-// Interface Props yang diperluas
 interface ExtendedRoomsListPageProps extends BaseRoomsListPageProps {
     onDeleteRoom: (roomId: string) => void;
 }
-
 
 const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
     rooms, onJoinRoom, onCreateRoom, totalUsers, hotCoin, userProfile,
@@ -114,9 +110,6 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
 }) => {
     const [newRoomName, setNewRoomName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    // State selectedRoomForAction dan ActionModal tidak diperlukan lagi
-    // const [selectedRoomForAction, setSelectedRoomForAction] = useState<Room | null>(null);
-
     const username = userProfile?.username || '';
 
     const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -128,7 +121,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
     };
 
     const { myRooms, publicRooms } = useMemo(() => {
-        // Logika useMemo tetap sama
+        // ... (logika useMemo tetap sama)
         const lowercasedQuery = searchQuery.toLowerCase();
         const filtered = searchQuery
             ? rooms.filter(room => room.name.toLowerCase().includes(lowercasedQuery))
@@ -149,16 +142,12 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
         return { myRooms: myRoomsList, publicRooms: publicRoomsList };
     }, [rooms, searchQuery, joinedRoomIds, unreadCounts]);
 
-
     return (
         <div className="container mx-auto px-2 sm:px-4 py-3 animate-fade-in flex flex-col h-[calc(100vh-56px)]">
-            {/* ActionModal dihapus dari sini */}
-            {/* <ActionModal ... /> */}
-
             {/* Top Stats */}
             <div className="flex-shrink-0 grid grid-cols-2 gap-2 mb-2">
                  {/* ... kode stats ... */}
-                 <div className="bg-gray-900 border border-white/10 rounded-lg p-2 flex items-center gap-2">
+                   <div className="bg-gray-900 border border-white/10 rounded-lg p-2 flex items-center gap-2">
                     <div className="bg-electric/20 text-electric p-2 rounded-md flex-shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                     </div>
@@ -207,7 +196,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
             </form>
 
             {/* Room List */}
-            <div className="flex-grow overflow-y-auto space-y-1.5 pb-4 custom-scrollbar pr-1"> {/* Tambahkan pr-1 jika perlu ruang untuk scrollbar */}
+            <div className="flex-grow overflow-y-auto space-y-1.5 pb-4 custom-scrollbar pr-1">
                  {myRooms.length > 0 && (
                     <div>
                         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-1">Tongkrongan Saya</h2>
@@ -218,10 +207,10 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                                     room={room}
                                     currentUser={userProfile}
                                     onJoinRoom={onJoinRoom}
-                                    onLeaveRoom={onLeaveJoinedRoom} // <-- Ganti onLeaveJoinedRoom
+                                    onLeaveRoom={onLeaveJoinedRoom}
                                     onDeleteRoom={onDeleteRoom}
                                     isActive={room.id === currentRoomId}
-                                    isJoined={true} // Room di 'My Rooms' pasti sudah dijoin
+                                    isJoined={true}
                                     unreadData={unreadCounts[room.id]}
                                 />
                             ))}
@@ -229,7 +218,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                     </div>
                  )}
                   {publicRooms.length > 0 && (
-                    <div className={myRooms.length > 0 ? 'mt-4' : ''}> {/* Tambah margin jika ada My Rooms */}
+                    <div className={myRooms.length > 0 ? 'mt-4' : ''}>
                         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-1">Tongkrongan Publik</h2>
                         <div className="space-y-1.5">
                              {publicRooms.map(room => (
@@ -238,11 +227,11 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                                     room={room}
                                     currentUser={userProfile}
                                     onJoinRoom={onJoinRoom}
-                                    onLeaveRoom={onLeaveJoinedRoom} // Tidak relevan krn belum join
-                                    onDeleteRoom={onDeleteRoom}    // Tidak relevan krn belum join
-                                    isActive={false} // Room publik tidak bisa aktif sblm dijoin
-                                    isJoined={false} // Room di publik belum dijoin
-                                    unreadData={undefined} // Tidak ada unread untuk yg belum join
+                                    onLeaveRoom={onLeaveJoinedRoom} // Tetap teruskan, meski tidak akan ditampilkan
+                                    onDeleteRoom={onDeleteRoom}    // Tetap teruskan, meski tidak akan ditampilkan
+                                    isActive={false}
+                                    isJoined={false}
+                                    unreadData={undefined}
                                 />
                             ))}
                         </div>
@@ -257,7 +246,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
             </div>
              <style>{`
                 /* ... (kode style tetap sama) ... */
-                @keyframes fade-in-scale { /* ... */ }
+                 @keyframes fade-in-scale { /* ... */ }
                 @keyframes pulse-notification { /* ... */ }
                 .animate-fade-in { /* ... */ }
                 .animate-fade-in-scale { /* ... */ }
