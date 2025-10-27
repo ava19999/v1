@@ -4,6 +4,9 @@ import UserTag, { ADMIN_USERNAMES } from './UserTag'; // Import ADMIN_USERNAMES
 import type { NewsArticle, ChatMessage, ForumPageProps, ForumMessageItem, User } from '../types';
 import { isNewsArticle, isChatMessage } from '../types';
 
+// FIX: Define DEFAULT_ROOM_IDS constant locally
+const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
+
 const formatDate = (unixTimestamp: number): string => new Date(unixTimestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 const EMOJIS = ['👍', '❤️', '🚀', '🔥', '😂', '🤯'];
 
@@ -96,7 +99,6 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
             <div className={`flex items-start gap-2 ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'}`}>
 
                  {/* Action Buttons Container - Placed next to the message bubble */}
-                 {/* FIX: Simplified positioning and added stopPropagation */}
                  <div className={`relative flex-shrink-0 self-start mt-1 z-10 flex items-center bg-gray-900 border border-white/10 rounded-full px-1 shadow-lg transition-opacity duration-200 ${isActive ? 'opacity-100 animate-fade-in-fast' : 'opacity-0 pointer-events-none group-hover/message:opacity-100'}`}>
                     <ReactButton onClick={(e) => { e.stopPropagation(); setShowPicker(prev => !prev); }} />
                     {canDelete && <DeleteButton onClick={(e) => { e.stopPropagation(); onDeleteClick(); }} />}
@@ -221,6 +223,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
     // Handle null room case
     if (!room) { return (<div className="flex flex-col flex-grow items-center justify-center text-gray-500">Pilih room untuk memulai.</div>); }
 
+    // FIX: Use the imported constant
     const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
     const isSendDisabled = (!newMessage.trim() && !attachment) || !username;
     const isAdmin = userProfile?.username ? ADMIN_USERNAMES.map(n => n.toLowerCase()).includes(userProfile.username.toLowerCase()) : false;
@@ -242,21 +245,18 @@ const ForumPage: React.FC<ForumPageProps> = ({
                      ) : (
                          sortedMessages.map((item, index) => {
                            const isActive = activeMessageId === item.id && showActions;
-                           const messageKey = item.id || `${item.type}-${index}-${item.timestamp || Math.random()}`; // More robust fallback key
+                            // FIX: Use item.id which is guaranteed to exist for both ChatMessage and NewsArticle from Firebase keys
+                           const messageKey = item.id || `fallback-${index}-${Math.random()}`; // More robust fallback
 
                            if (isChatMessage(item)) {
                                if (item.type === 'system') {
-                                   // Special rendering for announcements in specific room
                                    if (room.id === 'pengumuman-aturan') {
                                        return <AnnouncementMessage key={messageKey} message={item} />;
                                    }
-                                   // Default system message
                                    return <SystemMessage key={messageKey} message={item} />;
                                }
-                               // User message
                                const isOwnMessage = item.sender === username && !!username;
                                const canDelete = isAdmin || (isOwnMessage && item.type === 'user');
-                               // Pass full userProfile only if it's the current user's message to get creationDate for UserTag
                                const senderProfile = isOwnMessage ? userProfile : null;
                                return <UserMessage
                                           key={messageKey}
@@ -269,8 +269,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                           onMessageClick={() => handleMessageClick(item.id)}
                                       />;
                            } else if (isNewsArticle(item)) {
-                               // News article
-                               const canDeleteNews = isAdmin; // Only admin can delete news
+                               const canDeleteNews = isAdmin;
                                return <NewsMessage
                                           key={messageKey}
                                           article={item}
@@ -282,8 +281,8 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                           onMessageClick={() => handleMessageClick(item.id)}
                                       />;
                            }
-                           console.warn("Unknown item type in messages:", item); // Log unexpected items
-                           return null; // Skip rendering unknown items
+                           console.warn("Unknown item type in messages:", item);
+                           return null;
                         })
                     )}
                     {/* Element to scroll to */}
