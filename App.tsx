@@ -243,8 +243,7 @@ const AppContent = () => {
         } else {
             setActivePage(page);
         }
-        // Don't leave room just by navigating top level pages, only when explicitly leaving or joining another
-        // setCurrentRoom(null);
+        // Don't leave room just by navigating top level pages
     }, [activePage, handleResetToTrending]);
 
    const handleSelectCoin = useCallback(async (coinId: string) => {
@@ -259,7 +258,7 @@ const AppContent = () => {
         setJoinedRoomIds(prev => new Set(prev).add(room.id));
         setUnreadCounts(prev => ({ ...prev, [room.id]: { count: 0, lastUpdate: Date.now() } }));
         setActivePage('forum');
-    }, []); // Removed unused dependencies
+    }, []);
 
     const handleLeaveRoom = useCallback(() => { setCurrentRoom(null); setActivePage('rooms'); }, []);
 
@@ -289,7 +288,6 @@ const AppContent = () => {
             createdBy: currentUser.username
         };
         setRooms(prev => [newRoom, ...prev]);
-        // Consider saving the new room to Firebase if rooms should persist globally
         handleJoinRoom(newRoom);
     }, [handleJoinRoom, rooms, currentUser]);
 
@@ -312,60 +310,54 @@ const AppContent = () => {
             if (!database) { console.error("DB null - deleteRoom"); return; }
             const messagesRef = ref(database, `messages/${roomId}`);
             set(messagesRef, null).catch(error => console.error(`Failed to delete messages for room ${roomId}:`, error));
-            // Optionally delete room info if stored separately in Firebase
-            // const roomInfoRef = ref(database, `rooms/${roomId}`);
-            // set(roomInfoRef, null).catch(error => console.error(`Failed to delete room info for ${roomId}:`, error));
         }
    }, [currentUser, rooms, currentRoom, database]);
 
 
     // --- Firebase Chat Logic ---
 
-    // Send Message - REVISED
+    // Send Message - VERIFIED CORRECT STRUCTURE
     const handleSendMessage = useCallback((message: ChatMessage) => {
         if (!database) {
             console.error("[App.tsx] Database not initialized!");
-            alert("Gagal kirim pesan: Database tidak terhubung."); // User feedback
+            alert("Gagal kirim pesan: Database tidak terhubung.");
             return;
         }
         if (!currentRoom?.id) {
             console.error("[App.tsx] currentRoom.id is missing!");
-            alert("Gagal kirim pesan: Room tidak dipilih."); // User feedback
+            alert("Gagal kirim pesan: Room tidak dipilih.");
             return;
         }
         if (!currentUser?.username) {
             console.error("[App.tsx] currentUser.username is missing!");
-             alert("Gagal kirim pesan: User tidak login."); // User feedback
+             alert("Gagal kirim pesan: User tidak login.");
             return;
         }
 
         const messageListRef = ref(database, `messages/${currentRoom.id}`);
-        const newMessageRef = push(messageListRef); // Generate unique key
+        const newMessageRef = push(messageListRef);
 
         // Construct message *without* client-side ID
         const messageToSend: Omit<ChatMessage, 'id'> = {
              type: 'user',
-             sender: currentUser.username, // Use confirmed logged-in username
-             timestamp: Date.now(), // Use client time as fallback
+             sender: currentUser.username,
+             timestamp: Date.now(), // Using client time is acceptable
              reactions: {}, // Initialize reactions
-             // Conditionally add text/file info ONLY if they exist in the input 'message'
              ...(message.text && { text: message.text }),
              ...(message.fileURL && { fileURL: message.fileURL }),
              ...(message.fileName && { fileName: message.fileName }),
         };
 
-        // Ensure we are sending something meaningful
         if (!messageToSend.text && !messageToSend.fileURL) {
             console.warn("[App.tsx] Attempted to send an empty message.");
-            return; // Don't send empty messages
+            return;
         }
-
 
         set(newMessageRef, messageToSend)
             .then(() => { /* Sent successfully */ })
             .catch((error) => {
                 console.error("[App.tsx] Firebase send message failed:", error);
-                alert("Gagal mengirim pesan ke server."); // More specific user feedback
+                alert("Gagal mengirim pesan ke server.");
             });
 
     }, [currentRoom, currentUser, database]);
@@ -374,11 +366,10 @@ const AppContent = () => {
     // Listen for Messages
     useEffect(() => {
         if (!database || !currentRoom?.id) {
-            // Clear messages for the current room if we disconnect or leave
             if (currentRoom?.id) {
                  setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] }));
             }
-            return () => {}; // Cleanup if db/room not available
+            return () => {};
         }
 
         const messagesRef = ref(database, `messages/${currentRoom.id}`);
@@ -388,7 +379,6 @@ const AppContent = () => {
             if (data) {
                 Object.keys(data).forEach(key => {
                     const msgData = data[key];
-                    // More robust validation
                     if (msgData && typeof msgData === 'object' && msgData.timestamp && typeof msgData.timestamp === 'number') {
                         let type: 'news' | 'user' | 'system' | undefined = msgData.type;
                         if (!type) {
@@ -406,7 +396,6 @@ const AppContent = () => {
             }
 
              let finalMessages = messagesArray;
-             // Apply default messages logic only if Firebase returns zero valid messages
              if (messagesArray.length === 0 && currentRoom?.id) {
                   if (defaultMessages[currentRoom.id]) {
                       finalMessages = [...defaultMessages[currentRoom.id]];
@@ -417,35 +406,30 @@ const AppContent = () => {
                   }
              }
 
-            // Sort and update state
             setFirebaseMessages(prev => ({
                 ...prev,
                 [currentRoom!.id]: finalMessages.sort((a, b) => {
-                    // Get timestamp based on type
                     const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0);
                     const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0);
-                     // Robust sorting: Handle cases where timestamp might be missing or 0
-                     if (!timeA && !timeB) return 0; // If both are missing/0, keep order
-                     if (!timeA) return 1;          // Put items without time last
-                     if (!timeB) return -1;          // Put items without time last
-                    return timeA - timeB;         // Sort by time ascending
+                     if (!timeA && !timeB) return 0;
+                     if (!timeA) return 1;
+                     if (!timeB) return -1;
+                    return timeA - timeB;
                 })
             }));
         }, (error) => {
             console.error(`Firebase listener error for ${currentRoom?.id}:`, error);
-            // Optionally clear messages or show an error state in UI
             if (currentRoom?.id) {
                  setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] }));
             }
         });
 
-        // Cleanup function
         return () => {
             if (database) {
                 off(messagesRef, 'value', listener);
             }
         };
-    }, [currentRoom, currentUser, database]); // Rerun when room, user, or db status changes
+    }, [currentRoom, currentUser, database]);
 
 
     // Fetch News Articles and Add to Firebase
@@ -459,11 +443,11 @@ const AppContent = () => {
          const fetchAndProcessNews = async () => {
              const currentTime = Date.now();
              const lastFetch = parseInt(localStorage.getItem(LAST_FETCH_KEY) || '0', 10);
-             // if (currentTime - lastFetch < NEWS_FETCH_INTERVAL) return; // Uncomment for production interval check
+             // if (currentTime - lastFetch < NEWS_FETCH_INTERVAL) return;
 
              try {
                  const fetchedArticles = await fetchNewsArticles();
-                 if (!fetchedArticles || fetchedArticles.length === 0) { console.log("No news articles fetched."); return; }
+                 if (!fetchedArticles || fetchedArticles.length === 0) { /* console.log("No news articles fetched."); */ return; }
                  if (!currentDb) { console.warn("Database became null during news fetch."); return; }
 
                  const newsRoomRef = ref(currentDb, `messages/${NEWS_ROOM_ID}`);
@@ -476,7 +460,6 @@ const AppContent = () => {
                  const updates: { [key: string]: Omit<NewsArticle, 'id'> } = {};
 
                  fetchedArticles.forEach(article => {
-                     // Basic validation for essential news article fields
                      if (article.url && article.title && article.published_on && article.source && !existingNewsUrls.has(article.url)) {
                          const newsRef = push(newsRoomRef);
                          if (newsRef.key) {
@@ -484,10 +467,10 @@ const AppContent = () => {
                                   type: 'news',
                                   title: article.title,
                                   url: article.url,
-                                  imageurl: article.imageurl || '', // Provide default empty string for imageurl
+                                  imageurl: article.imageurl || '',
                                   published_on: article.published_on,
                                   source: article.source,
-                                  body: article.body || '', // Provide default empty string for body
+                                  body: article.body || '',
                                   reactions: {},
                               };
                              updates[newsRef.key] = articleData;
@@ -497,7 +480,7 @@ const AppContent = () => {
                  });
 
                  if (newArticleAdded) {
-                     console.log(`Adding ${Object.keys(updates).length} new news articles to Firebase.`);
+                     // console.log(`Adding ${Object.keys(updates).length} new news articles to Firebase.`);
                      await update(newsRoomRef, updates);
                      localStorage.setItem(LAST_FETCH_KEY, currentTime.toString());
 
@@ -511,12 +494,12 @@ const AppContent = () => {
                          }));
                      }
                  } else {
-                     console.log("No new news articles to add.");
+                     // console.log("No new news articles to add.");
                  }
-             } catch (err: unknown) { // Catch as unknown
+             } catch (err: unknown) { // Catch as unknown is safer
                  let errorMessage = 'Unknown error during news fetch/process';
                  if (err instanceof Error) {
-                     errorMessage = err.message;
+                     errorMessage = err.message; // Line 229 area
                  } else if (typeof err === 'string') {
                     errorMessage = err;
                  } else {
@@ -531,7 +514,7 @@ const AppContent = () => {
          const intervalId = setInterval(fetchAndProcessNews, NEWS_FETCH_INTERVAL);
          return () => clearInterval(intervalId);
 
-    }, [currentRoom, database]); // Correct dependencies
+    }, [currentRoom, database]);
 
 
     // Handle Reactions
@@ -547,12 +530,12 @@ const AppContent = () => {
 
         get(reactionUserListRef).then((snapshot) => {
             const usersForEmoji: string[] = snapshot.val() || [];
-            let updatedUsers: string[] | null = null; // Use null to remove the node if empty
+            let updatedUsers: string[] | null = null;
 
             if (usersForEmoji.includes(username)) {
                 updatedUsers = usersForEmoji.filter(u => u !== username);
                 if (updatedUsers.length === 0) {
-                    updatedUsers = null; // Set to null to delete the emoji node in Firebase
+                    updatedUsers = null;
                 }
             } else {
                 updatedUsers = [...usersForEmoji, username];
@@ -572,7 +555,7 @@ const AppContent = () => {
         if (!roomId || !messageId) { console.error("[App.tsx] Missing roomId or messageId for deleteMessage"); return; }
 
         const messageRef = ref(database, `messages/${roomId}/${messageId}`);
-        set(messageRef, null) // Setting to null deletes the data
+        set(messageRef, null)
             .then(() => { /* Deleted successfully */ })
             .catch((error) => { console.error(`[App.tsx] Failed to delete message ${messageId}:`, error); alert("Gagal menghapus pesan."); });
     }, [database]);
