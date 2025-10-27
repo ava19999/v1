@@ -1,9 +1,9 @@
 // App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { jwtDecode } from 'jwt-decode'; // Tambahkan impor ini jika belum ada
+import { jwtDecode } from 'jwt-decode';
 import Header from './components/Header';
 import Footer from './components/Footer';
-import type { ForumMessageItem, Room, CoinListItem, CryptoData, ChatMessage, Page, Currency, NewsArticle, User, GoogleProfile } from './types'; // Pastikan Room diimpor
+import type { ForumMessageItem, Room, CoinListItem, CryptoData, ChatMessage, Page, Currency, NewsArticle, User, GoogleProfile } from './types';
 import HomePage from './components/HomePage';
 import ForumPage from './components/ForumPage';
 import AboutPage from './components/AboutPage';
@@ -11,46 +11,30 @@ import RoomsListPage from './components/RoomsListPage';
 import LoginPage from './components/LoginPage';
 import CreateIdPage from './components/CreateIdPage';
 import { fetchIdrRate, fetchNewsArticles, fetchTop500Coins, fetchTrendingCoins, fetchCoinDetails } from './services/mockData';
-import { ADMIN_USERNAMES } from './components/UserTag'; // <-- Impor admin list
+import { ADMIN_USERNAMES } from './components/UserTag';
 
+// Firebase imports
+import { database } from './services/firebaseService';
+import { ref, set, push, onValue, off, update, get } from "firebase/database"; // Tambahkan 'update' dan 'get'
+
+// Pesan default (bisa digunakan jika room baru dan belum ada data di Firebase)
 const defaultMessages: { [key: string]: ForumMessageItem[] } = {
-    // ... (pesan default tetap sama)
      'pengumuman-aturan': [
-        {
-            id: 'rule1',
-            type: 'system',
-            text: 'Selamat datang di RT Crypto! Ini adalah tempat kita untuk diskusi dan analisis.',
-            sender: 'system',
-            timestamp: Date.now()
-        },
-        {
-            id: 'rule2',
-            type: 'system',
-            text: 'Aturan Penting: Dilarang keras membagikan ajakan membeli (sinyal). Selalu lakukan riset sendiri (DYOR). Semua risiko ditanggung oleh masing-masing.',
-            sender: 'system',
-            timestamp: Date.now() + 1
-        },
-        {
-            id: 'mission1',
-            type: 'system',
-            text: 'Misi Kita Bareng: Jujur, kita capek liat banyak temen yang boncos gara-gara info sesat atau FOMO doang. Misi kita simpel: bikin tempat di mana semua orang bisa dapet info valid dan ngeracik strategi bareng. Ini gerakan kita buat jadi trader cerdas, bukan cuma ikut-ikutan. Ayo menang bareng di market!',
-            sender: 'system',
-            timestamp: Date.now() + 2
-        }
-    ]
+        { id: 'rule1', type: 'system', text: 'Selamat datang di RT Crypto! Ini adalah tempat kita untuk diskusi dan analisis.', sender: 'system', timestamp: Date.now() - 2000 },
+        { id: 'rule2', type: 'system', text: 'Aturan Penting: Dilarang keras membagikan ajakan membeli (sinyal). Selalu lakukan riset sendiri (DYOR). Semua risiko ditanggung oleh masing-masing.', sender: 'system', timestamp: Date.now() - 1000 },
+        { id: 'mission1', type: 'system', text: 'Misi Kita Bareng: Jujur, kita capek liat banyak temen yang boncos gara-gara info sesat atau FOMO doang. Misi kita simpel: bikin tempat di mana semua orang bisa dapet info valid dan ngeracik strategi bareng...', sender: 'system', timestamp: Date.now() }
+    ],
+    // 'berita-kripto': [], // Biarkan kosong, akan diisi oleh fetchNewsArticles
 };
 
 const Particles = () => (
-     // ... (kode Particles tetap sama)
       <div className="particles">
-      <div className="particle" style={{ width: '3px', height: '3px', left: '10%', animationDelay: '-1s' }}></div>
-      <div className="particle" style={{ width: '2px', height: '2px', left: '25%', animationDelay: '-5s' }}></div>
-      <div className="particle" style={{ width: '4px', height: '4px', left: '50%', animationDelay: '-3s' }}></div>
-      <div className="particle" style={{ width: '3px', height: '3px', left: '70%', animationDelay: '-8s' }}></div>
-      <div className="particle" style={{ width: '2px', height: '2px', left: '85%', animationDelay: '-2s' }}></div>
-      <div className="particle" style={{ width: '4px', height: '4px', left: '40%', animationDelay: '-12s' }}></div>
-      <div className="particle" style={{ width: '3px', height: '3px', left: '90%', animationDelay: '-15s' }}></div>
-    </div>
+        <div className="particle" style={{ width: '3px', height: '3px', left: '10%', animationDelay: '-1s' }}></div>
+        <div className="particle" style={{ width: '2px', height: '2px', left: '25%', animationDelay: '-5s' }}></div>
+        <div className="particle" style={{ width: '4px', height: '4px', left: '50%', animationDelay: '-3s' }}></div>
+        {/* ... particle lainnya ... */}
+        <div className="particle" style={{ width: '3px', height: '3px', left: '90%', animationDelay: '-15s' }}></div>
+      </div>
 );
 
 
@@ -61,11 +45,11 @@ const App = () => {
   const [isRateLoading, setIsRateLoading] = useState(true);
 
   // Authentication State
-  const [users, setUsers] = useState<{ [email: string]: User }>({}); // Gunakan email sebagai key
+  const [users, setUsers] = useState<{ [email: string]: User }>({});
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [pendingGoogleUser, setPendingGoogleUser] = useState<GoogleProfile | null>(null); // Untuk menyimpan data Google sementara
+  const [pendingGoogleUser, setPendingGoogleUser] = useState<GoogleProfile | null>(null);
 
-  // Application State (Crypto Data, Forum, etc.)
+  // Application State
   const [analysisCounts, setAnalysisCounts] = useState<{ [key: string]: number }>({});
   const baseAnalysisCount = 1904;
   const [fullCoinList, setFullCoinList] = useState<CoinListItem[]>([]);
@@ -75,291 +59,236 @@ const App = () => {
   const [isTrendingLoading, setIsTrendingLoading] = useState(true);
   const [trendingError, setTrendingError] = useState<string | null>(null);
   const [searchedCoin, setSearchedCoin] = useState<CryptoData | null>(null);
-  const [rooms, setRooms] = useState<Room[]>([ // Definisikan tipe state rooms
-        // Tambahkan properti createdBy ke data awal jika relevan
-        { id: 'berita-kripto', name: 'Berita Kripto', userCount: 150 + Math.floor(Math.random() * 20) }, // Default room, no creator needed
-        { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 150 + Math.floor(Math.random() * 20) }, // Default room
-        { id: 'umum', name: 'Kripto Naik/Turun Hari Ini', userCount: 134 + Math.floor(Math.random() * 20) , createdBy: 'Admin_RTC'}, // Contoh creator
+  const [rooms, setRooms] = useState<Room[]>([
+        { id: 'berita-kripto', name: 'Berita Kripto', userCount: 150 + Math.floor(Math.random() * 20) },
+        { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 150 + Math.floor(Math.random() * 20) },
+        { id: 'umum', name: 'Kripto Naik/Turun Hari Ini', userCount: 134 + Math.floor(Math.random() * 20) , createdBy: 'Admin_RTC'},
         { id: 'meme', name: 'Meme Coin Mania', userCount: 88 + Math.floor(Math.random() * 20), createdBy: 'Admin_RTC' },
         { id: 'xrp-army', name: 'Xrp Army', userCount: 73 + Math.floor(Math.random() * 20), createdBy: 'Admin_RTC' },
-        { id: 'roblox-tuker-kripto', name: 'Roblox Tuker Kripto', userCount: 42 + Math.floor(Math.random() * 20), createdBy: 'ava' }, // Contoh creator lain
+        { id: 'roblox-tuker-kripto', name: 'Roblox Tuker Kripto', userCount: 42 + Math.floor(Math.random() * 20), createdBy: 'ava' },
     ]);
-  const [currentRoom, setCurrentRoom] = useState<Room | null>(null); // Definisikan tipe state currentRoom
+  const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
   const [joinedRoomIds, setJoinedRoomIds] = useState<Set<string>>(
-    () => new Set(['berita-kripto', 'pengumuman-aturan']) // Initialize with default rooms
+    () => new Set(['berita-kripto', 'pengumuman-aturan'])
   );
    const [unreadCounts, setUnreadCounts] = useState<{ [key: string]: { count: number; lastUpdate: number } }>({});
-   const [messages, setMessages] = useState<{[key: string]: ForumMessageItem[]}>(() => {
-     const savedMessages = localStorage.getItem('forumMessages');
-    if (savedMessages) {
-        try {
-            // TODO: Add validation logic here if needed
-            return JSON.parse(savedMessages);
-        } catch (e) {
-            console.error("Gagal mem-parsing pesan dari localStorage", e);
-            return defaultMessages;
-        }
-    }
-    return defaultMessages;
-   });
+   // State untuk menyimpan pesan dari Firebase
+   const [firebaseMessages, setFirebaseMessages] = useState<{ [roomId: string]: ForumMessageItem[] }>({});
 
-  // --- Effects for Data Loading & Persistence ---
 
-  // Load users and currentUser from localStorage on initial render
-    useEffect(() => {
+  // --- Effects for Data Loading & Persistence (Auth, Settings) ---
+
+    useEffect(() => { /* ... Load users & currentUser from localStorage ... */
         try {
             const storedUsers = localStorage.getItem('cryptoUsers');
-            if (storedUsers) {
-                setUsers(JSON.parse(storedUsers));
-            }
+            if (storedUsers) setUsers(JSON.parse(storedUsers));
             const storedCurrentUser = localStorage.getItem('currentUser');
-            if (storedCurrentUser) {
-                setCurrentUser(JSON.parse(storedCurrentUser));
-            }
-        } catch (e) {
-            console.error("Gagal memuat data pengguna dari localStorage", e);
+            if (storedCurrentUser) setCurrentUser(JSON.parse(storedCurrentUser));
+        } catch (e) { console.error("Gagal load user:", e); }
+    }, []);
+    useEffect(() => { /* ... Persist users to localStorage ... */
+        try { localStorage.setItem('cryptoUsers', JSON.stringify(users)); }
+        catch (e) { console.error("Gagal simpan users:", e); }
+    }, [users]);
+    useEffect(() => { /* ... Persist currentUser to localStorage ... */
+        try {
+            if (currentUser) localStorage.setItem('currentUser', JSON.stringify(currentUser));
+            else localStorage.removeItem('currentUser');
+        } catch (e) { console.error("Gagal simpan currentUser:", e); }
+    }, [currentUser]);
+    useEffect(() => { /* ... Load/Save unreadCounts from localStorage ... */
+        const saved = localStorage.getItem('unreadCounts');
+        if (saved) try { setUnreadCounts(JSON.parse(saved)); } catch (e) { console.error("Gagal load unread:", e); }
+    }, []);
+    useEffect(() => { /* ... Persist unreadCounts to localStorage ... */
+         localStorage.setItem('unreadCounts', JSON.stringify(unreadCounts));
+    }, [unreadCounts]);
+    useEffect(() => { /* ... Reset/Load analysis counts daily ... */
+        const lastReset = localStorage.getItem('lastAnalysisResetDate');
+        const today = new Date().toISOString().split('T')[0];
+        if (lastReset !== today) {
+            setAnalysisCounts({});
+            localStorage.setItem('analysisCounts', JSON.stringify({}));
+            localStorage.setItem('lastAnalysisResetDate', today);
+        } else {
+            const saved = localStorage.getItem('analysisCounts');
+            if (saved) try { setAnalysisCounts(JSON.parse(saved)); } catch (e) { console.error("Gagal load analysis counts:", e); setAnalysisCounts({});}
         }
     }, []);
 
-    // Persist users to localStorage whenever it changes
-    useEffect(() => {
-        try {
-            localStorage.setItem('cryptoUsers', JSON.stringify(users));
-        } catch (e) {
-            console.error("Gagal menyimpan data pengguna ke localStorage", e);
-        }
-    }, [users]);
-
-    // Persist currentUser to localStorage
-    useEffect(() => {
-        try {
-            if (currentUser) {
-                localStorage.setItem('currentUser', JSON.stringify(currentUser));
-            } else {
-                localStorage.removeItem('currentUser');
-            }
-        } catch (e) {
-            console.error("Gagal menyimpan pengguna saat ini ke localStorage", e);
-        }
-    }, [currentUser]);
-
-    // --- Authentication Handlers ---
-
-    // Google Login Success Handler
-    const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: any) => {
+  // --- Authentication Handlers ---
+    const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: any) => { /* ... logika Google login ... */
         try {
             const decoded: any = jwtDecode(credentialResponse.credential);
             const { email, name, picture } = decoded;
-
-            // **Pengecekan Email Sudah Terdaftar**
             const existingUser = users[email];
              if (existingUser) {
-                 // Jika user dengan email ini sudah ada (baik dari Google atau manual)
-                 // Langsung login
                  setCurrentUser(existingUser);
                  setPendingGoogleUser(null);
-                 alert(`Selamat datang kembali, ${existingUser.username}! Anda login dengan akun yang terhubung ke ${email}.`);
+                 alert(`Selamat datang kembali, ${existingUser.username}!`);
             } else {
-                // Jika user baru, simpan data Google dan arahkan ke pembuatan profil
                  setPendingGoogleUser({ email, name, picture });
             }
-        } catch (error) {
-            console.error("Google Sign-In Error:", error);
-            alert('Terjadi kesalahan saat login dengan Google.');
-        }
-    }, [users]); // Depend on users state
-
-     // Login Biasa
-    const handleLogin = useCallback(async (usernameOrEmail: string, password: string): Promise<string | void> => {
-        // Coba cari berdasarkan username dulu
-        let user = Object.values(users).find(u => u.username?.toLowerCase() === usernameOrEmail.toLowerCase());
-
-        // Jika tidak ketemu username, coba cari berdasarkan email
-        if (!user) {
-            user = users[usernameOrEmail.toLowerCase()]; // Asumsi email disimpan lowercase sebagai key
-        }
-
-        if (user && user.password === password) {
-             setCurrentUser(user);
-             setPendingGoogleUser(null);
-        } else {
-            return 'Username/Email atau kata sandi salah.';
-        }
+        } catch (error) { console.error("Google Sign-In Error:", error); alert('Error login Google.'); }
     }, [users]);
+    const handleLogin = useCallback(async (usernameOrEmail: string, password: string): Promise<string | void> => { /* ... logika login manual ... */
+        let user = Object.values(users).find(u => u.username?.toLowerCase() === usernameOrEmail.toLowerCase());
+        if (!user) user = users[usernameOrEmail.toLowerCase()];
+        if (user && user.password === password) setCurrentUser(user);
+        else return 'Username/Email atau kata sandi salah.';
+    }, [users]);
+    const handleProfileComplete = useCallback(async (username: string, password: string): Promise<string | void> => { /* ... logika complete profile Google ... */
+        if (!pendingGoogleUser) return 'Data Google tidak ditemukan.';
+        if (users[pendingGoogleUser.email]) { /* ... handle email already exists ... */
+            setPendingGoogleUser(null); setCurrentUser(users[pendingGoogleUser.email]);
+            alert(`Email ${pendingGoogleUser.email} sudah ada. Anda otomatis login.`); return;
+        }
+        const usernameExists = Object.values(users).some(u => u.username?.toLowerCase() === username.toLowerCase());
+        if (usernameExists) return 'Username sudah digunakan.';
+        const newUser: User = { email: pendingGoogleUser.email, username, password, googleProfilePicture: pendingGoogleUser.picture, createdAt: Date.now() };
+        setUsers(prev => ({ ...prev, [newUser.email.toLowerCase()]: newUser }));
+        setCurrentUser(newUser); setPendingGoogleUser(null);
+    }, [users, pendingGoogleUser]);
+    const handleLogout = useCallback(() => { /* ... logika logout ... */
+        setCurrentUser(null); setPendingGoogleUser(null);
+        localStorage.removeItem('currentUser'); setActivePage('home');
+    }, []);
 
-    // Handler setelah user Google baru melengkapi profil (username & password)
-    const handleProfileComplete = useCallback(async (username: string, password: string): Promise<string | void> => {
-        if (!pendingGoogleUser) return 'Data pengguna Google tidak ditemukan.';
+  // --- Fetching External Data ---
+    useEffect(() => { /* ... Fetch IDR Rate ... */
+        const getRate = async () => {
+            try { setIsRateLoading(true); const rate = await fetchIdrRate(); setIdrRate(rate); }
+            catch (error) { console.error("Gagal fetch IDR rate:", error); setIdrRate(16000); }
+            finally { setIsRateLoading(false); }
+        }; getRate();
+    }, []);
+    useEffect(() => { /* ... Fetch Top 500 Coins ... */
+        const fetchList = async () => {
+             setIsCoinListLoading(true); setCoinListError(null);
+            try { const coins = await fetchTop500Coins(); setFullCoinList(coins); }
+            catch (err) { setCoinListError("Gagal fetch daftar koin."); }
+            finally { setIsCoinListLoading(false); }
+        }; fetchList();
+    }, []);
+    const fetchTrendingData = useCallback(async (showSkeleton = true) => { /* ... Fetch Trending Coins ... */
+        if (showSkeleton) { setIsTrendingLoading(true); setTrendingError(null); }
+        try { const trending = await fetchTrendingCoins(); setTrendingCoins(trending); }
+        catch (err: any) { const msg = err.message || "Gagal load tren."; if (showSkeleton) setTrendingError(msg); else console.error("Gagal refresh tren:", msg); }
+        finally { if (showSkeleton) setIsTrendingLoading(false); }
+    }, []);
+     useEffect(() => { /* ... Fetch initial trending & set interval (optional) ... */
+        fetchTrendingData();
+        // const intervalId = setInterval(() => fetchTrendingData(false), 5 * 60 * 1000); // Refresh every 5 mins
+        // return () => clearInterval(intervalId);
+    }, [fetchTrendingData]);
+     const handleSelectCoin = useCallback(async (coinId: string) => { /* ... Fetch Coin Details ... */
+         setIsTrendingLoading(true); setTrendingError(null); setSearchedCoin(null);
+         try { const coin = await fetchCoinDetails(coinId); setSearchedCoin(coin); }
+         catch (err: any) { setTrendingError(err.message || "Gagal load detail koin."); }
+         finally { setIsTrendingLoading(false); }
+     }, []);
+     const handleResetToTrending = useCallback(() => { /* ... Reset view to trending ... */
+         setSearchedCoin(null); fetchTrendingData(true);
+     }, [fetchTrendingData]);
 
-         // **Pengecekan Email Sudah Ada (Double Check)**
-        if (users[pendingGoogleUser.email]) {
-            setPendingGoogleUser(null);
-            setCurrentUser(users[pendingGoogleUser.email]);
-            alert(`Email ${pendingGoogleUser.email} sudah terdaftar dengan username ${users[pendingGoogleUser.email].username}. Anda otomatis login.`);
+    // --- Firebase Realtime Chat Logic ---
+
+    // Mengirim pesan ke Firebase
+    const handleSendMessage = useCallback((message: ChatMessage) => {
+        if (!currentRoom?.id || !currentUser?.username) {
+            console.error("Tidak bisa mengirim pesan: room atau user tidak valid.");
             return;
         }
 
+        // Dapatkan referensi unik baru untuk pesan
+        const messageListRef = ref(database, `messages/${currentRoom.id}`);
+        const newMessageRef = push(messageListRef); // push() menghasilkan ID unik
 
-        // Cek apakah username sudah ada (case-insensitive)
-        const usernameExists = Object.values(users).some(u => u.username?.toLowerCase() === username.toLowerCase());
-        if (usernameExists) {
-            return 'Username sudah digunakan. Silakan pilih nama lain.';
-        }
+        // Tambahkan ID yang dihasilkan Firebase ke objek pesan sebelum disimpan
+        const messageWithId = { ...message, id: newMessageRef.key };
 
-        const newUser: User = {
-            email: pendingGoogleUser.email, // Gunakan email Google sebagai identifier unik
-            username: username,
-            password: password,
-            googleProfilePicture: pendingGoogleUser.picture,
-            createdAt: Date.now(),
-        };
-
-        setUsers(prev => ({ ...prev, [newUser.email.toLowerCase()]: newUser })); // Gunakan email lowercase sebagai key
-        setCurrentUser(newUser);
-        setPendingGoogleUser(null);
-    }, [users, pendingGoogleUser]);
-
-    // Logout Handler
-    const handleLogout = useCallback(() => {
-        setCurrentUser(null);
-        setPendingGoogleUser(null); // Also clear pending user on logout
-        localStorage.removeItem('currentUser'); // Clear from storage
-        setActivePage('home'); // Redirect to home or login page
-    }, []);
+        // Simpan pesan ke Firebase
+        set(newMessageRef, messageWithId)
+            .then(() => {
+                console.log("Pesan terkirim ke Firebase dengan ID:", newMessageRef.key);
+            })
+            .catch((error) => {
+                console.error("Gagal mengirim pesan ke Firebase:", error);
+                alert("Gagal mengirim pesan. Silakan coba lagi.");
+            });
+    }, [currentRoom, currentUser]);
 
 
-  // --- Fetching External Data (IDR Rate, Coins, Dominance, News) ---
-  useEffect(() => {
-        const getRate = async () => {
-            try {
-                setIsRateLoading(true);
-                const rate = await fetchIdrRate();
-                setIdrRate(rate);
-            } catch (error) {
-                console.error("Gagal mengambil kurs IDR:", error);
-                setIdrRate(16000); // Kurs fallback
-            } finally {
-                setIsRateLoading(false);
-            }
-        };
-        getRate();
-    }, []);
-
+    // Mendengarkan pesan dari Firebase
     useEffect(() => {
-        const fetchList = async () => {
-             setIsCoinListLoading(true);
-             setCoinListError(null);
-            try {
-                const coins = await fetchTop500Coins();
-                setFullCoinList(coins);
-            } catch (err) {
-                 setCoinListError("Gagal mengambil daftar koin.");
-            } finally {
-                setIsCoinListLoading(false);
-            }
-        };
-        fetchList();
-    }, []);
-
-     // !!! PINDAHKAN DEFINISI fetchTrendingData KE ATAS useEffect YANG MEMANGGILNYA !!!
-     const fetchTrendingData = useCallback(async (showSkeleton = true) => {
-        if (showSkeleton) {
-            setIsTrendingLoading(true);
-            setTrendingError(null);
+        if (!currentRoom?.id) {
+            // Jika tidak ada room aktif, hapus listener jika ada
+            // Ini penting jika ada listener aktif dari room sebelumnya
+            // (Meskipun logika `off` di cleanup harusnya menangani ini)
+            return;
         }
-        try {
-            const trending = await fetchTrendingCoins();
-            setTrendingCoins(trending);
-        } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "Gagal memuat data tren.";
-            if (showSkeleton) {
-                setTrendingError(errorMessage);
-            } else {
-                console.error("Gagal menyegarkan data tren:", errorMessage);
+
+        const messagesRef = ref(database, `messages/${currentRoom.id}`);
+        console.log(`Mendengarkan pesan dari: messages/${currentRoom.id}`); // Debugging
+
+        // Hapus listener sebelumnya jika ada (untuk mencegah duplikasi saat ganti room)
+        // Ini adalah fallback, cleanup function lebih utama
+        off(messagesRef);
+
+        const listener = onValue(messagesRef, (snapshot) => {
+            const data = snapshot.val();
+            // Firebase mengembalikan null jika path kosong, atau objek jika ada data
+            const messagesArray: ForumMessageItem[] = [];
+            if (data) {
+                // Konversi objek pesan dari Firebase menjadi array
+                Object.keys(data).forEach(key => {
+                    // Pastikan ID dari Firebase (key) dimasukkan ke objek pesan
+                    messagesArray.push({ ...data[key], id: key });
+                });
             }
-        } finally {
-             if (showSkeleton) {
-                setIsTrendingLoading(false);
+
+            console.log(`Data diterima untuk room ${currentRoom.id}:`, messagesArray.length, "pesan"); // Debugging
+
+             // Gabungkan dengan pesan default HANYA jika array dari Firebase KOSONG
+             let finalMessages = messagesArray;
+             if (messagesArray.length === 0) {
+                 if (defaultMessages[currentRoom.id]) {
+                     finalMessages = [...defaultMessages[currentRoom.id]];
+                     console.log(`Menggunakan default messages untuk room ${currentRoom.id}`); // Debugging
+                 } else if (!['berita-kripto', 'pengumuman-aturan'].includes(currentRoom.id) && currentUser?.username) {
+                     // Logika pesan selamat datang untuk room buatan user yang kosong
+                     const welcomeMsg: ChatMessage = { id: `${currentRoom.id}-welcome-${Date.now()}`, type: 'system', text: `Selamat datang di room "${currentRoom.name}".`, sender: 'system', timestamp: Date.now() };
+                     const adminMsg: ChatMessage = { id: `${currentRoom.id}-admin-${Date.now()}`, type: 'user', text: 'Ingat DYOR!', sender: 'Admin_RTC', timestamp: Date.now() + 1, reactions: {'👍': []} };
+                     finalMessages = [welcomeMsg, adminMsg];
+                     console.log(`Membuat pesan welcome/admin untuk room kosong ${currentRoom.id}`); // Debugging
+                     // Opsional: Tulis pesan default ini ke Firebase agar persisten
+                     // const welcomeRef = ref(database, `messages/${currentRoom.id}/${welcomeMsg.id}`);
+                     // const adminRef = ref(database, `messages/${currentRoom.id}/${adminMsg.id}`);
+                     // set(welcomeRef, welcomeMsg);
+                     // set(adminRef, adminMsg);
+                 }
              }
-        }
-    }, []); // Dependencies tetap kosong jika tidak bergantung pada state/props lain
 
-     useEffect(() => {
-        fetchTrendingData(); // Sekarang aman memanggil ini
-        // Set interval to refresh trending data periodically (e.g., every 5 minutes)
-        // const intervalId = setInterval(() => fetchTrendingData(false), 5 * 60 * 1000);
-        // return () => clearInterval(intervalId);
-    }, [fetchTrendingData]); // Tambahkan fetchTrendingData sebagai dependency
 
-     const handleSelectCoin = useCallback(async (coinId: string) => {
-         setIsTrendingLoading(true);
-         setTrendingError(null);
-         setSearchedCoin(null);
-         try {
-            const coin = await fetchCoinDetails(coinId);
-            setSearchedCoin(coin);
-         } catch (err) {
-            const errorMessage = err instanceof Error ? err.message : "Gagal memuat detail koin.";
-            setTrendingError(errorMessage);
-         } finally {
-             setIsTrendingLoading(false);
-         }
-     }, []);
+            setFirebaseMessages(prev => ({
+                ...prev,
+                [currentRoom.id]: finalMessages.sort((a, b) => (isNewsArticle(a) ? a.published_on * 1000 : a.timestamp) - (isNewsArticle(b) ? b.published_on * 1000 : b.timestamp)) // Sortir pesan
+            }));
 
-     const handleResetToTrending = useCallback(() => {
-         setSearchedCoin(null);
-         fetchTrendingData(true);
-     }, [fetchTrendingData]); // Tambahkan fetchTrendingData sebagai dependency
+        }, (error) => {
+            console.error(`Error mendengarkan Firebase untuk room ${currentRoom.id}:`, error);
+        });
 
-    // Load/Save unreadCounts from localStorage
-    useEffect(() => {
-        const savedCounts = localStorage.getItem('unreadCounts');
-        if (savedCounts) {
-            try {
-                 setUnreadCounts(JSON.parse(savedCounts));
-            } catch (e) {
-                console.error("Gagal mem-parsing unreadCounts dari localStorage", e);
-            }
-        }
-    }, []);
+        // Cleanup function: Hentikan listener
+        return () => {
+            console.log(`Menghentikan listener untuk room ${currentRoom.id}`); // Debugging
+            off(messagesRef, 'value', listener);
+        };
 
-    useEffect(() => {
-         localStorage.setItem('unreadCounts', JSON.stringify(unreadCounts));
-    }, [unreadCounts]);
+    }, [currentRoom, currentUser]); // Re-run saat currentRoom atau currentUser berubah
 
-    // Save messages to localStorage
-    useEffect(() => {
-        try {
-            localStorage.setItem('forumMessages', JSON.stringify(messages));
-        } catch (e) {
-            console.error("Gagal menyimpan pesan ke localStorage", e);
-        }
-    }, [messages]);
 
-    // Reset analysis counts daily
-    useEffect(() => {
-        const lastResetDate = localStorage.getItem('lastAnalysisResetDate');
-        const today = new Date().toISOString().split('T')[0];
-        if (lastResetDate !== today) {
-            const initialCounts = {}; // Reset counts
-            setAnalysisCounts(initialCounts);
-            localStorage.setItem('analysisCounts', JSON.stringify(initialCounts));
-            localStorage.setItem('lastAnalysisResetDate', today);
-        } else {
-            // Load counts from storage if it's the same day
-            const savedCounts = localStorage.getItem('analysisCounts');
-            if (savedCounts) {
-                try {
-                    setAnalysisCounts(JSON.parse(savedCounts));
-                } catch (e) {
-                    console.error("Failed to parse analysis counts from localStorage", e);
-                    setAnalysisCounts({});
-                }
-            }
-        }
-    }, []);
-
-    // Fetch News Articles periodically
+    // Fetch News Articles periodically and add to Firebase if new
     useEffect(() => {
         const NEWS_ROOM_ID = 'berita-kripto';
         const NEWS_FETCH_INTERVAL = 20 * 60 * 1000; // 20 minutes
@@ -369,303 +298,162 @@ const App = () => {
             const now = Date.now();
             const lastFetchTimestamp = parseInt(localStorage.getItem(LAST_FETCH_KEY) || '0', 10);
 
-            if (now - lastFetchTimestamp < NEWS_FETCH_INTERVAL) {
-                return;
-            }
+            // Batasi fetch jika belum waktunya
+            // if (now - lastFetchTimestamp < NEWS_FETCH_INTERVAL) return;
 
             try {
                 const fetchedArticles = await fetchNewsArticles();
                 if (!fetchedArticles || fetchedArticles.length === 0) return;
 
+                const newsRoomRef = ref(database, `messages/${NEWS_ROOM_ID}`);
+                const snapshot = await get(newsRoomRef); // Ambil data berita yang sudah ada sekali
+                const existingNewsData = snapshot.val() || {};
+                const existingNewsUrls = new Set(Object.values<NewsArticle>(existingNewsData).map(news => news.url));
+
                 let newArticleAdded = false;
+                const updates: { [key: string]: NewsArticle } = {};
 
-                setMessages(prevMessages => {
-                    const allMessagesInRoom = prevMessages[NEWS_ROOM_ID] || [];
-                    const existingNewsUrls = new Set(
-                        allMessagesInRoom
-                            .filter((msg): msg is NewsArticle => 'url' in msg)
-                            .map(news => news.url)
-                    );
-                    const latestArticle = fetchedArticles.find(article => !existingNewsUrls.has(article.url));
-
-                    if (latestArticle) {
+                fetchedArticles.forEach(article => {
+                    if (!existingNewsUrls.has(article.url)) {
+                        // Gunakan URL atau ID unik lain sebagai key di Firebase
+                        // Kita bisa hash URL jika terlalu panjang atau mengandung karakter invalid
+                        const uniqueKey = `news-${article.id || article.published_on}-${Math.random().toString(36).substring(2, 8)}`; // Buat key unik
+                        updates[uniqueKey] = { ...article, id: uniqueKey, reactions: {} }; // Pastikan ID sesuai key
                         newArticleAdded = true;
-                        const newItemToAdd: NewsArticle = {
-                           ...latestArticle,
-                           id: latestArticle.url,
-                           reactions: {},
-                        };
-                        return {
-                            ...prevMessages,
-                            [NEWS_ROOM_ID]: [...allMessagesInRoom, newItemToAdd],
-                        };
                     }
-                    return prevMessages;
                 });
 
                 if (newArticleAdded) {
+                    console.log(`Menambahkan ${Object.keys(updates).length} berita baru ke Firebase.`); // Debugging
+                    await update(newsRoomRef, updates); // Update Firebase dengan berita baru
                     localStorage.setItem(LAST_FETCH_KEY, now.toString());
+
+                    // Update unread count jika user tidak sedang di room berita
                     if (currentRoom?.id !== NEWS_ROOM_ID) {
                         setUnreadCounts(prev => ({
                             ...prev,
                             [NEWS_ROOM_ID]: {
-                                count: (prev[NEWS_ROOM_ID]?.count || 0) + 1,
+                                count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length, // Tambah jumlah berita baru
                                 lastUpdate: now
                             }
                         }));
                     }
+                } else {
+                     console.log("Tidak ada berita baru untuk ditambahkan."); // Debugging
                 }
 
-            } catch (err) {
-                 const errorMessage = err instanceof Error ? err.message : 'Gagal memuat berita.';
-                 console.error("Gagal mengambil berita untuk room berita:", errorMessage);
+            } catch (err: any) {
+                 console.error("Gagal fetch/proses berita:", err.message || err);
             }
         };
 
-        fetchAndProcessNews();
-        const intervalId = setInterval(fetchAndProcessNews, 60 * 1000);
+        fetchAndProcessNews(); // Panggil sekali saat mount/room berubah
+        const intervalId = setInterval(fetchAndProcessNews, NEWS_FETCH_INTERVAL); // Atur interval
 
-        return () => {
-            clearInterval(intervalId);
-        };
-    }, [currentRoom]);
+        return () => clearInterval(intervalId); // Cleanup interval
 
-
-    // Simulate unread message counts for other joined rooms
-    useEffect(() => {
-        const simulationInterval = setInterval(() => {
-            const joinedButNotActiveRooms = Array.from(joinedRoomIds).filter(
-                id => id !== currentRoom?.id && !['berita-kripto', 'pengumuman-aturan'].includes(id)
-            );
-
-            if (joinedButNotActiveRooms.length > 0) {
-                const randomRoomId = joinedButNotActiveRooms[Math.floor(Math.random() * joinedButNotActiveRooms.length)];
-                setUnreadCounts(prev => ({
-                    ...prev,
-                    [randomRoomId]: {
-                        count: (prev[randomRoomId]?.count || 0) + 1,
-                        lastUpdate: Date.now()
-                    }
-                }));
-            }
-        }, 20000);
-
-        return () => clearInterval(simulationInterval);
-    }, [joinedRoomIds, currentRoom]);
+    }, [currentRoom]); // Jalankan ulang jika currentRoom berubah (untuk logika unread count)
 
 
-  // --- Event Handlers ---
-
-   const handleIncrementAnalysisCount = useCallback((coinId: string) => {
-        setAnalysisCounts(prevCounts => {
-            const currentCount = prevCounts[coinId] || baseAnalysisCount;
-            const newCounts = { ...prevCounts, [coinId]: currentCount + 1 };
-             localStorage.setItem('analysisCounts', JSON.stringify(newCounts));
-            return newCounts;
-        });
-    }, []);
-
-    const handleNavigate = useCallback((page: Page) => {
-         if (page === 'home' && activePage === 'home') {
-            handleResetToTrending();
-        } else if (page === 'forum') {
-             setActivePage('rooms');
-        } else {
-            setActivePage(page);
-        }
-    }, [activePage, handleResetToTrending]); // Tambahkan handleResetToTrending sebagai dependency
-
-
-    const handleJoinRoom = useCallback((room: Room) => {
-        setCurrentRoom(room);
-        setUnreadCounts(prev => {
-            const roomId = room.id;
-            if (prev[roomId] && prev[roomId].count > 0) {
-                return {
-                    ...prev,
-                    [roomId]: {
-                        ...prev[roomId],
-                        count: 0,
-                    },
-                };
-            }
-            return prev;
-        });
-        setJoinedRoomIds(prevIds => {
-            const newIds = new Set(prevIds);
-            newIds.add(room.id);
-            return newIds;
-        });
-        if (!messages[room.id] && currentUser?.username) {
-            const welcomeMessage: ChatMessage = {
-                id: new Date().toISOString(),
-                type: 'system',
-                text: `Selamat datang di room "${room.name}". Anda bergabung sebagai ${currentUser.username}.`,
-                sender: 'system',
-                timestamp: Date.now(),
-            };
-            const roomMessages = [welcomeMessage];
-
-             if (!['berita-kripto', 'pengumuman-aturan'].includes(room.id)) {
-                 const adminMessage: ChatMessage = {
-                     id: `admin-msg-${room.id}`,
-                     type: 'user',
-                     text: 'Halo para trader! Ingat, riset sendiri itu kunci. Jangan gampang percaya "sinyal" dari orang lain ya. Cuan bareng!',
-                     sender: 'Admin_RTC',
-                     timestamp: Date.now() + 1,
-                     reactions: { '👍': [] }
-                 };
-                 roomMessages.push(adminMessage);
-             }
-
-            setMessages(prev => ({
-                ...prev,
-                [room.id]: roomMessages
-            }));
-        }
-        setActivePage('forum');
-    }, [messages, currentUser]);
-
-    const handleLeaveRoom = useCallback(() => {
-        setCurrentRoom(null);
-        setActivePage('rooms');
-    }, []);
-
-    const handleLeaveJoinedRoom = useCallback((roomId: string) => {
-        if (['berita-kripto', 'pengumuman-aturan'].includes(roomId)) {
-            return;
-        }
-
-        setJoinedRoomIds(prevIds => {
-            const newIds = new Set(prevIds);
-            newIds.delete(roomId);
-            return newIds;
-        });
-
-        if (currentRoom?.id === roomId) {
-            setCurrentRoom(null);
-            setActivePage('rooms');
-        }
-        setUnreadCounts(prev => {
-            const newCounts = {...prev};
-            delete newCounts[roomId];
-            return newCounts;
-        });
-
-    }, [currentRoom]);
-
-
-    const handleCreateRoom = useCallback((roomName: string) => {
-        const trimmedRoomName = roomName.trim();
-        const roomExists = rooms.some(room => room.name.toLowerCase() === trimmedRoomName.toLowerCase());
-        if(roomExists) {
-            alert('Room dengan nama tersebut sudah ada. Silakan pilih nama lain.');
-            return;
-        }
-        if (!currentUser?.username) {
-            alert('Anda harus login untuk membuat room.');
-            return;
-        }
-
-        const newRoom: Room = {
-            id: trimmedRoomName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(),
-            name: trimmedRoomName,
-            userCount: 1,
-            createdBy: currentUser.username
-        };
-        setRooms(prev => [newRoom, ...prev]);
-        handleJoinRoom(newRoom);
-    }, [handleJoinRoom, rooms, currentUser]);
-
-    const handleDeleteRoom = useCallback((roomId: string) => {
-        if (!currentUser?.username) return;
-
-        const roomToDelete = rooms.find(r => r.id === roomId);
-        if (!roomToDelete) return;
-
-        const isAdmin = ADMIN_USERNAMES.map(name => name.toLowerCase()).includes(currentUser.username.toLowerCase());
-        const isCreator = roomToDelete.createdBy === currentUser.username;
-
-        if (['berita-kripto', 'pengumuman-aturan'].includes(roomId)) {
-            alert('Room default tidak dapat dihapus.');
-            return;
-        }
-
-        if (isAdmin || isCreator) {
-            if (window.confirm(`Apakah Anda yakin ingin menghapus room "${roomToDelete.name}"? Tindakan ini tidak dapat diurungkan.`)) {
-                setRooms(prevRooms => prevRooms.filter(room => room.id !== roomId));
-                if (currentRoom?.id === roomId) {
-                    setCurrentRoom(null);
-                    setActivePage('rooms');
-                }
-                setJoinedRoomIds(prevIds => {
-                    const newIds = new Set(prevIds);
-                    newIds.delete(roomId);
-                    return newIds;
-                });
-                setMessages(prevMessages => {
-                    const newMessages = { ...prevMessages };
-                    delete newMessages[roomId];
-                    return newMessages;
-                });
-                 setUnreadCounts(prev => {
-                     const newCounts = {...prev};
-                     delete newCounts[roomId];
-                     return newCounts;
-                 });
-            }
-        } else {
-            alert('Anda tidak memiliki izin untuk menghapus room ini.');
-        }
-    }, [currentUser, rooms, currentRoom]);
-
-
-    const handleSendMessage = useCallback((message: ChatMessage) => {
-        if (!currentRoom) return;
-        setMessages(prev => {
-            const roomMessages = prev[currentRoom.id] || [];
-            return {
-                ...prev,
-                [currentRoom.id]: [...roomMessages, message]
-            };
-        });
-    }, [currentRoom]);
-
-
+    // Menangani reaksi
     const handleReaction = useCallback((messageId: string, emoji: string) => {
-         if (!currentRoom || !currentUser?.username) return;
+        if (!currentRoom?.id || !currentUser?.username || !messageId) {
+            console.error("Tidak bisa bereaksi: data tidak valid", { currentRoom, currentUser, messageId });
+            return;
+        }
 
-         const username = currentUser.username;
+        const username = currentUser.username;
+        // Referensi langsung ke node 'reactions' di dalam pesan spesifik
+        const reactionRef = ref(database, `messages/${currentRoom.id}/${messageId}/reactions/${emoji}`);
 
-         setMessages(prevMessages => {
-            const roomMessages = prevMessages[currentRoom.id] || [];
+        get(reactionRef).then((snapshot) => {
+            const usersForEmoji: string[] = snapshot.val() || [];
+            let updatedUsers: string[] | null; // Gunakan null untuk menghapus node jika array kosong
 
-            const newRoomMessages = roomMessages.map(msg => {
-                if (msg.id === messageId) {
-                    const newReactions = { ...(msg.reactions || {}) };
-                    const users = newReactions[emoji] || [];
-
-                    if (users.includes(username)) {
-                        const updatedUsers = users.filter(u => u !== username);
-                         if (updatedUsers.length === 0) {
-                            delete newReactions[emoji];
-                         } else {
-                            newReactions[emoji] = updatedUsers;
-                         }
-                    } else {
-                        newReactions[emoji] = [...users, username];
-                    }
-                    return { ...msg, reactions: newReactions };
+            if (usersForEmoji.includes(username)) {
+                // Hapus reaksi pengguna
+                updatedUsers = usersForEmoji.filter(u => u !== username);
+                if (updatedUsers.length === 0) {
+                    updatedUsers = null; // Set ke null agar Firebase menghapus node emoji ini
                 }
-                return msg;
-            });
+            } else {
+                // Tambah reaksi pengguna
+                updatedUsers = [...usersForEmoji, username];
+            }
 
-            return {
-                ...prevMessages,
-                [currentRoom.id]: newRoomMessages
-            };
-        });
+            // Update Firebase
+            set(reactionRef, updatedUsers) // set dengan array baru atau null
+                .then(() => console.log(`Reaksi ${emoji} diupdate untuk pesan ${messageId}`))
+                .catch(error => console.error("Gagal update reaksi:", error));
+
+        }).catch(error => console.error("Error mengambil data reaksi:", error));
+
     }, [currentRoom, currentUser]);
+
+
+  // --- Event Handlers Lainnya ---
+   const handleIncrementAnalysisCount = useCallback((coinId: string) => { /* ... logika increment analysis count ... */
+        setAnalysisCounts(prev => {
+            const current = prev[coinId] || baseAnalysisCount;
+            const newCounts = { ...prev, [coinId]: current + 1 };
+            localStorage.setItem('analysisCounts', JSON.stringify(newCounts)); return newCounts;
+        });
+    }, []);
+    const handleNavigate = useCallback((page: Page) => { /* ... logika navigasi ... */
+         if (page === 'home' && activePage === 'home') handleResetToTrending();
+         else if (page === 'forum') setActivePage('rooms');
+         else setActivePage(page);
+    }, [activePage, handleResetToTrending]);
+    const handleJoinRoom = useCallback((room: Room) => { /* ... logika join room ... */
+        setCurrentRoom(room);
+        setUnreadCounts(prev => { /* ... reset unread count ... */
+            if (prev[room.id]?.count > 0) return { ...prev, [room.id]: { ...prev[room.id], count: 0 }}; return prev;
+        });
+        setJoinedRoomIds(prev => new Set(prev).add(room.id));
+        // Pesan default/welcome akan ditangani oleh useEffect listener Firebase
+        setActivePage('forum');
+    }, [/* messages (dihapus), */ currentUser]); // Hapus 'messages' dari dependensi
+    const handleLeaveRoom = useCallback(() => { /* ... logika leave room (kembali ke list) ... */
+        setCurrentRoom(null); setActivePage('rooms');
+    }, []);
+    const handleLeaveJoinedRoom = useCallback((roomId: string) => { /* ... logika leave joined room (dari list) ... */
+        if (['berita-kripto', 'pengumuman-aturan'].includes(roomId)) return;
+        setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; });
+        if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
+        setUnreadCounts(prev => { const n = {...prev}; delete n[roomId]; return n; });
+    }, [currentRoom]);
+    const handleCreateRoom = useCallback((roomName: string) => { /* ... logika create room ... */
+        const trimmed = roomName.trim();
+        if (rooms.some(r => r.name.toLowerCase() === trimmed.toLowerCase())) { alert('Room sudah ada.'); return; }
+        if (!currentUser?.username) { alert('Harus login.'); return; }
+        const newRoom: Room = { id: trimmed.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), name: trimmed, userCount: 1, createdBy: currentUser.username };
+        setRooms(prev => [newRoom, ...prev]);
+        handleJoinRoom(newRoom); // Otomatis join setelah dibuat
+    }, [handleJoinRoom, rooms, currentUser]);
+     const handleDeleteRoom = useCallback((roomId: string) => { /* ... logika delete room (pastikan menghapus data di Firebase juga jika perlu) ... */
+        // !! PENTING: Tambahkan logika untuk menghapus data pesan dari Firebase !!
+        const roomToDelete = rooms.find(r => r.id === roomId);
+        if (!roomToDelete || !currentUser?.username) return;
+        const isAdmin = ADMIN_USERNAMES.map(n=>n.toLowerCase()).includes(currentUser.username.toLowerCase());
+        const isCreator = roomToDelete.createdBy === currentUser.username;
+        if (['berita-kripto', 'pengumuman-aturan'].includes(roomId)) { alert('Room default tidak dapat dihapus.'); return; }
+        if (isAdmin || isCreator) {
+            if (window.confirm(`Yakin hapus room "${roomToDelete.name}"?`)) {
+                // Hapus dari state React
+                setRooms(prev => prev.filter(r => r.id !== roomId));
+                if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
+                setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; });
+                setFirebaseMessages(prev => { const n = {...prev}; delete n[roomId]; return n; }); // Hapus dari state pesan lokal juga
+                setUnreadCounts(prev => { const n = {...prev}; delete n[roomId]; return n; });
+
+                // Hapus dari Firebase Realtime Database
+                const messagesRef = ref(database, `messages/${roomId}`);
+                set(messagesRef, null) // Menghapus data di path tersebut
+                    .then(() => console.log(`Pesan untuk room ${roomId} dihapus dari Firebase.`))
+                    .catch(error => console.error(`Gagal menghapus pesan room ${roomId} dari Firebase:`, error));
+            }
+        } else { alert('Tidak punya izin menghapus.'); }
+    }, [currentUser, rooms, currentRoom]);
 
 
   // --- Memoized Values ---
@@ -677,58 +465,33 @@ const App = () => {
   // --- Render Logic ---
   const renderActivePage = () => {
      switch (activePage) {
-      case 'home':
-        return <HomePage
-                  idrRate={idrRate} isRateLoading={isRateLoading} currency={currency} onIncrementAnalysisCount={handleIncrementAnalysisCount}
-                  fullCoinList={fullCoinList} isCoinListLoading={isCoinListLoading} coinListError={coinListError}
-                  heroCoin={heroCoin} otherTrendingCoins={otherTrendingCoins} isTrendingLoading={isTrendingLoading} trendingError={trendingError} onSelectCoin={handleSelectCoin} onReloadTrending={handleResetToTrending}
-               />;
-      case 'rooms':
-        return <RoomsListPage
-                    rooms={rooms} onJoinRoom={handleJoinRoom} onCreateRoom={handleCreateRoom} totalUsers={totalUsers} hotCoin={hotCoin} userProfile={currentUser}
-                    currentRoomId={currentRoom?.id || null} joinedRoomIds={joinedRoomIds} onLeaveJoinedRoom={handleLeaveJoinedRoom} unreadCounts={unreadCounts}
-                    onDeleteRoom={handleDeleteRoom}
-                />;
+      case 'home': return <HomePage {...{idrRate, isRateLoading, currency, onIncrementAnalysisCount, fullCoinList, isCoinListLoading, coinListError, heroCoin, otherTrendingCoins, isTrendingLoading, trendingError, onSelectCoin, onReloadTrending}} />;
+      case 'rooms': return <RoomsListPage {...{rooms, onJoinRoom, onCreateRoom, totalUsers, hotCoin, userProfile: currentUser, currentRoomId: currentRoom?.id || null, joinedRoomIds, onLeaveJoinedRoom, unreadCounts, onDeleteRoom}} />; // Tambahkan onDeleteRoom
       case 'forum':
-         return <ForumPage
-                    room={currentRoom} messages={currentRoom ? messages[currentRoom.id] || [] : []} userProfile={currentUser}
-                    onSendMessage={handleSendMessage} onLeaveRoom={handleLeaveRoom} onReact={handleReaction}
-                />;
-      case 'about':
-        return <AboutPage />;
-      default:
-        return <HomePage
-                  idrRate={idrRate} isRateLoading={isRateLoading} currency={currency} onIncrementAnalysisCount={handleIncrementAnalysisCount}
-                  fullCoinList={fullCoinList} isCoinListLoading={isCoinListLoading} coinListError={coinListError}
-                  heroCoin={heroCoin} otherTrendingCoins={otherTrendingCoins} isTrendingLoading={isTrendingLoading} trendingError={trendingError} onSelectCoin={handleSelectCoin} onReloadTrending={handleResetToTrending}
-                />;
+        // Ambil pesan dari state firebaseMessages berdasarkan currentRoom.id
+        const currentMessages = currentRoom ? firebaseMessages[currentRoom.id] || [] : [];
+        // Jika messages kosong DAN room adalah default, gunakan defaultMessages
+        const displayMessages = (currentMessages.length === 0 && currentRoom && defaultMessages[currentRoom.id])
+            ? defaultMessages[currentRoom.id]
+            : currentMessages;
+
+        return <ForumPage {...{room: currentRoom, messages: displayMessages, userProfile: currentUser, onSendMessage, onLeaveRoom, onReact}} />;
+      case 'about': return <AboutPage />;
+      default: return <HomePage {...{idrRate, isRateLoading, currency, onIncrementAnalysisCount, fullCoinList, isCoinListLoading, coinListError, heroCoin, otherTrendingCoins, isTrendingLoading, trendingError, onSelectCoin, onReloadTrending}} />;
     }
   };
 
   // --- Authentication Flow Rendering ---
-  if (!currentUser && !pendingGoogleUser) {
-    return <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} onLogin={handleLogin} />;
-  }
-
-  if (pendingGoogleUser) {
-      return <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
-  }
+  if (!currentUser && !pendingGoogleUser) return <LoginPage {...{onGoogleRegisterSuccess, onLogin}} />;
+  if (pendingGoogleUser) return <CreateIdPage {...{onProfileComplete, googleProfile: pendingGoogleUser}} />;
 
   // --- Main App Render (Logged In) ---
    return (
     <div className="min-h-screen bg-transparent text-white font-sans flex flex-col">
       <Particles />
-      <Header
-        userProfile={currentUser}
-        onLogout={handleLogout}
-        activePage={activePage}
-        onNavigate={handleNavigate}
-        currency={currency}
-        onCurrencyChange={setCurrency}
-        hotCoin={hotCoin}
-        idrRate={idrRate}
-      />
+      <Header {...{userProfile: currentUser, onLogout, activePage, onNavigate, currency, onCurrencyChange: setCurrency, hotCoin, idrRate}} />
       <main className="flex-grow">
+        {/* Pastikan currentUser ada sebelum render halaman utama */}
         {currentUser && renderActivePage()}
       </main>
       <Footer />
