@@ -33,7 +33,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
     const username = userProfile?.username ?? '';
 
     // Debug log untuk username
-    useEffect(() => { console.log("[ForumPage] Username state:", username); }, [username]);
+    useEffect(() => { console.log("[ForumPage] Username:", username); }, [username]);
 
     const safeMessages = Array.isArray(messages) ? messages : [];
     const sortedMessages = useMemo(() => { return [...safeMessages].sort((a, b) => { const timeA = isNewsArticle(a) ? a.published_on * 1000 : (isChatMessage(a) ? a.timestamp : 0); const timeB = isNewsArticle(b) ? b.published_on * 1000 : (isChatMessage(b) ? b.timestamp : 0); if (timeA === 0 && timeB !== 0) return 1; if (timeA !== 0 && timeB === 0) return -1; return timeA - timeB; }); }, [safeMessages]);
@@ -41,50 +41,42 @@ const ForumPage: React.FC<ForumPageProps> = ({
 
     const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
-        console.log("[ForumPage] handleSendMessage triggered."); // Log 1
+        
+        // PERBAIKAN: Ambil nilai teks langsung dari state saat submit
+        const currentMessageText = newMessage.trim();
+        const currentAttachment = attachment; // Ambil state attachment saat ini
 
-        const currentMessageText = newMessage.trim(); // Simpan nilai trim
-        console.log("[ForumPage] State on submit:", { username, currentMessageText, attachment: !!attachment }); // Log 2
+        console.log("[ForumPage] handleSendMessage triggered.");
+        console.log("[ForumPage] State on submit:", { username, currentMessageText, hasAttachment: !!currentAttachment });
 
-        // Gunakan currentMessageText untuk pengecekan
-        if ((!currentMessageText && !attachment) || !username) {
-            console.warn("[ForumPage] Send conditions not met."); // Log 3
+        // Guard: Cek jika (TIDAK ada teks DAN TIDAK ada attachment) ATAU (TIDAK ada username)
+        if ((!currentMessageText && !currentAttachment) || !username) {
+            console.warn("[ForumPage] Send conditions not met. Aborting send.");
+            // Jangan kirim jika tidak ada konten atau tidak ada user
             return;
         }
 
-        // Buat objek pesan HANYA DENGAN PROPERTI YANG ADA
-        const userMessage: Partial<ChatMessage> & { sender: string; timestamp: number; type: 'user' } = {
-            id: `local-${Date.now()}-${Math.random()}`, // ID sementara
+        // Buat objek pesan lengkap
+        const userMessage: ChatMessage = {
+            id: `local-${Date.now()}-${Math.random()}`, // ID sementara, akan diganti di App.tsx
             type: 'user',
             sender: username,
             timestamp: Date.now(),
-            reactions: {}
+            reactions: {},
+            // Set text dan file properties, pastikan undefined jika kosong
+            text: currentMessageText ? currentMessageText : undefined,
+            fileURL: currentAttachment?.dataUrl || undefined,
+            fileName: currentAttachment?.name || undefined,
         };
 
-        // Tambahkan properti jika ada nilainya
-        if (currentMessageText) {
-            userMessage.text = currentMessageText;
-        }
-        if (attachment) {
-            userMessage.fileURL = attachment.dataUrl;
-            userMessage.fileName = attachment.name;
-        }
-
-        // Pastikan objek sesuai tipe ChatMessage sebelum dikirim
-        if (userMessage.text || userMessage.fileURL) {
-            console.log("[ForumPage] Calling onSendMessage prop with:", userMessage); // Log 4
-            onSendMessage(userMessage as ChatMessage); // Kirim sebagai ChatMessage
-        } else {
-             console.warn("[ForumPage] Message object is empty, not sending."); // Log jika objek kosong
-             return;
-        }
-
+        console.log("[ForumPage] Calling onSendMessage prop with:", JSON.stringify(userMessage));
+        onSendMessage(userMessage); // Panggil fungsi dari App.tsx
 
         // Reset state setelah memanggil onSendMessage
         setNewMessage('');
         setAttachment(null);
         if(fileInputRef.current) fileInputRef.current.value = "";
-        console.log("[ForumPage] State reset after send."); // Log 5
+        console.log("[ForumPage] State reset after send.");
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { /* Pilih file */ const file = e.target.files?.[0]; if (file && file.type.startsWith('image/')) { const reader = new FileReader(); reader.onloadend = () => { if (reader.result) { setAttachment({ dataUrl: reader.result as string, name: file.name }); } }; reader.readAsDataURL(file); } else { setAttachment(null); } };
@@ -92,15 +84,16 @@ const ForumPage: React.FC<ForumPageProps> = ({
     if (!room) { /* Handle jika room null */ return ( <div className="container mx-auto flex flex-col flex-grow items-center justify-center text-center"> <h2 className="text-xl font-bold text-gray-300">Room tidak ditemukan</h2> <p className="text-gray-500 mt-2">Pilih room untuk bergabung.</p> <button onClick={onLeaveRoom} className="mt-4 bg-electric hover:bg-electric/80 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-300"> Kembali </button> </div> ) }
 
     const isDefaultRoom = ['berita-kripto', 'pengumuman-aturan'].includes(room.id);
+    
     // Hitung kondisi disabled untuk tombol
     // Tombol disabled jika: (tidak ada teks DAN tidak ada attachment) ATAU (tidak ada username)
+    // PERBAIKAN: Gunakan state `newMessage` dan `attachment` secara langsung
     const isSendDisabled = (!newMessage.trim() && !attachment) || !username;
 
     return (
         <div className="container mx-auto px-2 sm:px-4 py-3 animate-fade-in flex flex-col flex-grow h-[calc(100vh-56px)]">
              {/* Header Room */}
             <div className="mb-3 flex-shrink-0">
-                 {/* ... header room ... */}
                  <div className="flex items-center justify-between gap-4 mb-3"> <button onClick={onLeaveRoom} className="flex items-center gap-2 text-gray-400 hover:text-electric transition-colors"> <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg> <span className="text-sm font-semibold">Semua Room</span> </button> <div className="flex items-center gap-2.5"> <div className="relative flex h-2.5 w-2.5"> <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span> <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-lime"></span> </div> <p className="text-sm font-semibold"> <span className="text-white">{room.userCount.toLocaleString('id-ID')}</span> <span className="text-gray-400 ml-1.5">Online</span> </p> </div> </div>
                  <div className="flex items-center"> <div> <h1 className="text-2xl md:text-3xl font-black tracking-tight bg-gradient-to-r from-electric to-magenta text-transparent bg-clip-text truncate font-heading">{room.name}</h1> <p className="text-gray-400 text-xs mt-1">Diskusikan pasar. Berita terbaru muncul otomatis.</p> </div> </div>
             </div>
@@ -130,12 +123,21 @@ const ForumPage: React.FC<ForumPageProps> = ({
                         <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
                             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                             <button type="button" onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-electric p-2 rounded-full transition-colors flex-shrink-0"> <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg> </button>
-                            <div className="relative flex-1"> <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Ketik pesan Anda..." className="w-full bg-gray-800 border border-gray-700 rounded-full py-2.5 pl-4 pr-12 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all"
-                            // Pastikan input tidak disabled jika username ada
-                            disabled={!username} /> </div>
+                            <div className="relative flex-1">
+                                <input
+                                    type="text"
+                                    value={newMessage} // Pastikan value terhubung ke state
+                                    onChange={(e) => setNewMessage(e.target.value)} // Pastikan onChange mengupdate state
+                                    placeholder="Ketik pesan Anda..."
+                                    className="w-full bg-gray-800 border border-gray-700 rounded-full py-2.5 pl-4 pr-12 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all"
+                                    disabled={!username}
+                                />
+                            </div>
                             {/* Tombol Submit */}
-                            <button type="submit" className="bg-electric text-white rounded-full p-2.5 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0"
-                                disabled={isSendDisabled}
+                            <button
+                                type="submit"
+                                className="bg-electric text-white rounded-full p-2.5 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0"
+                                disabled={isSendDisabled} // Gunakan variabel state
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
                             </button>

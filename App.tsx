@@ -1,4 +1,4 @@
-// ava19999/v1/v1-e83f8e599322c0ffce54b5e4675868924f36d587/App.tsx
+// ava19999/v1/v1-c5d7d0ddb102ed890fdcf6a9b98065e6ff8b15c3/App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -111,27 +111,34 @@ const AppContent = () => {
         const messageListRef = ref(database, `messages/${currentRoom.id}`);
         const newMessageRef = push(messageListRef);
 
-        // Pastikan semua properti yang dibutuhkan ada dan valid
+        // PERBAIKAN: Buat objek baru secara eksplisit, jangan gunakan ...message
+        // Ini untuk menghindari properti 'undefined' yang tidak diinginkan
         const messageToSend: ChatMessage = {
-             id: newMessageRef.key ?? `local-${Date.now()}-${Math.random()}`, // Gunakan key Firebase atau fallback
-             type: message.sender === 'system' ? 'system' : 'user',
-             sender: message.sender || currentUser.username, // Pastikan sender ada
-             timestamp: message.timestamp || Date.now(),
-             text: message.text || undefined, // Pastikan text ada atau undefined
-             fileURL: message.fileURL || undefined,
-             fileName: message.fileName || undefined,
-             reactions: message.reactions || {}
-            };
+             id: newMessageRef.key ?? `local-${Date.now()}`,
+             type: 'user', // Kita tahu ini 'user' dari ForumPage
+             sender: message.sender, // Diambil dari message (username)
+             timestamp: message.timestamp, // Diambil dari message (Date.now())
+             reactions: message.reactions || {}, // Default
+        };
+
+        // Tambahkan properti opsional HANYA JIKA ADA
+        if (message.text) {
+            messageToSend.text = message.text;
+        }
+        if (message.fileURL) {
+            messageToSend.fileURL = message.fileURL;
+            messageToSend.fileName = message.fileName;
+        }
 
         console.log("[App.tsx] Final message object to send:", JSON.stringify(messageToSend)); // Log 3
-
+        
         set(newMessageRef, messageToSend)
             .then(() => {
                 console.log("[App.tsx] Message sent successfully! ID:", newMessageRef.key); // Log Sukses
             })
             .catch((error) => {
                 console.error("[App.tsx] Firebase send message failed:", error); // Log Error
-                alert("Gagal mengirim pesan. Silakan cek koneksi atau hubungi admin jika masalah berlanjut.");
+                alert("Gagal kirim pesan. Periksa koneksi atau izin database.");
             });
     }, [currentRoom, currentUser]); // Dependencies
 
