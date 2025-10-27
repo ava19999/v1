@@ -126,8 +126,7 @@ const AppContent = () => {
          const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
 
          const fetchAndProcessNews = async () => {
-             // PERBAIKAN: Gunakan Date.now() bukan 'now'
-             const currentTime = Date.now();
+             const currentTime = Date.now(); // Gunakan Date.now()
              const lastFetch = parseInt(localStorage.getItem(LAST_FETCH_KEY) || '0', 10);
              /* if (currentTime - lastFetch < NEWS_FETCH_INTERVAL) return; */
              try {
@@ -152,10 +151,10 @@ const AppContent = () => {
                  if (newArticleAdded) {
                      console.log(`Adding ${Object.keys(updates).length} news.`);
                      await update(newsRoomRef, updates);
-                     // PERBAIKAN: Gunakan currentTime bukan 'now'
+                     // Gunakan currentTime
                      localStorage.setItem(LAST_FETCH_KEY, currentTime.toString());
                      if (currentRoom?.id !== NEWS_ROOM_ID) {
-                         // PERBAIKAN: Gunakan currentTime bukan 'now'
+                         // Gunakan currentTime
                          setUnreadCounts(prev => ({ ...prev, [NEWS_ROOM_ID]: { count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length, lastUpdate: currentTime } }));
                      }
                  } else {
