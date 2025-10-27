@@ -1,4 +1,4 @@
-// ava19999/v1/v1-a55800044f80d0f00370f9f03c7fe8adc53a2627/services/firebaseService.ts
+// ava19999/v1/v1-9a4dba6fc6c91d8b6ce88474ad1ebcc8a220a34d/services/firebaseService.ts
 import { initializeApp, FirebaseApp, FirebaseOptions } from "firebase/app";
 import { getDatabase, Database } from "firebase/database"; // Import Database type
 // Import getAnalytics jika Anda menggunakannya
