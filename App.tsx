@@ -86,9 +86,7 @@ const App = () => {
    }, [fetchTrendingData]); // Pastikan fetchTrendingData sudah ada
 
   // --- Effects ---
-    useEffect(() => { /* Load users & currentUser */
-        try { const storedUsers = localStorage.getItem('cryptoUsers'); if (storedUsers) setUsers(JSON.parse(storedUsers)); const storedCurrentUser = localStorage.getItem('currentUser'); if (storedCurrentUser) setCurrentUser(JSON.parse(storedCurrentUser)); } catch (e) { console.error("Gagal load user:", e); }
-    }, []);
+    useEffect(() => { /* Load users & currentUser */ try { const storedUsers = localStorage.getItem('cryptoUsers'); if (storedUsers) setUsers(JSON.parse(storedUsers)); const storedCurrentUser = localStorage.getItem('currentUser'); if (storedCurrentUser) setCurrentUser(JSON.parse(storedCurrentUser)); } catch (e) { console.error("Gagal load user:", e); } }, []);
     useEffect(() => { /* Persist users */ try { localStorage.setItem('cryptoUsers', JSON.stringify(users)); } catch (e) { console.error("Gagal simpan users:", e); } }, [users]);
     useEffect(() => { /* Persist currentUser */ try { if (currentUser) localStorage.setItem('currentUser', JSON.stringify(currentUser)); else localStorage.removeItem('currentUser'); } catch (e) { console.error("Gagal simpan currentUser:", e); } }, [currentUser]);
     useEffect(() => { /* Load/Save unreadCounts */ const saved = localStorage.getItem('unreadCounts'); if (saved) try { setUnreadCounts(JSON.parse(saved)); } catch (e) { console.error("Gagal load unread:", e); } }, []);
@@ -112,7 +110,22 @@ const App = () => {
    const handleLeaveRoom = useCallback(() => { /* Leave room view */ setCurrentRoom(null); setActivePage('rooms'); }, []);
    const handleLeaveJoinedRoom = useCallback((roomId: string) => { /* Leave room permanently */ if (['berita-kripto', 'pengumuman-aturan'].includes(roomId)) return; setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; }); if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); } setUnreadCounts(prev => { const n = {...prev}; delete n[roomId]; return n; }); }, [currentRoom]);
    const handleCreateRoom = useCallback((roomName: string) => { /* Create room */ const trimmed = roomName.trim(); if (rooms.some(r => r.name.toLowerCase() === trimmed.toLowerCase())) { alert('Room sudah ada.'); return; } if (!currentUser?.username) { alert('Harus login.'); return; } const newRoom: Room = { id: trimmed.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), name: trimmed, userCount: 1, createdBy: currentUser.username }; setRooms(prev => [newRoom, ...prev]); handleJoinRoom(newRoom); }, [handleJoinRoom, rooms, currentUser]);
-   const handleDeleteRoom = useCallback((roomId: string) => { /* Delete room */ if (!database) { console.error("Database not initialized for deleteRoom"); return; } const roomToDelete = rooms.find(r => r.id === roomId); if (!roomToDelete || !currentUser?.username) return; const isAdmin = ADMIN_USERNAMES.map(n=>n.toLowerCase()).includes(currentUser.username.toLowerCase()); const isCreator = roomToDelete.createdBy === currentUser.username; if (['berita-kripto', 'pengumuman-aturan'].includes(roomId)) { alert('Room default tidak dapat dihapus.'); return; } if (isAdmin || isCreator) { if (window.confirm(`Yakin hapus room "${roomToDelete.name}"?`)) { setRooms(prev => prev.filter(r => r.id !== roomId)); if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); } setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; }); setFirebaseMessages(prev => { const n = {...prev}; delete n[roomId]; return n; }); setUnreadCounts(prev => { const n = {...prev}; delete n[roomId]; return n; }); const messagesRef = ref(database, `messages/${roomId}`); set(messagesRef, null).catch(console.error); } } else { alert('Tidak punya izin menghapus.'); } }, [currentUser, rooms, currentRoom]);
+   const handleDeleteRoom = useCallback((roomId: string) => { /* Delete room */
+        // Pindahkan pengecekan database ke awal
+        if (!database) { console.error("Database not initialized for deleteRoom"); return; }
+        const roomToDelete = rooms.find(r => r.id === roomId); if (!roomToDelete || !currentUser?.username) return;
+        const isAdmin = ADMIN_USERNAMES.map(n=>n.toLowerCase()).includes(currentUser.username.toLowerCase()); const isCreator = roomToDelete.createdBy === currentUser.username;
+        if (['berita-kripto', 'pengumuman-aturan'].includes(roomId)) { alert('Room default tidak dapat dihapus.'); return; }
+        if (isAdmin || isCreator) { if (window.confirm(`Yakin hapus room "${roomToDelete.name}"?`)) {
+                setRooms(prev => prev.filter(r => r.id !== roomId)); if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
+                setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; });
+                setFirebaseMessages(prev => { const n = {...prev}; delete n[roomId]; return n; });
+                setUnreadCounts(prev => { const n = {...prev}; delete n[roomId]; return n; });
+                // Gunakan 'database' yang sudah dicek
+                const messagesRef = ref(database, `messages/${roomId}`); set(messagesRef, null).catch(console.error);
+            }
+        } else { alert('Tidak punya izin menghapus.'); }
+   }, [currentUser, rooms, currentRoom]);
 
 
     // --- Firebase Chat Logic ---
@@ -145,7 +158,13 @@ const App = () => {
             let finalMessages = messagesArray;
             if (messagesArray.length === 0) { if (defaultMessages[currentRoom.id]) { finalMessages = [...defaultMessages[currentRoom.id]]; } else if (!['berita-kripto', 'pengumuman-aturan'].includes(currentRoom.id) && currentUser?.username) { const welcomeMsg: ChatMessage = { id: `${currentRoom.id}-welcome-${Date.now()}`, type: 'system', text: `Selamat datang di room "${currentRoom.name}".`, sender: 'system', timestamp: Date.now() }; const adminMsg: ChatMessage = { id: `${currentRoom.id}-admin-${Date.now()}`, type: 'user', text: 'Ingat DYOR!', sender: 'Admin_RTC', timestamp: Date.now() + 1, reactions: {'👍': []} }; finalMessages = [welcomeMsg, adminMsg]; /* Opsional: Tulis ke Firebase */ } }
 
-            setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: finalMessages.sort((a, b) => { const timeA = isNewsArticle(a) ? a.published_on * 1000 : (isChatMessage(a) ? a.timestamp : 0); const timeB = isNewsArticle(b) ? b.published_on * 1000 : (isChatMessage(b) ? b.timestamp : 0); if (timeA === 0 && timeB !== 0) return 1; if (timeA !== 0 && timeB === 0) return -1; return timeA - timeB; }) }));
+            // Gunakan type guard saat sorting
+            setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: finalMessages.sort((a, b) => {
+                const timeA = isNewsArticle(a) ? a.published_on * 1000 : (isChatMessage(a) ? a.timestamp : 0);
+                const timeB = isNewsArticle(b) ? b.published_on * 1000 : (isChatMessage(b) ? b.timestamp : 0);
+                if (timeA === 0 && timeB !== 0) return 1; if (timeA !== 0 && timeB === 0) return -1;
+                return timeA - timeB;
+            }) }));
         }, (error) => { console.error(`Firebase listener error for ${currentRoom?.id}:`, error); });
 
         return () => { if (listener && database) { console.log(`Stopping listener for ${currentRoom?.id}`); off(messagesRef, 'value', listener); } };
@@ -179,21 +198,21 @@ const App = () => {
      switch (activePage) {
       case 'home': return <HomePage
                 idrRate={idrRate} isRateLoading={isRateLoading} currency={currency}
-                onIncrementAnalysisCount={handleIncrementAnalysisCount}
+                onIncrementAnalysisCount={handleIncrementAnalysisCount} // Corrected prop name
                 fullCoinList={fullCoinList} isCoinListLoading={isCoinListLoading} coinListError={coinListError}
                 heroCoin={heroCoin} otherTrendingCoins={otherTrendingCoins} isTrendingLoading={isTrendingLoading} trendingError={trendingError}
-                onSelectCoin={handleSelectCoin}
-                onReloadTrending={handleResetToTrending}
+                onSelectCoin={handleSelectCoin} // Corrected prop name
+                onReloadTrending={handleResetToTrending} // Corrected prop name
                />;
       case 'rooms': return <RoomsListPage
                     rooms={rooms}
-                    onJoinRoom={handleJoinRoom}
-                    onCreateRoom={handleCreateRoom}
+                    onJoinRoom={handleJoinRoom} // Corrected prop name
+                    onCreateRoom={handleCreateRoom} // Corrected prop name
                     totalUsers={totalUsers} hotCoin={hotCoin} userProfile={currentUser}
                     currentRoomId={currentRoom?.id || null} joinedRoomIds={joinedRoomIds}
-                    onLeaveJoinedRoom={handleLeaveJoinedRoom}
+                    onLeaveJoinedRoom={handleLeaveJoinedRoom} // Corrected prop name
                     unreadCounts={unreadCounts}
-                    onDeleteRoom={handleDeleteRoom}
+                    onDeleteRoom={handleDeleteRoom} // Corrected prop name
                 />;
       case 'forum':
         const currentMessages = currentRoom ? firebaseMessages[currentRoom.id] || [] : [];
@@ -203,29 +222,29 @@ const App = () => {
         const messagesToPass = Array.isArray(displayMessages) ? displayMessages : [];
         return <ForumPage
                     room={currentRoom} messages={messagesToPass} userProfile={currentUser}
-                    onSendMessage={handleSendMessage}
-                    onLeaveRoom={handleLeaveRoom}
-                    onReact={handleReaction}
+                    onSendMessage={handleSendMessage} // Corrected prop name
+                    onLeaveRoom={handleLeaveRoom} // Corrected prop name
+                    onReact={handleReaction} // Corrected prop name
                 />;
       case 'about': return <AboutPage />;
       default: return <HomePage
                 idrRate={idrRate} isRateLoading={isRateLoading} currency={currency}
-                onIncrementAnalysisCount={handleIncrementAnalysisCount}
+                onIncrementAnalysisCount={handleIncrementAnalysisCount} // Corrected prop name
                 fullCoinList={fullCoinList} isCoinListLoading={isCoinListLoading} coinListError={coinListError}
                 heroCoin={heroCoin} otherTrendingCoins={otherTrendingCoins} isTrendingLoading={isTrendingLoading} trendingError={trendingError}
-                onSelectCoin={handleSelectCoin}
-                onReloadTrending={handleResetToTrending}
+                onSelectCoin={handleSelectCoin} // Corrected prop name
+                onReloadTrending={handleResetToTrending} // Corrected prop name
               />;
     }
   };
 
   // --- Auth Flow Rendering ---
   if (!currentUser && !pendingGoogleUser) return <LoginPage
-              onGoogleRegisterSuccess={handleGoogleRegisterSuccess}
-              onLogin={handleLogin}
+              onGoogleRegisterSuccess={handleGoogleRegisterSuccess} // Corrected prop name
+              onLogin={handleLogin} // Corrected prop name
             />;
   if (pendingGoogleUser) return <CreateIdPage
-              onProfileComplete={handleProfileComplete}
+              onProfileComplete={handleProfileComplete} // Corrected prop name
               googleProfile={pendingGoogleUser}
             />;
 
@@ -235,9 +254,9 @@ const App = () => {
       <Particles />
       <Header
         userProfile={currentUser}
-        onLogout={handleLogout}
+        onLogout={handleLogout} // Corrected prop name
         activePage={activePage}
-        onNavigate={handleNavigate}
+        onNavigate={handleNavigate} // Corrected prop name
         currency={currency}
         onCurrencyChange={setCurrency}
         hotCoin={hotCoin}
