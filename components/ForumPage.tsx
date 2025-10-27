@@ -1,5 +1,5 @@
 // components/ForumPage.tsx
-import React, { useState, useEffect, useRef, useMemo } from 'react'; // Removed unused React types
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import UserTag, { ADMIN_USERNAMES } from './UserTag';
 import type { NewsArticle, ChatMessage, ForumPageProps, ForumMessageItem, User } from '../types';
 import { isNewsArticle, isChatMessage } from '../types';
@@ -151,10 +151,14 @@ const UserMessage: React.FC<{
 }> = ({ message, userProfile, onReact, onDeleteClick, canDelete, isActive, showActions, showPicker, onMessageClick, onReactButtonClick, onClosePicker }) => {
 
     const currentUsername = userProfile?.username || ''; // Get username safely
-    const isCurrentUser = message.sender === currentUsername && !!currentUsername;
+    // Check if the message sender matches the *current logged-in user's username*
+    const isCurrentUser = message.sender === username && !!username; // Use the username from props
+    // Determine creation date only if it's the current user sending
     const creationDate = isCurrentUser ? (userProfile?.createdAt ?? null) : null;
 
+
     return (
+        // Main container for alignment (start/end)
         <div className={`my-1 py-1 flex group/message relative ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
             {/* Inner container for flex ordering */}
             <div className={`flex items-start gap-2 ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'}`}>
@@ -180,6 +184,7 @@ const UserMessage: React.FC<{
                         {/* Sender Info */}
                         <div className={`flex items-center gap-2 flex-wrap ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
                             <span className={`font-bold text-sm break-all font-heading ${isCurrentUser ? 'text-electric' : 'text-magenta'}`}>{message.sender}</span>
+                            {/* Pass correct creationDate or null */}
                             <UserTag sender={message.sender} userCreationDate={creationDate} />
                         </div>
                         {/* Message Bubble */}
@@ -188,7 +193,7 @@ const UserMessage: React.FC<{
                          </div>
                         {/* Reactions below the bubble */}
                         <div className="relative mt-1">
-                            <Reactions message={message} username={currentUsername} onReact={(emoji) => onReact(message.id, emoji)} />
+                            <Reactions message={message} username={username} onReact={(emoji) => onReact(message.id, emoji)} />
                         </div>
                     </div>
                 </div>
@@ -225,22 +230,20 @@ const ForumPage: React.FC<ForumPageProps> = ({
 
     // Click handler for message: Toggles *action button* visibility
     const handleMessageClick = (messageId: string) => {
-         // Clear any previous timer if a new click happens
-         // if (actionTimerRef.current) { clearTimeout(actionTimerRef.current); actionTimerRef.current = null; }
-
         setActiveMessageId(currentId => {
             if (currentId === messageId) {
-                // If clicking the same message, toggle action visibility
-                setShowActions(prev => !prev);
-                // Always hide picker when toggling actions on/off for the active message
+                // Toggle action visibility if clicking the active message
+                const newShowActions = !showActions;
+                setShowActions(newShowActions);
+                // Always hide picker when toggling actions
                 setShowPickerForMsgId(null);
-                // If actions are being hidden, also deactivate the message ID
-                return showActions ? null : currentId;
+                // Deactivate message only if actions are being hidden
+                return newShowActions ? currentId : null;
             } else {
-                // If clicking a new message, make it active and show actions
+                // Activate new message and show actions
                 setShowActions(true);
-                 setShowPickerForMsgId(null); // Hide any picker from previous message
-                return messageId; // Set new active message
+                setShowPickerForMsgId(null); // Hide any previous picker
+                return messageId;
             }
         });
     };
@@ -251,22 +254,20 @@ const ForumPage: React.FC<ForumPageProps> = ({
         setShowPickerForMsgId(currentPickerId =>
             currentPickerId === messageId ? null : messageId // Toggle picker for this message ID
         );
-        // Ensure actions remain visible if picker is shown for the active message
+        // Ensure actions become visible if reacting to the active message but actions were hidden
         if (activeMessageId === messageId && !showActions) {
              setShowActions(true);
         }
-         // If clicking react on a *different* message, make it active and show actions/picker
+         // If clicking react on a *different* message, make it active
          else if (activeMessageId !== messageId) {
              setActiveMessageId(messageId);
-             setShowActions(true);
-             // The picker state is already handled by setShowPickerForMsgId above
+             setShowActions(true); // Show actions for the newly active message
          }
     };
 
 
      // Click handler for the chat area to deselect messages/hide actions/picker
      const handleChatAreaClick = () => {
-         // Hide everything if clicked outside
          if (showActions || activeMessageId || showPickerForMsgId) {
             setShowActions(false);
             setActiveMessageId(null);
@@ -277,15 +278,36 @@ const ForumPage: React.FC<ForumPageProps> = ({
     // Ensure messages is always an array, sort, and scroll
     const safeMessages = Array.isArray(messages) ? messages : [];
     const sortedMessages = useMemo(() => { return [...safeMessages].sort((a, b) => { const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0); const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0); if (!timeA && !timeB) return 0; if (!timeA) return 1; if (!timeB) return -1; return timeA - timeB; }); }, [safeMessages]);
-    useEffect(() => {
-        // Scroll to bottom only if no message is actively selected
-        if(activeMessageId === null && chatEndRef.current) {
-            chatEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' }); // Use smooth and block end
-        }
-    }, [sortedMessages, activeMessageId]); // Rerun on messages update or active change
+    useEffect(() => { if(activeMessageId === null && chatEndRef.current) { chatEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' }); } }, [sortedMessages, activeMessageId]);
 
-    // Original send message handler (unchanged as requested)
-    const handleSendMessageOriginal = (e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); const currentMessageText = newMessage.trim(); const currentAttachment = attachment; if ((!currentMessageText && !currentAttachment) || !username) { return; } const userMessage: Partial<ChatMessage> & { sender: string; timestamp: number; type: 'user' } = { id: `local-${Date.now()}-${Math.random()}`, type: 'user', sender: username, timestamp: Date.now(), reactions: {} }; if (currentMessageText) { userMessage.text = currentMessageText; } if (currentAttachment) { userMessage.fileURL = currentAttachment.dataUrl; userMessage.fileName = currentAttachment.name; } if (userMessage.text || userMessage.fileURL) { onSendMessage(userMessage as ChatMessage); } setNewMessage(''); setAttachment(null); if(fileInputRef.current) fileInputRef.current.value = ""; };
+    // Send Message Handler (passed from App.tsx)
+    const handleSendMessageSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const currentMessageText = newMessage.trim();
+        const currentAttachment = attachment;
+        // Basic check before calling the prop function
+        if ((!currentMessageText && !currentAttachment) || !username) { return; }
+
+        // Construct a temporary ChatMessage object based on input state
+        const messageData: Partial<ChatMessage> & { type: 'user'; sender: string; timestamp: number } = {
+            // id will be generated by Firebase in App.tsx's handleSendMessage
+            type: 'user',
+            sender: username,
+            timestamp: Date.now(), // Use client time for local display?
+            reactions: {}, // Initial reactions
+            ...(currentMessageText && { text: currentMessageText }),
+            ...(currentAttachment && { fileURL: currentAttachment.dataUrl, fileName: currentAttachment.name }),
+        };
+
+        // Call the prop function from App.tsx to handle Firebase logic
+        onSendMessage(messageData as ChatMessage); // Type assertion needed as ID is missing
+
+        // Reset local state
+        setNewMessage('');
+        setAttachment(null);
+        if(fileInputRef.current) fileInputRef.current.value = "";
+    };
+
 
     // File change handler (unchanged)
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && file.type.startsWith('image/')) { const reader = new FileReader(); reader.onloadend = () => { if (reader.result) { setAttachment({ dataUrl: reader.result as string, name: file.name }); } }; reader.readAsDataURL(file); } else { setAttachment(null); } };
@@ -315,8 +337,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
                          sortedMessages.map((item, index) => {
                            const isActive = activeMessageId === item.id;
                            const showPicker = showPickerForMsgId === item.id;
-                           // FIX: Ensure key is stable and unique using item.id
-                           const messageKey = item.id || `fallback-${item.type}-${index}`; // Use type in fallback
+                           const messageKey = item.id || `fallback-${item.type}-${index}`;
 
                            if (isChatMessage(item)) {
                                if (item.type === 'system') {
@@ -330,13 +351,13 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                return <UserMessage
                                           key={messageKey}
                                           message={item}
-                                          userProfile={senderProfile}
+                                          userProfile={senderProfile} // Pass null if not own message
                                           onReact={onReact}
                                           onDeleteClick={() => {if (window.confirm('Yakin hapus pesan ini?')) {onDeleteMessage(room.id, item.id);}}}
                                           canDelete={canDelete}
                                           isActive={isActive}
-                                          showActions={showActions && isActive} // Action visibility depends on global showActions and if message is active
-                                          showPicker={showPicker} // Picker visibility depends on its specific state
+                                          showActions={showActions && isActive}
+                                          showPicker={showPicker}
                                           onMessageClick={() => handleMessageClick(item.id)}
                                           onReactButtonClick={(e) => handleReactButtonClick(e, item.id)}
                                           onClosePicker={() => setShowPickerForMsgId(null)}
@@ -381,7 +402,8 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                      <button onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold hover:bg-red-700 transition-colors" title="Hapus lampiran"> × </button>
                                 </div>
                              )}
-                             <form onSubmit={handleSendMessageOriginal} className="flex items-center space-x-2">
+                             {/* FIX: Use the correct submit handler */}
+                             <form onSubmit={handleSendMessageSubmit} className="flex items-center space-x-2">
                                  <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                                  <button type="button" onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-electric p-2 rounded-full transition-colors flex-shrink-0" title="Lampirkan gambar">
                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
@@ -399,6 +421,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
             </div>
              {/* Styles */}
              <style>{`
+                /* Action buttons positioning */
                 .group\\/message .opacity-0 { opacity: 0; pointer-events: none; }
                 .group\\/message:hover .group-hover\\/message\\:opacity-100,
                 .group\\/message .opacity-100 { opacity: 1; pointer-events: auto; }
