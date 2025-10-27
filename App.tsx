@@ -1,4 +1,4 @@
-// ava19999/v1/v1-1340aa22ce1177029d39fe3f8689ee2fb3a9c123/App.tsx
+// ava19999/v1/v1-aacbe1d2a7de47d44bb6e7f00166828f3e9eaa42/App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -126,7 +126,6 @@ const AppContent = () => {
          const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
 
          const fetchAndProcessNews = async () => {
-             // PERBAIKAN: Gunakan Date.now() bukan 'now'
              const currentTime = Date.now();
              const lastFetch = parseInt(localStorage.getItem(LAST_FETCH_KEY) || '0', 10);
              /* if (currentTime - lastFetch < NEWS_FETCH_INTERVAL) return; */
@@ -152,19 +151,29 @@ const AppContent = () => {
                  if (newArticleAdded) {
                      console.log(`Adding ${Object.keys(updates).length} news.`);
                      await update(newsRoomRef, updates);
-                     // PERBAIKAN: Gunakan currentTime bukan 'now'
                      localStorage.setItem(LAST_FETCH_KEY, currentTime.toString());
                      if (currentRoom?.id !== NEWS_ROOM_ID) {
-                         // PERBAIKAN: Gunakan currentTime bukan 'now'
                          setUnreadCounts(prev => ({ ...prev, [NEWS_ROOM_ID]: { count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length, lastUpdate: currentTime } }));
                      }
                  } else {
                      console.log("No new news.");
                  }
-            // FIX: Changed catch (err: any) to catch (err)
+            // FIX: Corrected catch block syntax and error handling
              } catch (err) {
                  // Log the error message safely
-                 const errorMessage = err instanceof Error ? err.message : 'Unknown error during news fetch/process';
+                 let errorMessage = 'Unknown error during news fetch/process';
+                 if (err instanceof Error) {
+                     errorMessage = err.message;
+                 } else if (typeof err === 'string') {
+                    errorMessage = err;
+                 } else {
+                    // Attempt to stringify if it's an object, otherwise use default message
+                    try {
+                        errorMessage = JSON.stringify(err);
+                    } catch {
+                        // Keep the default message if stringify fails
+                    }
+                 }
                  console.error("News fetch/process failed:", errorMessage);
              }
          };
