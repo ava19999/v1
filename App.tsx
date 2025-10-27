@@ -161,8 +161,11 @@ const AppContent = () => {
                  } else {
                      console.log("No new news.");
                  }
-             } catch (err: any) {
-                 console.error("News fetch/process failed:", err.message);
+            // FIX: Changed catch (err: any) to catch (err)
+             } catch (err) {
+                 // Log the error message safely
+                 const errorMessage = err instanceof Error ? err.message : 'Unknown error during news fetch/process';
+                 console.error("News fetch/process failed:", errorMessage);
              }
          };
 

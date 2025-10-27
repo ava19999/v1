@@ -112,7 +112,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
          else {
              setShowActions(false); setActiveMessageId(messageId);
              actionTimerRef.current = setTimeout(() => {
-                 // PERBAIKAN: Gunakan callback function untuk update state (TS1005: '=>' expected)
+                 // FIX: Removed the potentially problematic comment
                  setActiveMessageId(currentActiveId => {
                       if (currentActiveId === messageId) {
                            setShowActions(true);
@@ -173,8 +173,40 @@ const ForumPage: React.FC<ForumPageProps> = ({
                 </div>
 
                  <div className="p-3 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
-                    {/* Input Area (Tidak Berubah) */}
-                    {isDefaultRoom ? ( /* Read only */ ) : ( /* Form */ )}
+                    {/* Input Area */}
+                    {isDefaultRoom ? (
+                      <div className="text-center text-sm text-gray-500 py-2 flex items-center justify-center gap-2">
+                        <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                           <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+                        </svg>
+                         Room ini hanya untuk membaca.
+                      </div>
+                     ) : (
+                      <div className="space-y-2">
+                         {attachment && (
+                             <div className="relative inline-block">
+                                <img src={attachment.dataUrl} alt="Pratinjau" className="max-h-24 rounded-lg" />
+                                <button
+                                    onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
+                                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold"
+                                > × </button>
+                             </div>
+                         )}
+                         <form onSubmit={handleSendMessage} className="flex items-center space-x-2">
+                            <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                            <button type="button" onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-electric p-2 rounded-full transition-colors flex-shrink-0">
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                            </button>
+                             <div className="relative flex-1">
+                                <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Ketik pesan Anda..." className="w-full bg-gray-800 border border-gray-700 rounded-full py-2.5 pl-4 pr-12 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all" disabled={!username} />
+                                {/* Add send button here or adjust styling */}
+                             </div>
+                             <button type="submit" className="bg-electric text-white rounded-full p-2.5 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0" disabled={isSendDisabled}>
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                             </button>
+                         </form>
+                      </div>
+                     )}
                  </div>
             </div>
              <style>{`
