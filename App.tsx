@@ -1,4 +1,4 @@
-// ava19999/v1/v1-c5d7d0ddb102ed890fdcf6a9b98065e6ff8b15c3/App.tsx
+// ava19999/v1/v1-e9d21554693c716e0e65bad33afe7587274395eb/App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -98,49 +98,29 @@ const AppContent = () => {
 
     // --- Firebase Chat Logic ---
 
-    // Mengirim pesan
+    // Mengirim pesan (TIDAK DIUBAH)
     const handleSendMessage = useCallback((message: ChatMessage) => {
-        console.log("[App.tsx] handleSendMessage triggered with:", JSON.stringify(message)); // Log 1
-
+        console.log("[App.tsx] handleSendMessage called with message:", JSON.stringify(message));
         if (!database) { console.error("[App.tsx] Database not initialized!"); return; }
         if (!currentRoom?.id) { console.error("[App.tsx] currentRoom.id is missing!"); return; }
         if (!currentUser?.username) { console.error("[App.tsx] currentUser.username is missing!"); return; }
-
-        console.log(`[App.tsx] Sending to room: ${currentRoom.id}, User: ${currentUser.username}`); // Log 2
-
+        console.log(`[App.tsx] Sending to room: ${currentRoom.id} by user: ${currentUser.username}`);
         const messageListRef = ref(database, `messages/${currentRoom.id}`);
         const newMessageRef = push(messageListRef);
-
-        // PERBAIKAN: Buat objek baru secara eksplisit, jangan gunakan ...message
-        // Ini untuk menghindari properti 'undefined' yang tidak diinginkan
         const messageToSend: ChatMessage = {
              id: newMessageRef.key ?? `local-${Date.now()}`,
-             type: 'user', // Kita tahu ini 'user' dari ForumPage
-             sender: message.sender, // Diambil dari message (username)
-             timestamp: message.timestamp, // Diambil dari message (Date.now())
-             reactions: message.reactions || {}, // Default
+             type: 'user',
+             sender: message.sender,
+             timestamp: message.timestamp,
+             reactions: message.reactions || {},
+             ...(message.text && { text: message.text }),
+             ...(message.fileURL && { fileURL: message.fileURL, fileName: message.fileName }),
         };
-
-        // Tambahkan properti opsional HANYA JIKA ADA
-        if (message.text) {
-            messageToSend.text = message.text;
-        }
-        if (message.fileURL) {
-            messageToSend.fileURL = message.fileURL;
-            messageToSend.fileName = message.fileName;
-        }
-
-        console.log("[App.tsx] Final message object to send:", JSON.stringify(messageToSend)); // Log 3
-        
+        console.log("[App.tsx] Final message object to send:", JSON.stringify(messageToSend));
         set(newMessageRef, messageToSend)
-            .then(() => {
-                console.log("[App.tsx] Message sent successfully! ID:", newMessageRef.key); // Log Sukses
-            })
-            .catch((error) => {
-                console.error("[App.tsx] Firebase send message failed:", error); // Log Error
-                alert("Gagal kirim pesan. Periksa koneksi atau izin database.");
-            });
-    }, [currentRoom, currentUser]); // Dependencies
+            .then(() => { console.log("[App.tsx] Message sent successfully! ID:", newMessageRef.key); })
+            .catch((error) => { console.error("[App.tsx] Firebase send message failed:", error); alert("Gagal kirim pesan."); });
+    }, [currentRoom, currentUser]);
 
     // Mendengarkan pesan
     useEffect(() => {
@@ -155,19 +135,28 @@ const AppContent = () => {
 
     // Fetch News Articles
     useEffect(() => {
-         if (!database) { console.warn("Database not initialized, cannot fetch/save news."); return; }
-         const currentDb = database; const NEWS_ROOM_ID = 'berita-kripto'; const NEWS_FETCH_INTERVAL = 20 * 60 * 1000; const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
-         const fetchAndProcessNews = async () => { const now = Date.now(); const lastFetch = parseInt(localStorage.getItem(LAST_FETCH_KEY) || '0', 10); /* if (now - lastFetch < NEWS_FETCH_INTERVAL) return; */ try { const fetchedArticles = await fetchNewsArticles(); if (!fetchedArticles?.length) return; if (!currentDb) return; const newsRoomRef = ref(currentDb, `messages/${NEWS_ROOM_ID}`); const snapshot = await get(newsRoomRef); const existingNewsData = snapshot.val() || {}; const existingNewsUrls = new Set(Object.values<any>(existingNewsData).map(news => news.url)); let newArticleAdded = false; const updates: { [key: string]: NewsArticle } = {}; fetchedArticles.forEach(article => { if (!existingNewsUrls.has(article.url)) { const newsRef = push(newsRoomRef); if(newsRef.key) { updates[newsRef.key] = { ...article, type: 'news', id: newsRef.key, reactions: {} }; newArticleAdded = true; } } }); if (newArticleAdded) { console.log(`Adding ${Object.keys(updates).length} news.`); await update(newsRoomRef, updates); localStorage.setItem(LAST_FETCH_KEY, now.toString()); if (currentRoom?.id !== NEWS_ROOM_ID) { setUnreadCounts(prev => ({ ...prev, [NEWS_ROOM_ID]: { count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length, lastUpdate: now } })); } } else { console.log("No new news."); } } catch (err: any) { console.error("News fetch/process failed:", err.message); } };
+         if (!database) { console.warn("DB null - news fetch"); return; } const currentDb = database; const NEWS_ROOM_ID = 'berita-kripto'; const NEWS_FETCH_INTERVAL = 20 * 60 * 1000; const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
+         const fetchAndProcessNews = async () => { /* ... logika fetch news ... */ try { const fetchedArticles = await fetchNewsArticles(); if (!fetchedArticles?.length) return; if (!currentDb) return; const newsRoomRef = ref(currentDb, `messages/${NEWS_ROOM_ID}`); const snapshot = await get(newsRoomRef); const existingNewsData = snapshot.val() || {}; const existingNewsUrls = new Set(Object.values<any>(existingNewsData).map(news => news.url)); let newArticleAdded = false; const updates: { [key: string]: NewsArticle } = {}; fetchedArticles.forEach(article => { if (!existingNewsUrls.has(article.url)) { const newsRef = push(newsRoomRef); if(newsRef.key) { updates[newsRef.key] = { ...article, type: 'news', id: newsRef.key, reactions: {} }; newArticleAdded = true; } } }); if (newArticleAdded) { console.log(`Adding ${Object.keys(updates).length} news.`); await update(newsRoomRef, updates); localStorage.setItem(LAST_FETCH_KEY, now.toString()); if (currentRoom?.id !== NEWS_ROOM_ID) { setUnreadCounts(prev => ({ ...prev, [NEWS_ROOM_ID]: { count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length, lastUpdate: now } })); } } else { console.log("No new news."); } } catch (err: any) { console.error("News failed:", err.message); } };
          fetchAndProcessNews(); const intervalId = setInterval(fetchAndProcessNews, NEWS_FETCH_INTERVAL); return () => clearInterval(intervalId);
     }, [currentRoom]);
 
     // Menangani reaksi
     const handleReaction = useCallback((messageId: string, emoji: string) => {
-        if (!database) { console.error("Database not initialized for reaction"); return; }
-        if (!currentRoom?.id || !currentUser?.username || !messageId) return;
+        if (!database) { console.error("DB null - reaction"); return; } if (!currentRoom?.id || !currentUser?.username || !messageId) return;
         const username = currentUser.username; const reactionUserListRef = ref(database, `messages/${currentRoom.id}/${messageId}/reactions/${emoji}`);
         get(reactionUserListRef).then((snapshot) => { const usersForEmoji: string[] = snapshot.val() || []; let updatedUsers: string[] | null = null; if (usersForEmoji.includes(username)) { updatedUsers = usersForEmoji.filter(u => u !== username); if (updatedUsers.length === 0) updatedUsers = null; } else { updatedUsers = [...usersForEmoji, username]; } set(reactionUserListRef, updatedUsers).catch(error => console.error("Update reaction failed:", error)); }).catch(error => console.error("Get reaction failed:", error));
     }, [currentRoom, currentUser]);
+
+    // DIPERBARUI: Handler untuk menghapus pesan
+    const handleDeleteMessage = useCallback((roomId: string, messageId: string) => {
+        if (!database) { console.error("[App.tsx] Database not initialized for deleteMessage"); return; }
+        if (!roomId || !messageId) { console.error("[App.tsx] Missing roomId or messageId for deleteMessage"); return; }
+        console.log(`[App.tsx] Attempting to delete message ${messageId} from room ${roomId}`);
+        const messageRef = ref(database, `messages/${roomId}/${messageId}`);
+        set(messageRef, null)
+            .then(() => { console.log(`[App.tsx] Message ${messageId} deleted successfully.`); })
+            .catch((error) => { console.error(`[App.tsx] Failed to delete message ${messageId}:`, error); alert("Gagal menghapus pesan."); });
+    }, []); // Dependensi kosong karena 'database' konstan (atau null)
 
 
   // --- Memoized Values ---
@@ -181,7 +170,9 @@ const AppContent = () => {
      switch (activePage) {
       case 'home': return <HomePage idrRate={idrRate} isRateLoading={isRateLoading} currency={currency} onIncrementAnalysisCount={handleIncrementAnalysisCount} fullCoinList={fullCoinList} isCoinListLoading={isCoinListLoading} coinListError={coinListError} heroCoin={heroCoin} otherTrendingCoins={otherTrendingCoins} isTrendingLoading={isTrendingLoading} trendingError={trendingError} onSelectCoin={handleSelectCoin} onReloadTrending={handleResetToTrending} />;
       case 'rooms': return <RoomsListPage rooms={rooms} onJoinRoom={handleJoinRoom} onCreateRoom={handleCreateRoom} totalUsers={totalUsers} hotCoin={hotCoin} userProfile={currentUser} currentRoomId={currentRoom?.id || null} joinedRoomIds={joinedRoomIds} onLeaveJoinedRoom={handleLeaveJoinedRoom} unreadCounts={unreadCounts} onDeleteRoom={handleDeleteRoom} />;
-      case 'forum': const currentMessages = currentRoom ? firebaseMessages[currentRoom.id] || [] : []; const displayMessages = (currentMessages.length === 0 && currentRoom && defaultMessages[currentRoom.id]) ? defaultMessages[currentRoom.id] : currentMessages; const messagesToPass = Array.isArray(displayMessages) ? displayMessages : []; return <ForumPage room={currentRoom} messages={messagesToPass} userProfile={currentUser} onSendMessage={handleSendMessage} onLeaveRoom={handleLeaveRoom} onReact={handleReaction} />;
+      case 'forum': const currentMessages = currentRoom ? firebaseMessages[currentRoom.id] || [] : []; const displayMessages = (currentMessages.length === 0 && currentRoom && defaultMessages[currentRoom.id]) ? defaultMessages[currentRoom.id] : currentMessages; const messagesToPass = Array.isArray(displayMessages) ? displayMessages : [];
+        // DIPERBARUI: Teruskan onDeleteMessage
+        return <ForumPage room={currentRoom} messages={messagesToPass} userProfile={currentUser} onSendMessage={handleSendMessage} onLeaveRoom={handleLeaveRoom} onReact={handleReaction} onDeleteMessage={handleDeleteMessage} />;
       case 'about': return <AboutPage />;
       default: return <HomePage idrRate={idrRate} isRateLoading={isRateLoading} currency={currency} onIncrementAnalysisCount={handleIncrementAnalysisCount} fullCoinList={fullCoinList} isCoinListLoading={isCoinListLoading} coinListError={coinListError} heroCoin={heroCoin} otherTrendingCoins={otherTrendingCoins} isTrendingLoading={isTrendingLoading} trendingError={trendingError} onSelectCoin={handleSelectCoin} onReloadTrending={handleResetToTrending} />;
     }
