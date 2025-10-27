@@ -1,11 +1,10 @@
 // ava19999/v1/v1-9a4dba6fc6c91d8b6ce88474ad1ebcc8a220a34d/components/ForumPage.tsx
-import React, { useState, useEffect, useRef, useMemo, ReactElement, JSXElementConstructor, ReactNode, ReactPortal } from 'react'; // Import additional types
+import React, { useState, useEffect, useRef, useMemo, ReactElement, JSXElementConstructor, ReactNode, ReactPortal } from 'react';
 import UserTag from './UserTag';
+// Impor type guard dari types.ts
 import type { NewsArticle, ChatMessage, ForumPageProps, ForumMessageItem, User } from '../types';
-
-// --- Helper Functions & Type Guards ---
-// Assuming isNewsArticle and isChatMessage are correctly imported from '../types'
 import { isNewsArticle, isChatMessage } from '../types';
+
 const formatDate = (unixTimestamp: number): string => new Date(unixTimestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 const EMOJIS = ['👍', '❤️', '🚀', '🔥', '😂', '🤯'];
 
@@ -18,6 +17,7 @@ const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => vo
                 {emoji}
             </button>
         ))}
+         {/* Tombol close kecil */}
         <button onClick={onClose} className="text-gray-400 hover:text-white ml-1 p-0.5 rounded-full hover:bg-white/10">
              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -85,10 +85,21 @@ const MessageWrapper: React.FC<{
     const [showPicker, setShowPicker] = useState(false);
     const pickerRef = useRef<HTMLDivElement>(null);
 
-    useEffect(() => { /* ... (efek klik di luar) ... */
-         const handleClickOutside = (event: MouseEvent) => { if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) { setShowPicker(false); } };
-         if (showPicker) { document.addEventListener('mousedown', handleClickOutside); } else { document.removeEventListener('mousedown', handleClickOutside); }
-         return () => { document.removeEventListener('mousedown', handleClickOutside); };
+     // Menutup picker jika klik di luar
+    useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) {
+                setShowPicker(false);
+            }
+        };
+        if (showPicker) {
+            document.addEventListener('mousedown', handleClickOutside);
+        } else {
+            document.removeEventListener('mousedown', handleClickOutside);
+        }
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
     }, [showPicker]);
 
 
@@ -104,10 +115,11 @@ const MessageWrapper: React.FC<{
                     onReact={(emoji) => onReact(messageId, emoji)}
                     onAddReactionClick={() => setShowPicker(prev => !prev)}
                 />
+                 {/* Conditionally render ReactionPicker */}
                  {showPicker && (
                     <ReactionPicker
                         onSelect={(emoji) => onReact(messageId, emoji)}
-                        onClose={() => setShowPicker(false)}
+                        onClose={() => setShowPicker(false)} // Prop untuk menutup
                     />
                  )}
             </div>
@@ -125,7 +137,7 @@ const NewsMessage: React.FC<{ article: NewsArticle; username: string; onReact: (
         className="my-2 animate-fade-in-up"
         reactionContainerClassName="w-full sm:w-4/5 md:w-3/5 mx-auto"
     >
-        {/* Konten asli NewsMessage (tanpa Reactions/Picker) */}
+        {/* Konten asli NewsMessage */}
         <>
             <div className="text-center text-xs text-gray-500 py-1">
                 Pembaruan Pasar · {formatDate(article.published_on * 1000)}
@@ -151,7 +163,8 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
     const isCurrentUser = message.sender === currentUsername;
 
     // Tentukan userCreationDate berdasarkan apakah pesan dari current user
-    const creationDate = isCurrentUser ? userProfile?.createdAt : null; // Asumsi hanya tahu createdAt user saat ini
+    // DIPERBAIKI: Gunakan '?? null' untuk memastikan tipe 'number | null'
+    const creationDate = isCurrentUser ? (userProfile?.createdAt ?? null) : null;
 
     return (
         <MessageWrapper
@@ -162,7 +175,7 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
             className={`my-1 animate-fade-in-up py-1 flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}
             reactionContainerClassName={`max-w-md ${isCurrentUser ? 'ml-auto' : ''}`}
         >
-            {/* Konten asli UserMessage (tanpa Reactions/Picker) */}
+            {/* Konten asli UserMessage */}
             <>
                 <div className={`flex items-start gap-3 ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
                     <div className="flex-1 overflow-hidden">
@@ -184,13 +197,13 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
 };
 
 
-const SystemMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => ( /* ... (kode tetap sama) ... */
+const SystemMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => (
     <div className="text-center text-xs text-gray-500 py-2 italic animate-fade-in-up">
         {message.text}
     </div>
 );
 
-const AnnouncementMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => { /* ... (kode tetap sama) ... */
+const AnnouncementMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => {
     const text = message.text || ''; const parts = text.split(':'); const title = parts.length > 1 ? parts[0] : ''; const content = parts.length > 1 ? parts.slice(1).join(':').trim() : text;
     let icon; let titleColor = 'text-electric'; let borderColor = 'border-electric/50';
     if (title.includes('Aturan')) { icon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>; titleColor = 'text-magenta'; borderColor = 'border-magenta/50'; }
@@ -251,7 +264,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
             {/* Kontainer Chat */}
             <div className="bg-gray-900 border border-white/10 rounded-xl flex flex-col flex-grow overflow-hidden">
                 {/* Area Pesan */}
-                <div className="p-2 md:p-4 flex-grow overflow-y-auto space-y-1 custom-scrollbar">
+                <div className="p-2 md:p-4 flex-grow overflow-y-auto space-y-1 custom-scrollbar"> {/* Add custom-scrollbar */}
                      {sortedMessages.length === 0 ? (
                         <div className="flex items-center justify-center h-full text-gray-500"><p>Belum ada pesan.</p></div>
                      ) : (
@@ -265,7 +278,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                    }
                                    return <SystemMessage key={item.id || `sys-${index}`} message={item} />;
                                }
-                               // Cari data user untuk pesan ini (hanya perlu user saat ini untuk cek isCurrentUser)
+                               // Tentukan profil sender. Jika itu user saat ini, pass userProfile.
                                const senderProfile = item.sender === userProfile?.username ? userProfile : null;
                                return <UserMessage key={item.id || `user-${index}`} message={item} userProfile={senderProfile} onReact={onReact} />;
                            } else if (isNewsArticle(item)) {
@@ -284,12 +297,13 @@ const ForumPage: React.FC<ForumPageProps> = ({
                     : ( <div className="space-y-2"> {attachment && ( <div className="relative inline-block"> <img src={attachment.dataUrl} alt="Pratinjau" className="max-h-24 rounded-lg" /> <button onClick={() => { setAttachment(null); if(fileInputRef.current) fileInputRef.current.value = ""; }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold">&times;</button> </div> )} <form onSubmit={handleSendMessage} className="flex items-center space-x-2"> <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /> <button type="button" onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-electric p-2 rounded-full transition-colors flex-shrink-0"> <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg> </button> <div className="relative flex-1"> <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Ketik pesan Anda..." className="w-full bg-gray-800 border border-gray-700 rounded-full py-2.5 pl-4 pr-12 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all" disabled={!username} /> </div> <button type="submit" className="bg-electric text-white rounded-full p-2.5 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0" disabled={(!newMessage.trim() && !attachment) || !username}> <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg> </button> </form> </div> )}
                 </div>
             </div>
-             {/* Style */}
+             {/* Style untuk animasi dan scrollbar */}
              <style>{`
                 @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
                 @keyframes fade-in-up { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
                 .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
                 .animate-fade-in-up { animation: fade-in-up 0.4s ease-out forwards; }
+                /* Custom Scrollbar */
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.15); border-radius: 3px; }
