@@ -79,7 +79,7 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
 
 const SystemMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => ( <div className="text-center text-xs text-gray-500 py-2 italic animate-fade-in-up"> {message.text} </div> );
 
-// PERBAIKAN: Pastikan AnnouncementMessage mengembalikan JSX
+// Pastikan AnnouncementMessage mengembalikan JSX
 const AnnouncementMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => {
     const text = message.text || ''; const parts = text.split(':'); const title = parts.length > 1 ? parts[0] : ''; const content = parts.length > 1 ? parts.slice(1).join(':').trim() : text;
     let icon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>;
@@ -112,9 +112,11 @@ const ForumPage: React.FC<ForumPageProps> = ({
          else {
              setShowActions(false); setActiveMessageId(messageId);
              actionTimerRef.current = setTimeout(() => {
-                 // PERBAIKAN: Gunakan callback function untuk update state dengan benar (TS1005: '=>' expected)
+                 // PERBAIKAN: Gunakan callback function untuk update state (TS1005: '=>' expected)
                  setActiveMessageId(currentActiveId => {
-                      if (currentActiveId === messageId) { setShowActions(true); }
+                      if (currentActiveId === messageId) {
+                           setShowActions(true);
+                      }
                       return currentActiveId; // Selalu return state saat ini
                  });
                  actionTimerRef.current = null;

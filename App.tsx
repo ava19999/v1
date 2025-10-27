@@ -219,7 +219,7 @@ const AppContent = () => {
 // Wrap AppContent with GoogleOAuthProvider
 const App = () => {
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
-    if (!googleClientId) { return ( <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}> <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}> <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Konfigurasi</h1> <p style={{ marginTop: '10px', lineHeight: '1.6' }}> Variabel lingkungan <strong>GOOGLE_CLIENT_ID</strong> tidak ditemukan. </p> </div> </div> ); }
+    if (!googleClientId) { return ( /* ... Error message ... */ ); }
     return ( <GoogleOAuthProvider clientId={googleClientId}> <AppContent /> </GoogleOAuthProvider> );
 };
 
