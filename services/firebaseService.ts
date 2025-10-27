@@ -1,14 +1,13 @@
 // ava19999/v1/v1-a55800044f80d0f00370f9f03c7fe8adc53a2627/services/firebaseService.ts
-import { initializeApp, FirebaseOptions } from "firebase/app";
-import { getDatabase } from "firebase/database";
+import { initializeApp, FirebaseApp, FirebaseOptions } from "firebase/app";
+import { getDatabase, Database } from "firebase/database"; // Import Database type
 // Import getAnalytics jika Anda menggunakannya
 // import { getAnalytics } from "firebase/analytics";
 
-// Buat objek konfigurasi dari variabel process.env yang didefinisikan di vite.config.ts
+// Buat objek konfigurasi dari variabel process.env
 const firebaseConfig = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-  // Tambahkan databaseURL
   databaseURL: process.env.FIREBASE_DATABASE_URL,
   projectId: process.env.FIREBASE_PROJECT_ID,
   storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
@@ -17,17 +16,16 @@ const firebaseConfig = {
   measurementId: process.env.FIREBASE_MEASUREMENT_ID,
 };
 
-// Validasi sederhana
-if (!firebaseConfig?.apiKey || !firebaseConfig?.databaseURL) { // Tambahkan pengecekan databaseURL
-  console.error("Konfigurasi Firebase (API Key atau DatabaseURL) tidak ditemukan di environment variables!");
-  // Pertimbangkan fallback atau throw error di sini jika diperlukan
-  // Misalnya: throw new Error("Konfigurasi Firebase tidak lengkap!");
-}
+let app: FirebaseApp | null = null;
+let database: Database | null = null; // Tipe eksplisit Database | null
 
-let app;
-let database;
-
+// Validasi dan Inisialisasi dalam try-catch
 try {
+  // Validasi konfigurasi dasar
+  if (!firebaseConfig?.apiKey || !firebaseConfig?.databaseURL || !firebaseConfig?.projectId) {
+    throw new Error("Konfigurasi Firebase tidak lengkap! Pastikan API Key, DatabaseURL, dan ProjectId ada.");
+  }
+
   // Inisialisasi Firebase
   // Berikan tipe FirebaseOptions secara eksplisit untuk kejelasan
   app = initializeApp(firebaseConfig as FirebaseOptions);
@@ -35,14 +33,15 @@ try {
   // Dapatkan instance Realtime Database
   database = getDatabase(app);
 
+  console.log("Firebase initialized successfully."); // Konfirmasi inisialisasi
+
   // Inisialisasi Analytics jika diperlukan
   // const analytics = getAnalytics(app);
 
 } catch (error) {
     console.error("Gagal menginisialisasi Firebase:", error);
-    // Handle error inisialisasi, mungkin tampilkan pesan ke pengguna
-    // Set database ke null atau objek dummy untuk mencegah error lebih lanjut
-    database = null; // atau objek mock jika perlu
+    // Biarkan app dan database tetap null jika gagal
+    // Anda bisa menambahkan logic fallback atau menampilkan pesan error di UI dari sini
 }
 
 // Ekspor instance database (bisa jadi null jika inisialisasi gagal)
