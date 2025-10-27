@@ -1,12 +1,11 @@
 // ava19999/v1/v1-c5d7d0ddb102ed890fdcf6a9b98065e6ff8b15c3/App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google'; // Import GoogleOAuthProvider
+import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
 import Header from './components/Header';
 import Footer from './components/Footer';
-// Impor type guard dari types.ts
 import type { ForumMessageItem, Room, CoinListItem, CryptoData, ChatMessage, Page, Currency, NewsArticle, User, GoogleProfile } from './types';
-import { isNewsArticle, isChatMessage } from './types'; // Import type guards
+import { isNewsArticle, isChatMessage } from './types';
 import HomePage from './components/HomePage';
 import ForumPage from './components/ForumPage';
 import AboutPage from './components/AboutPage';
@@ -19,9 +18,8 @@ import { ADMIN_USERNAMES } from './components/UserTag';
 // Firebase imports
 import { database } from './services/firebaseService'; // database bisa jadi null
 import { ref, set, push, onValue, off, update, get, DatabaseReference } from "firebase/database";
-import { FirebaseApp } from 'firebase/app'; // Hanya jika perlu tipe FirebaseApp
+import { FirebaseApp } from 'firebase/app';
 
-// Pesan default (pastikan memiliki 'type')
 const defaultMessages: { [key: string]: ForumMessageItem[] } = {
      'pengumuman-aturan': [
         { id: 'rule1', type: 'system', text: 'Selamat datang di RT Crypto! Diskusi & analisis.', sender: 'system', timestamp: Date.now() - 2000 },
@@ -30,17 +28,10 @@ const defaultMessages: { [key: string]: ForumMessageItem[] } = {
     ],
 };
 
-const Particles = () => (
-      <div className="particles">
-        <div className="particle" style={{ width: '3px', height: '3px', left: '10%', animationDelay: '-1s' }}></div>
-        <div className="particle" style={{ width: '2px', height: '2px', left: '25%', animationDelay: '-5s' }}></div>
-        {/* ... particle lainnya ... */}
-        <div className="particle" style={{ width: '3px', height: '3px', left: '90%', animationDelay: '-15s' }}></div>
-      </div>
-);
+const Particles = () => ( <div className="particles"> {/* ... particles ... */} </div> );
 
 
-const AppContent = () => { // Bungkus konten utama dalam komponen terpisah
+const AppContent = () => {
   // --- States ---
   const [activePage, setActivePage] = useState<Page>('home');
   const [currency, setCurrency] = useState<Currency>('usd');
@@ -74,15 +65,8 @@ const AppContent = () => { // Bungkus konten utama dalam komponen terpisah
    const [firebaseMessages, setFirebaseMessages] = useState<{ [roomId: string]: ForumMessageItem[] }>({});
 
   // --- Handlers Defined Early ---
-  const fetchTrendingData = useCallback(async (showSkeleton = true) => { /* Fetch Trending Coins */
-      if (showSkeleton) { setIsTrendingLoading(true); setTrendingError(null); }
-      try { const trending = await fetchTrendingCoins(); setTrendingCoins(trending); }
-      catch (err: any) { const msg = err.message || "Gagal load tren."; if (showSkeleton) setTrendingError(msg); else console.error("Gagal refresh tren:", msg); }
-      finally { if (showSkeleton) setIsTrendingLoading(false); }
-  }, []);
-  const handleResetToTrending = useCallback(() => { /* Reset view to trending */
-       setSearchedCoin(null); fetchTrendingData(true);
-   }, [fetchTrendingData]);
+  const fetchTrendingData = useCallback(async (showSkeleton = true) => { /* Fetch Trending Coins */ if (showSkeleton) { setIsTrendingLoading(true); setTrendingError(null); } try { const trending = await fetchTrendingCoins(); setTrendingCoins(trending); } catch (err: any) { const msg = err.message || "Gagal load tren."; if (showSkeleton) setTrendingError(msg); else console.error("Gagal refresh tren:", msg); } finally { if (showSkeleton) setIsTrendingLoading(false); } }, []);
+  const handleResetToTrending = useCallback(() => { /* Reset view to trending */ setSearchedCoin(null); fetchTrendingData(true); }, [fetchTrendingData]);
 
   // --- Effects ---
     useEffect(() => { /* Load users & currentUser */ try { const storedUsers = localStorage.getItem('cryptoUsers'); if (storedUsers) setUsers(JSON.parse(storedUsers)); const storedCurrentUser = localStorage.getItem('currentUser'); if (storedCurrentUser) setCurrentUser(JSON.parse(storedCurrentUser)); } catch (e) { console.error("Gagal load user:", e); } }, []);
@@ -96,35 +80,7 @@ const AppContent = () => { // Bungkus konten utama dalam komponen terpisah
     useEffect(() => { /* Fetch initial trending */ fetchTrendingData(); }, [fetchTrendingData]);
 
   // --- Auth Handlers ---
-    const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => { /* Logika Google login/register */
-      console.log("Google Success:", credentialResponse); // Log credential response
-      try {
-          if (!credentialResponse.credential) {
-              throw new Error("Google credential not found");
-          }
-          const decoded: any = jwtDecode(credentialResponse.credential);
-          console.log("Decoded Google Token:", decoded); // Log decoded token
-          const { email, name, picture } = decoded;
-
-          if (!email) {
-              throw new Error("Email not found in Google token");
-          }
-
-          const existingUser = users[email];
-          if (existingUser) {
-              console.log("Existing user found:", existingUser);
-              setCurrentUser(existingUser);
-              setPendingGoogleUser(null);
-              alert(`Selamat datang kembali, ${existingUser.username}!`);
-          } else {
-              console.log("New user via Google:", { email, name, picture });
-              setPendingGoogleUser({ email, name, picture });
-          }
-      } catch (error) {
-          console.error("Google Sign-In Error:", error);
-          alert('Error login Google.');
-      }
-    }, [users]);
+    const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => { /* Logika Google login/register */ console.log("Google Success:", credentialResponse); try { if (!credentialResponse.credential) { throw new Error("Google credential not found"); } const decoded: any = jwtDecode(credentialResponse.credential); console.log("Decoded Google Token:", decoded); const { email, name, picture } = decoded; if (!email) { throw new Error("Email not found in Google token"); } const existingUser = users[email]; if (existingUser) { console.log("Existing user found:", existingUser); setCurrentUser(existingUser); setPendingGoogleUser(null); alert(`Selamat datang kembali, ${existingUser.username}!`); } else { console.log("New user via Google:", { email, name, picture }); setPendingGoogleUser({ email, name, picture }); } } catch (error) { console.error("Google Sign-In Error:", error); alert('Error login Google.'); } }, [users]);
     const handleLogin = useCallback(async (usernameOrEmail: string, password: string): Promise<string | void> => { /* Logika login manual */ let user = Object.values(users).find(u => u.username?.toLowerCase() === usernameOrEmail.toLowerCase()); if (!user) user = users[usernameOrEmail.toLowerCase()]; if (user && user.password === password) { console.log("Manual login success:", user); setCurrentUser(user); setPendingGoogleUser(null); } else { console.warn("Manual login failed for:", usernameOrEmail); return 'Username/Email atau kata sandi salah.'; } }, [users]);
     const handleProfileComplete = useCallback(async (username: string, password: string): Promise<string | void> => { /* Logika complete profile Google */ if (!pendingGoogleUser) return 'Data Google tidak ditemukan.'; if (users[pendingGoogleUser.email]) { setPendingGoogleUser(null); setCurrentUser(users[pendingGoogleUser.email]); alert(`Email ${pendingGoogleUser.email} sudah ada. Anda otomatis login.`); return; } const usernameExists = Object.values(users).some(u => u.username?.toLowerCase() === username.toLowerCase()); if (usernameExists) return 'Username sudah digunakan.'; const newUser: User = { email: pendingGoogleUser.email, username, password, googleProfilePicture: pendingGoogleUser.picture, createdAt: Date.now() }; console.log("Completing profile, creating new user:", newUser); setUsers(prev => ({ ...prev, [newUser.email.toLowerCase()]: newUser })); setCurrentUser(newUser); setPendingGoogleUser(null); }, [users, pendingGoogleUser]);
     const handleLogout = useCallback(() => { /* Logika logout */ console.log("Logging out"); setCurrentUser(null); setPendingGoogleUser(null); localStorage.removeItem('currentUser'); setActivePage('home'); }, []);
@@ -144,27 +100,37 @@ const AppContent = () => { // Bungkus konten utama dalam komponen terpisah
 
     // Mengirim pesan
     const handleSendMessage = useCallback((message: ChatMessage) => {
-        // Log saat fungsi dipanggil
-        console.log("App.tsx: handleSendMessage called with message:", message); // Log 1
+        console.log("App.tsx: handleSendMessage called with message:", JSON.stringify(message)); // Log 1: Pastikan fungsi terpanggil
 
-        if (!database) { console.error("Database not initialized for sendMessage"); return; } // Check database
-        if (!currentRoom?.id) { console.error("Cannot send message: currentRoom is null or has no ID."); return; }
-        if (!currentUser?.username) { console.error("Cannot send message: currentUser is null or has no username."); return; }
+        if (!database) { console.error("App.tsx: Database not initialized for sendMessage"); return; } // Check database
+        if (!currentRoom?.id) { console.error("App.tsx: Cannot send message: currentRoom is null or has no ID."); return; }
+        if (!currentUser?.username) { console.error("App.tsx: Cannot send message: currentUser is null or has no username."); return; }
 
-        console.log(`Attempting to send to room: ${currentRoom.id} by user: ${currentUser.username}`); // Log 2
+        console.log(`App.tsx: Attempting to send to room: ${currentRoom.id} by user: ${currentUser.username}`); // Log 2
 
         const messageListRef = ref(database, `messages/${currentRoom.id}`);
         const newMessageRef = push(messageListRef);
-        const messageToSend: ChatMessage = { ...message, type: message.sender === 'system' ? 'system' : 'user', id: newMessageRef.key ?? `local-${Date.now()}-${Math.random()}`, timestamp: message.timestamp || Date.now() };
+        // Pastikan 'type' dan 'id' sudah benar sebelum mengirim
+        const messageToSend: ChatMessage = {
+             ...message,
+             type: message.sender === 'system' ? 'system' : 'user', // Tentukan tipe
+             id: newMessageRef.key ?? `local-${Date.now()}-${Math.random()}`, // Gunakan key Firebase
+             timestamp: message.timestamp || Date.now(), // Pastikan timestamp
+             // Pastikan properti opsional ada atau undefined (bukan null jika tidak ada)
+             text: message.text || undefined,
+             fileURL: message.fileURL || undefined,
+             fileName: message.fileName || undefined,
+             reactions: message.reactions || {} // Pastikan reactions adalah objek
+            };
 
-        console.log("Data to send:", messageToSend); // Log 3
+        console.log("App.tsx: Data to send to Firebase:", JSON.stringify(messageToSend)); // Log 3
 
         set(newMessageRef, messageToSend)
             .then(() => {
-                console.log("Message successfully sent to Firebase with ID:", newMessageRef.key); // Log Sukses
+                console.log("App.tsx: Message successfully sent to Firebase with ID:", newMessageRef.key); // Log Sukses
             })
             .catch((error) => {
-                console.error("Firebase send message failed:", error); // Log Error Firebase
+                console.error("App.tsx: Firebase send message failed:", error); // Log Error Firebase
                 alert("Gagal kirim pesan. Periksa koneksi atau izin database.");
             });
     }, [currentRoom, currentUser]); // Dependencies tetap
@@ -233,30 +199,9 @@ const AppContent = () => { // Bungkus konten utama dalam komponen terpisah
 
 // Wrap AppContent with GoogleOAuthProvider
 const App = () => {
-    // Ambil Client ID dari environment variable
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
-
-    if (!googleClientId) {
-        // Tampilkan pesan error jika Client ID tidak ada
-        // (Ini mirip dengan yang ada di index.tsx Anda, mungkin bisa dipindahkan ke sini saja)
-        return (
-             <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}>
-                 <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}>
-                    <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Konfigurasi</h1>
-                    <p style={{ marginTop: '10px', lineHeight: '1.6' }}>
-                        Variabel lingkungan <strong>GOOGLE_CLIENT_ID</strong> tidak ditemukan.
-                    </p>
-                </div>
-            </div>
-        );
-    }
-
-    return (
-        <GoogleOAuthProvider clientId={googleClientId}>
-            <AppContent />
-        </GoogleOAuthProvider>
-    );
+    if (!googleClientId) { return ( <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}> <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}> <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Konfigurasi</h1> <p style={{ marginTop: '10px', lineHeight: '1.6' }}> Variabel lingkungan <strong>GOOGLE_CLIENT_ID</strong> tidak ditemukan. </p> </div> </div> ); }
+    return ( <GoogleOAuthProvider clientId={googleClientId}> <AppContent /> </GoogleOAuthProvider> );
 };
-
 
 export default App;
