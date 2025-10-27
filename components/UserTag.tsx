@@ -45,7 +45,12 @@ const UserTag: React.FC<UserTagProps> = ({ sender, userCreationDate }) => {
             tagColor = 'text-lime';
         }
     } else {
-        return null; // Jangan render tag jika tidak ada info yang cukup
+        // Jika userCreationDate tidak ada (misalnya untuk admin default sebelum login system)
+        // Atau jika sender tidak cocok admin dan tidak ada creation date
+        // Anda bisa memilih untuk tidak merender tag atau memberi tag default
+         return null; // Jangan render tag jika tidak ada info yang cukup
+        // tagName = 'guest'; // Atau beri tag default
+        // tagColor = 'text-gray-500';
     }
 
     return (

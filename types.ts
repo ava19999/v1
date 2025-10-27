@@ -1,3 +1,4 @@
+// types.ts
 export type Page = 'home' | 'rooms' | 'forum' | 'about';
 export type Currency = 'usd' | 'idr';
 
@@ -10,10 +11,10 @@ export interface GoogleProfile {
 
 export interface User {
   email: string; // From Google, used as a unique identifier
-  username: string;
+  username: string; // Set during profile completion
   password?: string; // Set during profile completion
   googleProfilePicture?: string; // From Google
-  createdAt: number;
+  createdAt: number; // Timestamp of profile completion
 }
 
 
@@ -78,6 +79,7 @@ export interface Room {
   id: string;
   name: string;
   userCount: number;
+  createdBy?: string; // Tambahkan properti opsional untuk menyimpan pembuat room
 }
 
 export interface ChatMessage {
@@ -86,10 +88,10 @@ export interface ChatMessage {
   text?: string;
   sender: string; // 'system', nama pengguna, atau persona AI
   timestamp: number;
-  fileURL?: string;
-  fileName?: string;
-  reactions?: { [key: string]: string[] };
-  isStreaming?: boolean; // Untuk efek pengetikan AI
+  fileURL?: string; // Opsional URL untuk gambar
+  fileName?: string; // Opsional nama file
+  reactions?: { [key: string]: string[] }; // Reaksi emoji
+  isStreaming?: boolean; // Untuk efek pengetikan AI (jika ada)
 }
 
 
@@ -99,7 +101,7 @@ export type ForumMessageItem = NewsArticle | ChatMessage;
 
 // Props Interfaces
 export interface HeaderProps {
-    userProfile: User | null;
+    userProfile: User | null; // Tipe userProfile diperbarui
     onLogout: () => void;
     activePage: Page;
     onNavigate: (page: Page) => void;
@@ -126,12 +128,12 @@ export interface HomePageProps {
 }
 
 export interface ForumPageProps {
-  room: Room | null;
+  room: Room | null; // Room bisa null jika belum dipilih
   messages: ForumMessageItem[];
-  userProfile: User | null;
+  userProfile: User | null; // Tipe userProfile diperbarui
   onSendMessage: (message: ChatMessage) => void;
   onLeaveRoom: () => void;
-  onReact: (messageId: string, emoji: string) => void;
+  onReact: (messageId: string, emoji: string) => void; // Tambahkan onReact
 }
 
 export interface RoomsListPageProps {
@@ -139,12 +141,12 @@ export interface RoomsListPageProps {
   onJoinRoom: (room: Room) => void;
   onCreateRoom: (roomName: string) => void;
   totalUsers: number;
-  hotCoin: { name: string; logo: string } | null;
-  userProfile: User | null;
-  currentRoomId: string | null;
-  joinedRoomIds: Set<string>;
-  onLeaveJoinedRoom: (roomId: string) => void;
-  unreadCounts: { [key: string]: { count: number; lastUpdate: number } };
+  hotCoin: { name: string; logo: string } | null; // Sesuaikan jika perlu info lebih
+  userProfile: User | null; // Tipe userProfile diperbarui
+  currentRoomId: string | null; // ID room yang sedang aktif
+  joinedRoomIds: Set<string>; // Set ID room yang sudah dijoin
+  onLeaveJoinedRoom: (roomId: string) => void; // Handler untuk keluar dari room
+  unreadCounts: { [key: string]: { count: number; lastUpdate: number } }; // Unread counts
 }
 
 
@@ -177,11 +179,12 @@ export interface AnalysisModalProps {
 }
 
 export interface LoginPageProps {
-    onGoogleRegisterSuccess: (credentialResponse: any) => void;
-    onLogin: (username: string, password: string) => Promise<string | void>;
+    onGoogleRegisterSuccess: (credentialResponse: any) => void; // Handler sukses login Google
+    onLogin: (usernameOrEmail: string, password: string) => Promise<string | void>; // Handler login biasa
 }
 
+// Props untuk halaman pembuatan profil setelah login Google
 export interface CreateIdPageProps {
-    onProfileComplete: (username: string, password: string) => Promise<string | void>;
-    googleProfile: GoogleProfile;
+    onProfileComplete: (username: string, password: string) => Promise<string | void>; // Handler setelah profil selesai
+    googleProfile: GoogleProfile; // Data profil dari Google
 }

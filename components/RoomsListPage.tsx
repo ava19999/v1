@@ -36,26 +36,33 @@ const RoomListItem: React.FC<{
     const canLeave = isJoined && !isDefaultRoom;
 
     const handleActionClick = (e: React.MouseEvent, action: () => void) => {
-        e.stopPropagation();
+        e.stopPropagation(); // Mencegah event klik menyebar ke elemen induk (div room)
         action();
     };
 
     return (
         <div
-            onClick={() => onJoinRoom(room)}
+            onClick={() => onJoinRoom(room)} // Klik div utama akan join room
             className={`flex items-center justify-between gap-2 p-2.5 rounded-lg cursor-pointer transition-all duration-200 group relative ${isActive ? 'bg-electric/20 border-electric/50' : 'bg-gray-900/70 hover:bg-gray-800/50 border-transparent'} border`}
         >
+            {/* Informasi Room (Nama, dll.) */}
             <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <div className="flex-1 overflow-hidden">
                     <h3 className="font-bold text-gray-100 truncate text-sm">{room.name}</h3>
+                    {/* Tambahkan info lain jika perlu, misal deskripsi singkat */}
                 </div>
             </div>
+
+            {/* Indikator & Tombol Aksi */}
             <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Indikator Unread */}
                 {unreadCount > 0 && (
                      <div className="bg-magenta text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse-notification flex-shrink-0">
                         {unreadCount}
                     </div>
                 )}
+
+                {/* Indikator Jumlah User (untuk room non-default) */}
                 {!isDefaultRoom && (
                     <div className="text-right text-xs text-gray-400 flex items-center gap-1.5 flex-shrink-0">
                         <span className="relative flex h-2 w-2">
@@ -65,22 +72,28 @@ const RoomListItem: React.FC<{
                         <span>{room.userCount.toLocaleString('id-ID')}</span>
                     </div>
                  )}
+
+                 {/* Tombol Aksi (Keluar/Hapus) */}
+                 {/* Muncul saat hover atau jika item aktif */}
                  <div className={`flex items-center gap-1 transition-opacity duration-200 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    {/* Tombol Keluar (hanya jika sudah join & bukan default & tidak bisa delete) */}
                     {canLeave && !canDelete && (
                         <button
                             onClick={(e) => handleActionClick(e, () => onLeaveRoom(room.id))}
                             title="Keluar Room"
                             className="p-1 rounded-full text-gray-400 hover:bg-gray-600/50 hover:text-white transition-colors"
                         >
+                            {/* Ikon Keluar */}
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                               <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
                             </svg>
                         </button>
                     )}
+                    {/* Tombol Hapus (hanya jika admin/creator & bukan default) */}
                     {canDelete && (
                          <button
                             onClick={(e) => handleActionClick(e, () => {
-                                // Tambahkan konfirmasi lagi di sini jika diinginkan
+                                // Optional: Tambahkan konfirmasi lagi di sini jika diinginkan
                                 // if (window.confirm(`Hapus room "${room.name}"?`)) {
                                      onDeleteRoom(room.id);
                                 // }
@@ -88,6 +101,7 @@ const RoomListItem: React.FC<{
                             title="Hapus Room"
                             className="p-1 rounded-full text-red-500 hover:bg-red-500/20 hover:text-red-400 transition-colors"
                         >
+                            {/* Ikon Hapus */}
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
                             </svg>
@@ -99,17 +113,20 @@ const RoomListItem: React.FC<{
     );
 };
 
+// Definisikan tipe props baru jika berbeda dari BaseRoomsListPageProps
 interface ExtendedRoomsListPageProps extends BaseRoomsListPageProps {
-    onDeleteRoom: (roomId: string) => void;
+    onDeleteRoom: (roomId: string) => void; // Tambahkan prop onDeleteRoom
 }
 
 const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
     rooms, onJoinRoom, onCreateRoom, totalUsers, hotCoin, userProfile,
     currentRoomId, joinedRoomIds, onLeaveJoinedRoom, unreadCounts,
-    onDeleteRoom
+    onDeleteRoom // Terima prop onDeleteRoom
 }) => {
     const [newRoomName, setNewRoomName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    // Hapus state selectedRoomForAction
+    // const [selectedRoomForAction, setSelectedRoomForAction] = useState<Room | null>(null);
     const username = userProfile?.username || '';
 
     const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -144,6 +161,14 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
 
     return (
         <div className="container mx-auto px-2 sm:px-4 py-3 animate-fade-in flex flex-col h-[calc(100vh-56px)]">
+            {/* Hapus ActionModal */}
+            {/* <ActionModal
+                room={selectedRoomForAction}
+                onJoin={onJoinRoom}
+                onLeave={handleLeaveAction} // Ganti dengan handler baru jika perlu
+                onClose={() => setSelectedRoomForAction(null)}
+            /> */}
+
             {/* Top Stats */}
             <div className="flex-shrink-0 grid grid-cols-2 gap-2 mb-2">
                  {/* ... kode stats ... */}
@@ -183,11 +208,13 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                 <UserTag sender={username} userCreationDate={userProfile?.createdAt ?? null} />
             </div>
 
+            {/* Search */}
             <div className="flex-shrink-0 relative mb-2 w-full">
                 <input type="text" placeholder="Cari room..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-gray-900 border border-white/10 rounded-lg py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-electric transition-all" />
                 <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
 
+            {/* Create Room Form */}
              <form onSubmit={handleCreate} className="flex-shrink-0 bg-gray-900/50 border border-dashed border-white/10 rounded-lg p-2 mb-3 flex items-center gap-2">
                 <input type="text" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder="Bikin tongkrongan baru..." className="flex-1 bg-transparent py-1 px-2 text-sm text-white placeholder-gray-500 focus:outline-none" />
                 <button type="submit" className="bg-magenta hover:bg-magenta/80 text-white font-semibold py-1 px-4 rounded-md transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm" disabled={!newRoomName.trim()}>
@@ -201,16 +228,17 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                     <div>
                         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-1">Tongkrongan Saya</h2>
                         <div className="space-y-1.5">
+                            {/* Berikan prop yang diperlukan ke RoomListItem */}
                             {myRooms.map(room => (
                                 <RoomListItem
                                     key={room.id}
                                     room={room}
-                                    currentUser={userProfile}
+                                    currentUser={userProfile} // Kirim user profile
                                     onJoinRoom={onJoinRoom}
-                                    onLeaveRoom={onLeaveJoinedRoom}
-                                    onDeleteRoom={onDeleteRoom}
+                                    onLeaveRoom={onLeaveJoinedRoom} // Kirim handler leave
+                                    onDeleteRoom={onDeleteRoom} // Kirim handler delete
                                     isActive={room.id === currentRoomId}
-                                    isJoined={true}
+                                    isJoined={true} // Room di 'My Rooms' pasti sudah dijoin
                                     unreadData={unreadCounts[room.id]}
                                 />
                             ))}
@@ -221,6 +249,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                     <div className={myRooms.length > 0 ? 'mt-4' : ''}>
                         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-1">Tongkrongan Publik</h2>
                         <div className="space-y-1.5">
+                             {/* Berikan prop yang diperlukan ke RoomListItem */}
                              {publicRooms.map(room => (
                                 <RoomListItem
                                     key={room.id}
@@ -229,9 +258,9 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                                     onJoinRoom={onJoinRoom}
                                     onLeaveRoom={onLeaveJoinedRoom} // Tetap teruskan, meski tidak akan ditampilkan
                                     onDeleteRoom={onDeleteRoom}    // Tetap teruskan, meski tidak akan ditampilkan
-                                    isActive={false}
-                                    isJoined={false}
-                                    unreadData={undefined}
+                                    isActive={false} // Room publik tidak 'aktif' di list ini
+                                    isJoined={false} // Room publik belum dijoin
+                                    unreadData={undefined} // Tidak ada unread untuk room publik yang belum join
                                 />
                             ))}
                         </div>
