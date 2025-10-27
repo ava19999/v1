@@ -30,10 +30,11 @@ const RoomListItem: React.FC<{
 
     // Pastikan currentUser ada sebelum mengakses username
     const isAdmin = currentUser?.username ? ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(currentUser.username.toLowerCase()) : false;
-    // Pastikan properti createdBy ada sebelum membandingkan (perbaikan dari error TS2339)
+    // Pastikan properti createdBy ada sebelum membandingkan
     const isCreator = room.createdBy === currentUser?.username;
+    // Logika Visibilitas Tombol
     const canDelete = (isAdmin || isCreator) && !isDefaultRoom;
-    const canLeave = isJoined && !isDefaultRoom;
+    const canLeave = isJoined && !isDefaultRoom; // Bisa keluar jika sudah join dan bukan default
 
     const handleActionClick = (e: React.MouseEvent, action: () => void) => {
         e.stopPropagation(); // Mencegah event klik menyebar ke elemen induk (div room)
@@ -49,7 +50,6 @@ const RoomListItem: React.FC<{
             <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <div className="flex-1 overflow-hidden">
                     <h3 className="font-bold text-gray-100 truncate text-sm">{room.name}</h3>
-                    {/* Tambahkan info lain jika perlu, misal deskripsi singkat */}
                 </div>
             </div>
 
@@ -76,8 +76,9 @@ const RoomListItem: React.FC<{
                  {/* Tombol Aksi (Keluar/Hapus) */}
                  {/* Muncul saat hover atau jika item aktif */}
                  <div className={`flex items-center gap-1 transition-opacity duration-200 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                    {/* Tombol Keluar (hanya jika sudah join & bukan default & tidak bisa delete) */}
-                    {canLeave && !canDelete && (
+                    {/* Tombol Keluar (Ditampilkan jika canLeave true) */}
+                    {/* Sekarang admin juga bisa keluar */}
+                    {canLeave && (
                         <button
                             onClick={(e) => handleActionClick(e, () => onLeaveRoom(room.id))}
                             title="Keluar Room"
@@ -89,14 +90,11 @@ const RoomListItem: React.FC<{
                             </svg>
                         </button>
                     )}
-                    {/* Tombol Hapus (hanya jika admin/creator & bukan default) */}
+                    {/* Tombol Hapus (Ditampilkan jika canDelete true) */}
                     {canDelete && (
                          <button
                             onClick={(e) => handleActionClick(e, () => {
-                                // Optional: Tambahkan konfirmasi lagi di sini jika diinginkan
-                                // if (window.confirm(`Hapus room "${room.name}"?`)) {
-                                     onDeleteRoom(room.id);
-                                // }
+                                 onDeleteRoom(room.id);
                             })}
                             title="Hapus Room"
                             className="p-1 rounded-full text-red-500 hover:bg-red-500/20 hover:text-red-400 transition-colors"
@@ -125,8 +123,6 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
 }) => {
     const [newRoomName, setNewRoomName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    // Hapus state selectedRoomForAction
-    // const [selectedRoomForAction, setSelectedRoomForAction] = useState<Room | null>(null);
     const username = userProfile?.username || '';
 
     const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
@@ -161,13 +157,6 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
 
     return (
         <div className="container mx-auto px-2 sm:px-4 py-3 animate-fade-in flex flex-col h-[calc(100vh-56px)]">
-            {/* Hapus ActionModal */}
-            {/* <ActionModal
-                room={selectedRoomForAction}
-                onJoin={onJoinRoom}
-                onLeave={handleLeaveAction} // Ganti dengan handler baru jika perlu
-                onClose={() => setSelectedRoomForAction(null)}
-            /> */}
 
             {/* Top Stats */}
             <div className="flex-shrink-0 grid grid-cols-2 gap-2 mb-2">
