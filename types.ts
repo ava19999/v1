@@ -1,4 +1,4 @@
-// ava19999/v1/v1-7937f4b735b14d55e5e6024522254b32b9924b3b/types.ts
+// ava19999/v1/v1-e9d21554693c716e0e65bad33afe7587274395eb/types.ts
 
 // --- Basic Types ---
 export type Page = 'home' | 'rooms' | 'forum' | 'about';
@@ -101,115 +101,76 @@ export interface ChatMessage {
 export type ForumMessageItem = NewsArticle | ChatMessage;
 
 // --- Type Guards ---
-// Fungsi untuk mengecek apakah sebuah item adalah NewsArticle
 export const isNewsArticle = (item: ForumMessageItem | null | undefined): item is NewsArticle => {
-    // Memeriksa apakah item ada, memiliki properti 'type' bernilai 'news',
-    // dan memiliki properti 'published_on' yang merupakan angka.
     return !!item && item.type === 'news' && typeof (item as NewsArticle).published_on === 'number';
 };
-
-// Fungsi untuk mengecek apakah sebuah item adalah ChatMessage
 export const isChatMessage = (item: ForumMessageItem | null | undefined): item is ChatMessage => {
-     // Memeriksa apakah item ada, memiliki properti 'type' bernilai 'user' atau 'system',
-     // dan memiliki properti 'timestamp' yang merupakan angka.
     return !!item && (item.type === 'user' || item.type === 'system') && typeof (item as ChatMessage).timestamp === 'number';
 };
 
 
 // --- Component Props Interfaces ---
-// Mendefinisikan tipe data untuk props yang diterima oleh komponen Header
 export interface HeaderProps {
-    userProfile: User | null; // Profil pengguna saat ini atau null jika belum login
-    onLogout: () => void; // Fungsi yang dipanggil saat logout
-    activePage: Page; // Halaman yang sedang aktif
-    onNavigate: (page: Page) => void; // Fungsi navigasi antar halaman
-    currency: Currency; // Mata uang yang dipilih (USD/IDR)
-    onCurrencyChange: (currency: Currency) => void; // Fungsi ganti mata uang
-    hotCoin: { name: string; logo: string; price: number; change: number; } | null; // Info koin yang sedang populer
-    idrRate: number | null; // Nilai tukar IDR atau null
+    userProfile: User | null;
+    onLogout: () => void;
+    activePage: Page;
+    onNavigate: (page: Page) => void;
+    currency: Currency;
+    onCurrencyChange: (currency: Currency) => void;
+    hotCoin: { name: string; logo: string; price: number; change: number; } | null;
+    idrRate: number | null;
 }
 
-// Mendefinisikan tipe data untuk props yang diterima oleh komponen HomePage
 export interface HomePageProps {
-  idrRate: number | null; // Nilai tukar IDR atau null
-  isRateLoading: boolean; // Status loading nilai tukar
-  currency: Currency; // Mata uang yang dipilih
-  onIncrementAnalysisCount: (coinId: string) => void; // Fungsi increment hitungan analisis
-  fullCoinList: CoinListItem[]; // Daftar lengkap koin
-  isCoinListLoading: boolean; // Status loading daftar koin
-  coinListError: string | null; // Pesan error jika gagal load daftar koin
-  heroCoin: CryptoData | null; // Koin utama yang ditampilkan
-  otherTrendingCoins: CryptoData[]; // Koin trending lainnya
-  isTrendingLoading: boolean; // Status loading koin trending
-  trendingError: string | null; // Pesan error jika gagal load koin trending
-  onSelectCoin: (coinId: string) => void; // Fungsi saat memilih koin
-  onReloadTrending: () => void; // Fungsi untuk memuat ulang data trending
+  idrRate: number | null;
+  isRateLoading: boolean;
+  currency: Currency;
+  onIncrementAnalysisCount: (coinId: string) => void;
+  fullCoinList: CoinListItem[];
+  isCoinListLoading: boolean;
+  coinListError: string | null;
+  heroCoin: CryptoData | null;
+  otherTrendingCoins: CryptoData[];
+  isTrendingLoading: boolean;
+  trendingError: string | null;
+  onSelectCoin: (coinId: string) => void;
+  onReloadTrending: () => void;
 }
 
-// Mendefinisikan tipe data untuk props yang diterima oleh komponen ForumPage
+// DIPERBARUI: Tambahkan onDeleteMessage
 export interface ForumPageProps {
-  room: Room | null; // Info room saat ini atau null
-  messages: ForumMessageItem[]; // Array pesan dalam room
-  userProfile: User | null; // Profil pengguna saat ini
-  onSendMessage: (message: ChatMessage) => void; // Fungsi kirim pesan
-  onLeaveRoom: () => void; // Fungsi keluar dari room
-  onReact: (messageId: string, emoji: string) => void; // Fungsi memberi reaksi
+  room: Room | null;
+  messages: ForumMessageItem[];
+  userProfile: User | null;
+  onSendMessage: (message: ChatMessage) => void;
+  onLeaveRoom: () => void;
+  onReact: (messageId: string, emoji: string) => void;
+  onDeleteMessage: (roomId: string, messageId: string) => void; // Tambahkan prop ini
 }
 
-// Mendefinisikan tipe data untuk props yang diterima oleh komponen RoomsListPage
 export interface RoomsListPageProps {
-  rooms: Room[]; // Daftar semua room
-  onJoinRoom: (room: Room) => void; // Fungsi masuk ke room
-  onCreateRoom: (roomName: string) => void; // Fungsi membuat room baru
-  totalUsers: number; // Jumlah total pengguna (estimasi)
-  hotCoin: { name: string; logo: string } | null; // Info koin populer (ringkas)
-  userProfile: User | null; // Profil pengguna saat ini
-  currentRoomId: string | null; // ID room yang sedang dibuka (jika ada)
-  joinedRoomIds: Set<string>; // Set ID room yang sudah diikuti pengguna
-  onLeaveJoinedRoom: (roomId: string) => void; // Fungsi keluar dari room yang diikuti (dari list)
-  unreadCounts: { [key: string]: { count: number; lastUpdate: number } }; // Jumlah pesan belum dibaca per room
-  onDeleteRoom: (roomId: string) => void; // Fungsi menghapus room
+  rooms: Room[];
+  onJoinRoom: (room: Room) => void;
+  onCreateRoom: (roomName: string) => void;
+  totalUsers: number;
+  hotCoin: { name: string; logo: string } | null;
+  userProfile: User | null;
+  currentRoomId: string | null;
+  joinedRoomIds: Set<string>;
+  onLeaveJoinedRoom: (roomId: string) => void;
+  unreadCounts: { [key: string]: { count: number; lastUpdate: number } };
+  onDeleteRoom: (roomId: string) => void;
 }
 
-// Mendefinisikan tipe data untuk props yang diterima oleh komponen HeroCoin
-export interface HeroCoinProps {
-  crypto: CryptoData; // Data koin utama
-  onAnalyze: (crypto: CryptoData) => void; // Fungsi saat tombol analisis diklik
-  idrRate: number | null; // Nilai tukar IDR
-  currency: Currency; // Mata uang terpilih
-}
+export interface HeroCoinProps { /* ... */ } // Tidak berubah
+export interface CryptoCardProps { /* ... */ } // Tidak berubah
+export interface AnalysisModalProps { /* ... */ } // Tidak berubah
+export interface LoginPageProps { /* ... */ } // Tidak berubah
+export interface CreateIdPageProps { /* ... */ } // Tidak berubah
 
-// Mendefinisikan tipe data untuk props yang diterima oleh komponen CryptoCard
-export interface CryptoCardProps {
-  crypto: CryptoData; // Data koin
-  onAnalyze: (crypto: CryptoData) => void; // Fungsi saat tombol analisis diklik
-  idrRate: number | null; // Nilai tukar IDR
-  currency: Currency; // Mata uang terpilih
-}
-
-// Mendefinisikan tipe data untuk props yang diterima oleh komponen AnalysisModal
-export interface AnalysisModalProps {
-  isOpen: boolean; // Status modal (terbuka/tertutup)
-  onClose: () => void; // Fungsi menutup modal
-  crypto: CryptoData; // Data koin yang dianalisis
-  analysisResult: AnalysisResult | null; // Hasil analisis AI
-  isLoading: boolean; // Status loading analisis AI
-  error: string | null; // Pesan error analisis AI
-  exchangeTickers: ExchangeTicker[]; // Data harga dari bursa
-  isTickersLoading: boolean; // Status loading harga bursa
-  tickersError: string | null; // Pesan error harga bursa
-  idrRate: number | null; // Nilai tukar IDR
-  currency: Currency; // Mata uang terpilih
-}
-
-// Mendefinisikan tipe data untuk props yang diterima oleh komponen LoginPage
-export interface LoginPageProps {
-    onGoogleRegisterSuccess: (credentialResponse: any) => void; // Handler sukses login/register Google
-    onLogin: (usernameOrEmail: string, password: string) => Promise<string | void>; // Handler login manual
-}
-
-// Mendefinisikan tipe data untuk props yang diterima oleh komponen CreateIdPage
-export interface CreateIdPageProps {
-    onProfileComplete: (username: string, password: string) => Promise<string | void>; // Handler setelah profil Google dilengkapi
-    googleProfile: GoogleProfile; // Data profil dari Google
-}
+// Definisikan tipe props di sini jika belum ada
+export interface HeroCoinProps { crypto: CryptoData; onAnalyze: (crypto: CryptoData) => void; idrRate: number | null; currency: Currency;}
+export interface CryptoCardProps { crypto: CryptoData; onAnalyze: (crypto: CryptoData) => void; idrRate: number | null; currency: Currency;}
+export interface AnalysisModalProps { isOpen: boolean; onClose: () => void; crypto: CryptoData; analysisResult: AnalysisResult | null; isLoading: boolean; error: string | null; exchangeTickers: ExchangeTicker[]; isTickersLoading: boolean; tickersError: string | null; idrRate: number | null; currency: Currency;}
+export interface LoginPageProps { onGoogleRegisterSuccess: (credentialResponse: any) => void; onLogin: (usernameOrEmail: string, password: string) => Promise<string | void>;}
+export interface CreateIdPageProps { onProfileComplete: (username: string, password: string) => Promise<string | void>; googleProfile: GoogleProfile;}
