@@ -1,5 +1,6 @@
-// ava19999/v1/v1-7937f4b735b14d55e5e6024522254b32b9924b3b/App.tsx
+// ava19999/v1/v1-c5d7d0ddb102ed890fdcf6a9b98065e6ff8b15c3/App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
+import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google'; // Import GoogleOAuthProvider
 import { jwtDecode } from 'jwt-decode';
 import Header from './components/Header';
 import Footer from './components/Footer';
@@ -39,7 +40,7 @@ const Particles = () => (
 );
 
 
-const App = () => {
+const AppContent = () => { // Bungkus konten utama dalam komponen terpisah
   // --- States ---
   const [activePage, setActivePage] = useState<Page>('home');
   const [currency, setCurrency] = useState<Currency>('usd');
@@ -95,10 +96,38 @@ const App = () => {
     useEffect(() => { /* Fetch initial trending */ fetchTrendingData(); }, [fetchTrendingData]);
 
   // --- Auth Handlers ---
-    const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: any) => { /* Logika Google login/register */ try { const decoded: any = jwtDecode(credentialResponse.credential); const { email, name, picture } = decoded; const existingUser = users[email]; if (existingUser) { setCurrentUser(existingUser); setPendingGoogleUser(null); alert(`Selamat datang kembali, ${existingUser.username}!`); } else { setPendingGoogleUser({ email, name, picture }); } } catch (error) { console.error("Google Sign-In Error:", error); alert('Error login Google.'); } }, [users]);
-    const handleLogin = useCallback(async (usernameOrEmail: string, password: string): Promise<string | void> => { /* Logika login manual */ let user = Object.values(users).find(u => u.username?.toLowerCase() === usernameOrEmail.toLowerCase()); if (!user) user = users[usernameOrEmail.toLowerCase()]; if (user && user.password === password) { setCurrentUser(user); setPendingGoogleUser(null); } else return 'Username/Email atau kata sandi salah.'; }, [users]);
-    const handleProfileComplete = useCallback(async (username: string, password: string): Promise<string | void> => { /* Logika complete profile Google */ if (!pendingGoogleUser) return 'Data Google tidak ditemukan.'; if (users[pendingGoogleUser.email]) { setPendingGoogleUser(null); setCurrentUser(users[pendingGoogleUser.email]); alert(`Email ${pendingGoogleUser.email} sudah ada. Anda otomatis login.`); return; } const usernameExists = Object.values(users).some(u => u.username?.toLowerCase() === username.toLowerCase()); if (usernameExists) return 'Username sudah digunakan.'; const newUser: User = { email: pendingGoogleUser.email, username, password, googleProfilePicture: pendingGoogleUser.picture, createdAt: Date.now() }; setUsers(prev => ({ ...prev, [newUser.email.toLowerCase()]: newUser })); setCurrentUser(newUser); setPendingGoogleUser(null); }, [users, pendingGoogleUser]);
-    const handleLogout = useCallback(() => { /* Logika logout */ setCurrentUser(null); setPendingGoogleUser(null); localStorage.removeItem('currentUser'); setActivePage('home'); }, []);
+    const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => { /* Logika Google login/register */
+      console.log("Google Success:", credentialResponse); // Log credential response
+      try {
+          if (!credentialResponse.credential) {
+              throw new Error("Google credential not found");
+          }
+          const decoded: any = jwtDecode(credentialResponse.credential);
+          console.log("Decoded Google Token:", decoded); // Log decoded token
+          const { email, name, picture } = decoded;
+
+          if (!email) {
+              throw new Error("Email not found in Google token");
+          }
+
+          const existingUser = users[email];
+          if (existingUser) {
+              console.log("Existing user found:", existingUser);
+              setCurrentUser(existingUser);
+              setPendingGoogleUser(null);
+              alert(`Selamat datang kembali, ${existingUser.username}!`);
+          } else {
+              console.log("New user via Google:", { email, name, picture });
+              setPendingGoogleUser({ email, name, picture });
+          }
+      } catch (error) {
+          console.error("Google Sign-In Error:", error);
+          alert('Error login Google.');
+      }
+    }, [users]);
+    const handleLogin = useCallback(async (usernameOrEmail: string, password: string): Promise<string | void> => { /* Logika login manual */ let user = Object.values(users).find(u => u.username?.toLowerCase() === usernameOrEmail.toLowerCase()); if (!user) user = users[usernameOrEmail.toLowerCase()]; if (user && user.password === password) { console.log("Manual login success:", user); setCurrentUser(user); setPendingGoogleUser(null); } else { console.warn("Manual login failed for:", usernameOrEmail); return 'Username/Email atau kata sandi salah.'; } }, [users]);
+    const handleProfileComplete = useCallback(async (username: string, password: string): Promise<string | void> => { /* Logika complete profile Google */ if (!pendingGoogleUser) return 'Data Google tidak ditemukan.'; if (users[pendingGoogleUser.email]) { setPendingGoogleUser(null); setCurrentUser(users[pendingGoogleUser.email]); alert(`Email ${pendingGoogleUser.email} sudah ada. Anda otomatis login.`); return; } const usernameExists = Object.values(users).some(u => u.username?.toLowerCase() === username.toLowerCase()); if (usernameExists) return 'Username sudah digunakan.'; const newUser: User = { email: pendingGoogleUser.email, username, password, googleProfilePicture: pendingGoogleUser.picture, createdAt: Date.now() }; console.log("Completing profile, creating new user:", newUser); setUsers(prev => ({ ...prev, [newUser.email.toLowerCase()]: newUser })); setCurrentUser(newUser); setPendingGoogleUser(null); }, [users, pendingGoogleUser]);
+    const handleLogout = useCallback(() => { /* Logika logout */ console.log("Logging out"); setCurrentUser(null); setPendingGoogleUser(null); localStorage.removeItem('currentUser'); setActivePage('home'); }, []);
 
   // --- App Logic Handlers ---
    const handleIncrementAnalysisCount = useCallback((coinId: string) => { /* Increment analysis count */ setAnalysisCounts(prev => { const current = prev[coinId] || baseAnalysisCount; const newCounts = { ...prev, [coinId]: current + 1 }; localStorage.setItem('analysisCounts', JSON.stringify(newCounts)); return newCounts; }); }, []);
@@ -108,21 +137,7 @@ const App = () => {
    const handleLeaveRoom = useCallback(() => { /* Leave room view */ setCurrentRoom(null); setActivePage('rooms'); }, []);
    const handleLeaveJoinedRoom = useCallback((roomId: string) => { /* Leave room permanently */ if (['berita-kripto', 'pengumuman-aturan'].includes(roomId)) return; setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; }); if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); } setUnreadCounts(prev => { const n = {...prev}; delete n[roomId]; return n; }); }, [currentRoom]);
    const handleCreateRoom = useCallback((roomName: string) => { /* Create room */ const trimmed = roomName.trim(); if (rooms.some(r => r.name.toLowerCase() === trimmed.toLowerCase())) { alert('Room sudah ada.'); return; } if (!currentUser?.username) { alert('Harus login.'); return; } const newRoom: Room = { id: trimmed.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), name: trimmed, userCount: 1, createdBy: currentUser.username }; setRooms(prev => [newRoom, ...prev]); handleJoinRoom(newRoom); }, [handleJoinRoom, rooms, currentUser]);
-   const handleDeleteRoom = useCallback((roomId: string) => { /* Delete room */
-        if (!database) { console.error("Database not initialized for deleteRoom"); return; }
-        const currentDb = database;
-        const roomToDelete = rooms.find(r => r.id === roomId); if (!roomToDelete || !currentUser?.username) return;
-        const isAdmin = ADMIN_USERNAMES.map(n=>n.toLowerCase()).includes(currentUser.username.toLowerCase()); const isCreator = roomToDelete.createdBy === currentUser.username;
-        if (['berita-kripto', 'pengumuman-aturan'].includes(roomId)) { alert('Room default tidak dapat dihapus.'); return; }
-        if (isAdmin || isCreator) { if (window.confirm(`Yakin hapus room "${roomToDelete.name}"?`)) {
-                setRooms(prev => prev.filter(r => r.id !== roomId)); if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
-                setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; });
-                setFirebaseMessages(prev => { const n = {...prev}; delete n[roomId]; return n; });
-                setUnreadCounts(prev => { const n = {...prev}; delete n[roomId]; return n; });
-                const messagesRef = ref(currentDb, `messages/${roomId}`); set(messagesRef, null).catch(console.error);
-            }
-        } else { alert('Tidak punya izin menghapus.'); }
-   }, [currentUser, rooms, currentRoom]);
+   const handleDeleteRoom = useCallback((roomId: string) => { /* Delete room */ if (!database) { console.error("Database not initialized for deleteRoom"); return; } const currentDb = database; const roomToDelete = rooms.find(r => r.id === roomId); if (!roomToDelete || !currentUser?.username) return; const isAdmin = ADMIN_USERNAMES.map(n=>n.toLowerCase()).includes(currentUser.username.toLowerCase()); const isCreator = roomToDelete.createdBy === currentUser.username; if (['berita-kripto', 'pengumuman-aturan'].includes(roomId)) { alert('Room default tidak dapat dihapus.'); return; } if (isAdmin || isCreator) { if (window.confirm(`Yakin hapus room "${roomToDelete.name}"?`)) { setRooms(prev => prev.filter(r => r.id !== roomId)); if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); } setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; }); setFirebaseMessages(prev => { const n = {...prev}; delete n[roomId]; return n; }); setUnreadCounts(prev => { const n = {...prev}; delete n[roomId]; return n; }); const messagesRef = ref(currentDb, `messages/${roomId}`); set(messagesRef, null).catch(console.error); } } else { alert('Tidak punya izin menghapus.'); } }, [currentUser, rooms, currentRoom]);
 
 
     // --- Firebase Chat Logic ---
@@ -130,24 +145,26 @@ const App = () => {
     // Mengirim pesan
     const handleSendMessage = useCallback((message: ChatMessage) => {
         // Log saat fungsi dipanggil
-        console.log("App.tsx: handleSendMessage called with message:", message);
+        console.log("App.tsx: handleSendMessage called with message:", message); // Log 1
 
-        if (!database) { console.error("Database not initialized for sendMessage"); return; }
+        if (!database) { console.error("Database not initialized for sendMessage"); return; } // Check database
         if (!currentRoom?.id) { console.error("Cannot send message: currentRoom is null or has no ID."); return; }
         if (!currentUser?.username) { console.error("Cannot send message: currentUser is null or has no username."); return; }
 
-        console.log(`Attempting to send to room: ${currentRoom.id} by user: ${currentUser.username}`); // Log detail
+        console.log(`Attempting to send to room: ${currentRoom.id} by user: ${currentUser.username}`); // Log 2
 
         const messageListRef = ref(database, `messages/${currentRoom.id}`);
         const newMessageRef = push(messageListRef);
         const messageToSend: ChatMessage = { ...message, type: message.sender === 'system' ? 'system' : 'user', id: newMessageRef.key ?? `local-${Date.now()}-${Math.random()}`, timestamp: message.timestamp || Date.now() };
 
+        console.log("Data to send:", messageToSend); // Log 3
+
         set(newMessageRef, messageToSend)
             .then(() => {
-                console.log("Message successfully sent to Firebase with ID:", newMessageRef.key); // Log sukses
+                console.log("Message successfully sent to Firebase with ID:", newMessageRef.key); // Log Sukses
             })
             .catch((error) => {
-                console.error("Firebase send message failed:", error); // Log error Firebase
+                console.error("Firebase send message failed:", error); // Log Error Firebase
                 alert("Gagal kirim pesan. Periksa koneksi atau izin database.");
             });
     }, [currentRoom, currentUser]); // Dependencies tetap
@@ -213,5 +230,33 @@ const App = () => {
     </div>
   );
 };
+
+// Wrap AppContent with GoogleOAuthProvider
+const App = () => {
+    // Ambil Client ID dari environment variable
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+
+    if (!googleClientId) {
+        // Tampilkan pesan error jika Client ID tidak ada
+        // (Ini mirip dengan yang ada di index.tsx Anda, mungkin bisa dipindahkan ke sini saja)
+        return (
+             <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}>
+                 <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}>
+                    <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Konfigurasi</h1>
+                    <p style={{ marginTop: '10px', lineHeight: '1.6' }}>
+                        Variabel lingkungan <strong>GOOGLE_CLIENT_ID</strong> tidak ditemukan.
+                    </p>
+                </div>
+            </div>
+        );
+    }
+
+    return (
+        <GoogleOAuthProvider clientId={googleClientId}>
+            <AppContent />
+        </GoogleOAuthProvider>
+    );
+};
+
 
 export default App;

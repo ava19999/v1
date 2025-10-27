@@ -76,14 +76,20 @@ const NewsMessage: React.FC<{ article: NewsArticle; username: string; onReact: (
     useEffect(() => { const handleClickOutside = (event: MouseEvent) => { if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) { setShowPicker(false); } }; if (showPicker) { document.addEventListener('mousedown', handleClickOutside); } else { document.removeEventListener('mousedown', handleClickOutside); } return () => { document.removeEventListener('mousedown', handleClickOutside); }; }, [showPicker]);
 
     return (
-        <div className="my-2 animate-fade-in-up relative">
+        <div className="my-2 animate-fade-in-up relative"> {/* Tambah relative di sini */}
             <div className="text-center text-xs text-gray-500 py-1"> Pasar · {formatDate(article.published_on * 1000)} </div>
             <div className="w-full sm:w-4/5 md:w-3/5 mx-auto">
                 <a href={article.url} target="_blank" rel="noopener noreferrer" className="block p-3 bg-gray-800/50 hover:bg-gray-800/80 rounded-lg transition-colors duration-200">
                     <div className="flex items-start space-x-3"> <img src={article.imageurl} alt={article.title} className="w-20 h-14 object-cover rounded-md flex-shrink-0 bg-gray-700" loading="lazy" /> <div className="flex-1"> <h3 className="font-semibold text-gray-100 text-sm leading-snug">{article.title}</h3> <p className="text-xs text-gray-400 mt-1">Oleh {article.source}</p> </div> </div>
                 </a>
-                 <div ref={pickerRef} className="relative mt-1">
-                    <Reactions message={article} username={username} onReact={(emoji) => onReact(article.id, emoji)} onAddReactionClick={() => setShowPicker(prev => !prev)} />
+                 {/* Container untuk Reactions dan Picker */}
+                 <div ref={pickerRef} className="relative mt-1"> {/* Tambah relative & margin top */}
+                    <Reactions
+                        message={article}
+                        username={username}
+                        onReact={(emoji) => onReact(article.id, emoji)}
+                        onAddReactionClick={() => setShowPicker(prev => !prev)}
+                    />
                     {showPicker && <ReactionPicker onSelect={(emoji) => onReact(article.id, emoji)} onClose={() => setShowPicker(false)} />}
                 </div>
             </div>
@@ -96,8 +102,9 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
     const pickerRef = useRef<HTMLDivElement>(null);
     useEffect(() => { const handleClickOutside = (event: MouseEvent) => { if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) { setShowPicker(false); } }; if (showPicker) { document.addEventListener('mousedown', handleClickOutside); } else { document.removeEventListener('mousedown', handleClickOutside); } return () => { document.removeEventListener('mousedown', handleClickOutside); }; }, [showPicker]);
 
+    // DIPERBAIKI: Ambil username dari message.sender jika userProfile null (pesan dari user lain)
     const currentUsername = userProfile?.username || '';
-    const isCurrentUser = message.sender === currentUsername;
+    const isCurrentUser = message.sender === currentUsername && !!currentUsername; // Pastikan currentUsername ada
     const creationDate = isCurrentUser ? (userProfile?.createdAt ?? null) : null;
 
     return (
@@ -107,6 +114,7 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
                     <div className="flex-1 overflow-hidden">
                         <div className={`flex items-center gap-2 flex-wrap ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
                             <span className={`font-bold text-sm break-all font-heading ${isCurrentUser ? 'text-electric' : 'text-magenta'}`}>{message.sender}</span>
+                            {/* userCreationDate hanya relevan jika pesan dari currentUser */}
                             <UserTag sender={message.sender} userCreationDate={creationDate} />
                         </div>
                         <div className={`relative text-sm text-gray-200 break-words mt-1 px-3 pt-2.5 pb-5 rounded-xl ${isCurrentUser ? 'bg-gradient-to-br from-electric/20 to-gray-900/10' : 'bg-gradient-to-bl from-magenta/10 to-gray-900/10'}`}>
@@ -115,7 +123,13 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
                             <span className="text-xs text-gray-500 absolute bottom-1 right-2.5">{formatDate(message.timestamp)}</span>
                         </div>
                          <div ref={pickerRef} className="relative mt-1">
-                            <Reactions message={message} username={currentUsername} onReact={(emoji) => onReact(message.id, emoji)} onAddReactionClick={() => setShowPicker(prev => !prev)} />
+                            <Reactions
+                                message={message}
+                                // Gunakan username dari userProfile jika ada, jika tidak kosongkan (reaksi tetap butuh username)
+                                username={currentUsername}
+                                onReact={(emoji) => onReact(message.id, emoji)}
+                                onAddReactionClick={() => setShowPicker(prev => !prev)}
+                            />
                              {showPicker && <ReactionPicker onSelect={(emoji) => onReact(message.id, emoji)} onClose={() => setShowPicker(false)} />}
                         </div>
                     </div>
@@ -150,8 +164,10 @@ const ForumPage: React.FC<ForumPageProps> = ({
     const username = userProfile?.username ?? '';
 
     // Tambahkan console log untuk debug username
-    console.log("ForumPage username:", username);
-    console.log("ForumPage userProfile:", userProfile);
+    useEffect(() => {
+        console.log("ForumPage username state:", username);
+        console.log("ForumPage userProfile prop:", userProfile);
+    }, [username, userProfile]);
 
 
     const safeMessages = Array.isArray(messages) ? messages : [];
@@ -188,7 +204,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
     const isDefaultRoom = ['berita-kripto', 'pengumuman-aturan'].includes(room.id);
     // Hitung kondisi disabled untuk tombol
     const isSendDisabled = (!newMessage.trim() && !attachment) || !username;
-    console.log("Send button disabled state:", isSendDisabled, {newMessage: !newMessage.trim(), attachment: !attachment, username: !username}); // Debug disabled state
+    // console.log("Send button disabled state:", isSendDisabled, {newMessage: !newMessage.trim(), attachment: !attachment, username: !username}); // Debug disabled state
 
     return (
         <div className="container mx-auto px-2 sm:px-4 py-3 animate-fade-in flex flex-col flex-grow h-[calc(100vh-56px)]">
@@ -206,6 +222,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
                      : ( sortedMessages.map((item, index) => {
                            if (isChatMessage(item)) {
                                if (item.type === 'system') { if (room.id === 'pengumuman-aturan') { return <AnnouncementMessage key={item.id || `sys-${index}`} message={item} />; } return <SystemMessage key={item.id || `sys-${index}`} message={item} />; }
+                               // Jika sender = username saat ini, pass userProfile, jika tidak null
                                const senderProfile = item.sender === userProfile?.username ? userProfile : null;
                                return <UserMessage key={item.id || `user-${index}`} message={item} userProfile={senderProfile} onReact={onReact} />;
                            } else if (isNewsArticle(item)) { return <NewsMessage key={item.id || `news-${index}`} article={item} username={username} onReact={onReact} />; }
