@@ -37,7 +37,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess, onLogin 
                     Masuk atau daftar untuk bergabung dengan komunitas pejuang cuan.
                 </p>
 
-                <div className="space-y-4">
+                {/* Apply flex centering here */}
+                <div className="space-y-4 flex flex-col items-center">
                     <GoogleLogin
                         onSuccess={onGoogleRegisterSuccess}
                         onError={() => {
@@ -47,16 +48,18 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess, onLogin 
                         theme="outline"
                         text="signup_with"
                         shape="pill"
-                        width="320px"
+                        width="320px" // Fixed width for Google button consistency
                     />
 
-                    <div className="flex items-center my-4">
+                    {/* Constrain separator width */}
+                    <div className="flex items-center my-4 w-full max-w-[320px]">
                         <div className="flex-grow border-t border-white/10"></div>
                         <span className="flex-shrink mx-4 text-gray-500 text-sm">Login dengan username dan pasword</span>
                         <div className="flex-grow border-t border-white/10"></div>
                     </div>
 
-                    <div className="bg-gray-900/30 border border-white/10 rounded-2xl p-5 backdrop-blur-sm">
+                    {/* Constrain form container width */}
+                    <div className="bg-gray-900/30 border border-white/10 rounded-2xl p-5 backdrop-blur-sm w-full max-w-[320px]">
                         <form onSubmit={handleLoginSubmit} className="space-y-4">
                             <div>
                                 <input
@@ -98,9 +101,9 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess, onLogin 
                 </div>
             </div>
             <style>{`
-                @keyframes fade-in-up { 
-                    from { opacity: 0; transform: translateY(20px); } 
-                    to { opacity: 1; transform: translateY(0); } 
+                @keyframes fade-in-up {
+                    from { opacity: 0; transform: translateY(20px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
                 .animate-fade-in-up { animation: fade-in-up 0.6s ease-out forwards; }
             `}</style>
