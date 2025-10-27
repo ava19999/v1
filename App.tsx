@@ -1,4 +1,4 @@
-// ava19999/v1/v1-9a4dba6fc6c91d8b6ce88474ad1ebcc8a220a34d/App.tsx
+// ava19999/v1/v1-7937f4b735b14d55e5e6024522254b32b9924b3b/App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { jwtDecode } from 'jwt-decode';
 import Header from './components/Header';
@@ -73,7 +73,7 @@ const App = () => {
    const [firebaseMessages, setFirebaseMessages] = useState<{ [roomId: string]: ForumMessageItem[] }>({});
 
   // --- Handlers Defined Early ---
-  // Definisikan handleResetToTrending sebelum digunakan di handleNavigate
+  // Definisikan fetchTrendingData sebelum handleResetToTrending
   const fetchTrendingData = useCallback(async (showSkeleton = true) => { /* Fetch Trending Coins */
       if (showSkeleton) { setIsTrendingLoading(true); setTrendingError(null); }
       try { const trending = await fetchTrendingCoins(); setTrendingCoins(trending); }
@@ -81,15 +81,13 @@ const App = () => {
       finally { if (showSkeleton) setIsTrendingLoading(false); }
   }, []);
 
-  // DIPINDAHKAN KE ATAS: Definisi handleResetToTrending
+  // Definisikan handleResetToTrending sebelum handleNavigate
   const handleResetToTrending = useCallback(() => { /* Reset view to trending */
        setSearchedCoin(null); fetchTrendingData(true);
    }, [fetchTrendingData]);
 
   // --- Effects ---
-    useEffect(() => { /* Load users & currentUser */
-        try { const storedUsers = localStorage.getItem('cryptoUsers'); if (storedUsers) setUsers(JSON.parse(storedUsers)); const storedCurrentUser = localStorage.getItem('currentUser'); if (storedCurrentUser) setCurrentUser(JSON.parse(storedCurrentUser)); } catch (e) { console.error("Gagal load user:", e); }
-    }, []);
+    useEffect(() => { /* Load users & currentUser */ try { const storedUsers = localStorage.getItem('cryptoUsers'); if (storedUsers) setUsers(JSON.parse(storedUsers)); const storedCurrentUser = localStorage.getItem('currentUser'); if (storedCurrentUser) setCurrentUser(JSON.parse(storedCurrentUser)); } catch (e) { console.error("Gagal load user:", e); } }, []);
     useEffect(() => { /* Persist users */ try { localStorage.setItem('cryptoUsers', JSON.stringify(users)); } catch (e) { console.error("Gagal simpan users:", e); } }, [users]);
     useEffect(() => { /* Persist currentUser */ try { if (currentUser) localStorage.setItem('currentUser', JSON.stringify(currentUser)); else localStorage.removeItem('currentUser'); } catch (e) { console.error("Gagal simpan currentUser:", e); } }, [currentUser]);
     useEffect(() => { /* Load/Save unreadCounts */ const saved = localStorage.getItem('unreadCounts'); if (saved) try { setUnreadCounts(JSON.parse(saved)); } catch (e) { console.error("Gagal load unread:", e); } }, []);
@@ -117,6 +115,8 @@ const App = () => {
    const handleDeleteRoom = useCallback((roomId: string) => { /* Delete room */
         // DIPERBAIKI: Tambahkan pengecekan null untuk database
         if (!database) { console.error("Database not initialized for deleteRoom"); return; }
+        const currentDb = database; // Assign ke variabel baru dalam scope
+
         const roomToDelete = rooms.find(r => r.id === roomId); if (!roomToDelete || !currentUser?.username) return;
         const isAdmin = ADMIN_USERNAMES.map(n=>n.toLowerCase()).includes(currentUser.username.toLowerCase()); const isCreator = roomToDelete.createdBy === currentUser.username;
         if (['berita-kripto', 'pengumuman-aturan'].includes(roomId)) { alert('Room default tidak dapat dihapus.'); return; }
@@ -125,11 +125,11 @@ const App = () => {
                 setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; });
                 setFirebaseMessages(prev => { const n = {...prev}; delete n[roomId]; return n; });
                 setUnreadCounts(prev => { const n = {...prev}; delete n[roomId]; return n; });
-                // DIPERBAIKI: Gunakan 'database' yang sudah dicek
-                const messagesRef = ref(database, `messages/${roomId}`); set(messagesRef, null).catch(console.error);
+                // DIPERBAIKI: Gunakan 'currentDb' yang sudah dipastikan tidak null
+                const messagesRef = ref(currentDb, `messages/${roomId}`); set(messagesRef, null).catch(console.error);
             }
         } else { alert('Tidak punya izin menghapus.'); }
-   }, [currentUser, rooms, currentRoom]);
+   }, [currentUser, rooms, currentRoom]); // Hapus 'database' dari dependency array
 
 
     // --- Firebase Chat Logic ---
@@ -144,7 +144,7 @@ const App = () => {
         const newMessageRef = push(messageListRef);
         const messageToSend: ChatMessage = { ...message, type: message.sender === 'system' ? 'system' : 'user', id: newMessageRef.key ?? `local-${Date.now()}-${Math.random()}`, timestamp: message.timestamp || Date.now() };
         set(newMessageRef, messageToSend).catch((error) => { console.error("Gagal send message:", error); alert("Gagal kirim pesan."); });
-    }, [currentRoom, currentUser]);
+    }, [currentRoom, currentUser]); // Hapus database dari dependency array
 
     // Mendengarkan pesan
     useEffect(() => {
@@ -152,7 +152,9 @@ const App = () => {
         if (!database) { console.warn("Database not initialized, cannot listen for messages."); return () => {}; }
         if (!currentRoom?.id) return () => {};
 
-        const messagesRef = ref(database, `messages/${currentRoom.id}`);
+        // DIPERBAIKI: Gunakan variabel db yang sudah dicek
+        const currentDb = database;
+        const messagesRef = ref(currentDb, `messages/${currentRoom.id}`);
         console.log(`Listening to: messages/${currentRoom.id}`);
 
         let listener: ReturnType<typeof onValue> | null = null;
@@ -162,42 +164,39 @@ const App = () => {
             console.log(`Data received for ${currentRoom.id}:`, messagesArray.length);
 
             let finalMessages = messagesArray;
-            if (messagesArray.length === 0) { if (defaultMessages[currentRoom.id]) { finalMessages = [...defaultMessages[currentRoom.id]]; } else if (!['berita-kripto', 'pengumuman-aturan'].includes(currentRoom.id) && currentUser?.username) { const welcomeMsg: ChatMessage = { id: `${currentRoom.id}-welcome-${Date.now()}`, type: 'system', text: `Selamat datang di room "${currentRoom.name}".`, sender: 'system', timestamp: Date.now() }; const adminMsg: ChatMessage = { id: `${currentRoom.id}-admin-${Date.now()}`, type: 'user', text: 'Ingat DYOR!', sender: 'Admin_RTC', timestamp: Date.now() + 1, reactions: {'👍': []} }; finalMessages = [welcomeMsg, adminMsg]; } }
+            if (messagesArray.length === 0) { if (defaultMessages[currentRoom.id]) { finalMessages = [...defaultMessages[currentRoom.id]]; } else if (!['berita-kripto', 'pengumuman-aturan'].includes(currentRoom.id) && currentUser?.username) { const welcomeMsg: ChatMessage = { id: `${currentRoom.id}-welcome-${Date.now()}`, type: 'system', text: `Selamat datang di room "${currentRoom.name}".`, sender: 'system', timestamp: Date.now() }; const adminMsg: ChatMessage = { id: `${currentRoom.id}-admin-${Date.now()}`, type: 'user', text: 'Ingat DYOR!', sender: 'Admin_RTC', timestamp: Date.now() + 1, reactions: {'👍': []} }; finalMessages = [welcomeMsg, adminMsg]; /* Opsional: Tulis ke Firebase */ } }
 
-            // DIPERBAIKI: Gunakan type guards saat sorting
-            setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: finalMessages.sort((a, b) => {
-                const timeA = isNewsArticle(a) ? a.published_on * 1000 : (isChatMessage(a) ? a.timestamp : 0);
-                const timeB = isNewsArticle(b) ? b.published_on * 1000 : (isChatMessage(b) ? b.timestamp : 0);
-                if (timeA === 0 && timeB !== 0) return 1; if (timeA !== 0 && timeB === 0) return -1;
-                return timeA - timeB;
-            }) }));
+            setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: finalMessages.sort((a, b) => { const timeA = isNewsArticle(a) ? a.published_on * 1000 : (isChatMessage(a) ? a.timestamp : 0); const timeB = isNewsArticle(b) ? b.published_on * 1000 : (isChatMessage(b) ? b.timestamp : 0); if (timeA === 0 && timeB !== 0) return 1; if (timeA !== 0 && timeB === 0) return -1; return timeA - timeB; }) }));
         }, (error) => { console.error(`Firebase listener error for ${currentRoom?.id}:`, error); });
 
-        return () => { 
-            // DIPERBAIKI: Tambahkan pengecekan null untuk database
+        return () => {
+             // DIPERBAIKI: Tambahkan pengecekan null untuk database
             if (listener && database) { console.log(`Stopping listener for ${currentRoom?.id}`); off(messagesRef, 'value', listener); }
         };
-    }, [currentRoom, currentUser]);
+    }, [currentRoom, currentUser]); // Hapus database dari dependency array
 
     // Fetch News Articles
     useEffect(() => {
          // DIPERBAIKI: Tambahkan pengecekan null untuk database
          if (!database) { console.warn("Database not initialized, cannot fetch/save news."); return; }
+         const currentDb = database; // Assign ke variabel baru
          const NEWS_ROOM_ID = 'berita-kripto'; const NEWS_FETCH_INTERVAL = 20 * 60 * 1000; const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
-         const fetchAndProcessNews = async () => { const now = Date.now(); const lastFetch = parseInt(localStorage.getItem(LAST_FETCH_KEY) || '0', 10); /* if (now - lastFetch < NEWS_FETCH_INTERVAL) return; */ try { const fetchedArticles = await fetchNewsArticles(); if (!fetchedArticles?.length) return; 
-         // DIPERBAIKI: Tambahkan pengecekan null untuk database
-         if (!database) return; const newsRoomRef = ref(database, `messages/${NEWS_ROOM_ID}`); const snapshot = await get(newsRoomRef); const existingNewsData = snapshot.val() || {}; const existingNewsUrls = new Set(Object.values<any>(existingNewsData).map(news => news.url)); let newArticleAdded = false; const updates: { [key: string]: NewsArticle } = {}; fetchedArticles.forEach(article => { if (!existingNewsUrls.has(article.url)) { const newsRef = push(newsRoomRef); if(newsRef.key) { updates[newsRef.key] = { ...article, type: 'news', id: newsRef.key, reactions: {} }; newArticleAdded = true; } } }); if (newArticleAdded) { console.log(`Adding ${Object.keys(updates).length} news.`); await update(newsRoomRef, updates); localStorage.setItem(LAST_FETCH_KEY, now.toString()); if (currentRoom?.id !== NEWS_ROOM_ID) { setUnreadCounts(prev => ({ ...prev, [NEWS_ROOM_ID]: { count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length, lastUpdate: now } })); } } else { console.log("No new news."); } } catch (err: any) { console.error("News fetch/process failed:", err.message); } };
+         const fetchAndProcessNews = async () => { const now = Date.now(); const lastFetch = parseInt(localStorage.getItem(LAST_FETCH_KEY) || '0', 10); /* if (now - lastFetch < NEWS_FETCH_INTERVAL) return; */ try { const fetchedArticles = await fetchNewsArticles(); if (!fetchedArticles?.length) return;
+         // DIPERBAIKI: Gunakan currentDb
+         const newsRoomRef = ref(currentDb, `messages/${NEWS_ROOM_ID}`); const snapshot = await get(newsRoomRef); const existingNewsData = snapshot.val() || {}; const existingNewsUrls = new Set(Object.values<any>(existingNewsData).map(news => news.url)); let newArticleAdded = false; const updates: { [key: string]: NewsArticle } = {}; fetchedArticles.forEach(article => { if (!existingNewsUrls.has(article.url)) { const newsRef = push(newsRoomRef); if(newsRef.key) { updates[newsRef.key] = { ...article, type: 'news', id: newsRef.key, reactions: {} }; newArticleAdded = true; } } }); if (newArticleAdded) { console.log(`Adding ${Object.keys(updates).length} news.`); await update(newsRoomRef, updates); localStorage.setItem(LAST_FETCH_KEY, now.toString()); if (currentRoom?.id !== NEWS_ROOM_ID) { setUnreadCounts(prev => ({ ...prev, [NEWS_ROOM_ID]: { count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length, lastUpdate: now } })); } } else { console.log("No new news."); } } catch (err: any) { console.error("News fetch/process failed:", err.message); } };
          fetchAndProcessNews(); const intervalId = setInterval(fetchAndProcessNews, NEWS_FETCH_INTERVAL); return () => clearInterval(intervalId);
-    }, [currentRoom]);
+    }, [currentRoom]); // Hapus database dari dependency array
 
     // Menangani reaksi
     const handleReaction = useCallback((messageId: string, emoji: string) => {
         // DIPERBAIKI: Tambahkan pengecekan null untuk database
         if (!database) { console.error("Database not initialized for reaction"); return; }
         if (!currentRoom?.id || !currentUser?.username || !messageId) return;
-        const username = currentUser.username; const reactionUserListRef = ref(database, `messages/${currentRoom.id}/${messageId}/reactions/${emoji}`);
+        const username = currentUser.username;
+        // DIPERBAIKI: Tambahkan pengecekan null untuk database
+        const reactionUserListRef = ref(database, `messages/${currentRoom.id}/${messageId}/reactions/${emoji}`);
         get(reactionUserListRef).then((snapshot) => { const usersForEmoji: string[] = snapshot.val() || []; let updatedUsers: string[] | null = null; if (usersForEmoji.includes(username)) { updatedUsers = usersForEmoji.filter(u => u !== username); if (updatedUsers.length === 0) updatedUsers = null; } else { updatedUsers = [...usersForEmoji, username]; } set(reactionUserListRef, updatedUsers).catch(error => console.error("Update reaction failed:", error)); }).catch(error => console.error("Get reaction failed:", error));
-    }, [currentRoom, currentUser]);
+    }, [currentRoom, currentUser]); // Hapus database dari dependency array
 
 
   // --- Memoized Values ---
