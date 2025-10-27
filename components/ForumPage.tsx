@@ -27,17 +27,16 @@ const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => vo
 );
 
 const Reactions = ({
-    message, // Accept the full message object
+    message,
     username,
     onReact,
     onAddReactionClick,
 }: {
-    message: NewsArticle | ChatMessage | undefined | null; // Allow message to be potentially undefined
+    message: NewsArticle | ChatMessage | undefined | null;
     username: string;
     onReact: (emoji: string) => void;
     onAddReactionClick: () => void;
 }) => {
-    // Check if message exists before accessing reactions
     const reactions = message?.reactions || {};
     const hasReactions = Object.keys(reactions).length > 0;
 
@@ -45,7 +44,6 @@ const Reactions = ({
         <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
             {hasReactions && Object.entries(reactions).map(([emoji, users]) => {
                 const userList = users as string[];
-                // Pastikan userList adalah array dan tidak kosong sebelum render
                 if (!Array.isArray(userList) || userList.length === 0) return null;
                 return (
                     <button
@@ -58,7 +56,6 @@ const Reactions = ({
                     </button>
                 );
             })}
-            {/* Tombol Add Reaction */}
             <button
                 onClick={onAddReactionClick}
                 className="flex items-center justify-center text-xs px-1.5 py-0.5 rounded-full bg-gray-600/50 hover:bg-gray-600/80 text-gray-400 hover:text-gray-200 transition-all duration-200"
@@ -72,40 +69,22 @@ const Reactions = ({
     );
 };
 
-// Tidak perlu MessageWrapper lagi, logic dipindah ke UserMessage/NewsMessage
-
+// NewsMessage dan UserMessage sekarang mengelola state showPicker mereka sendiri
 const NewsMessage: React.FC<{ article: NewsArticle; username: string; onReact: (messageId: string, emoji: string) => void; }> = ({ article, username, onReact }) => {
     const [showPicker, setShowPicker] = useState(false);
     const pickerRef = useRef<HTMLDivElement>(null);
-
-     // Menutup picker jika klik di luar
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => { if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) { setShowPicker(false); } };
-        if (showPicker) { document.addEventListener('mousedown', handleClickOutside); } else { document.removeEventListener('mousedown', handleClickOutside); }
-        return () => { document.removeEventListener('mousedown', handleClickOutside); };
-    }, [showPicker]);
+    useEffect(() => { const handleClickOutside = (event: MouseEvent) => { if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) { setShowPicker(false); } }; if (showPicker) { document.addEventListener('mousedown', handleClickOutside); } else { document.removeEventListener('mousedown', handleClickOutside); } return () => { document.removeEventListener('mousedown', handleClickOutside); }; }, [showPicker]);
 
     return (
-        <div className="my-2 animate-fade-in-up relative"> {/* Tambah relative di sini */}
+        <div className="my-2 animate-fade-in-up relative">
             <div className="text-center text-xs text-gray-500 py-1"> Pasar · {formatDate(article.published_on * 1000)} </div>
             <div className="w-full sm:w-4/5 md:w-3/5 mx-auto">
                 <a href={article.url} target="_blank" rel="noopener noreferrer" className="block p-3 bg-gray-800/50 hover:bg-gray-800/80 rounded-lg transition-colors duration-200">
                     <div className="flex items-start space-x-3"> <img src={article.imageurl} alt={article.title} className="w-20 h-14 object-cover rounded-md flex-shrink-0 bg-gray-700" loading="lazy" /> <div className="flex-1"> <h3 className="font-semibold text-gray-100 text-sm leading-snug">{article.title}</h3> <p className="text-xs text-gray-400 mt-1">Oleh {article.source}</p> </div> </div>
                 </a>
-                 {/* Container untuk Reactions dan Picker */}
-                 <div ref={pickerRef} className="relative mt-1"> {/* Tambah relative & margin top */}
-                    <Reactions
-                        message={article}
-                        username={username}
-                        onReact={(emoji) => onReact(article.id, emoji)}
-                        onAddReactionClick={() => setShowPicker(prev => !prev)}
-                    />
-                    {showPicker && (
-                        <ReactionPicker
-                            onSelect={(emoji) => onReact(article.id, emoji)}
-                            onClose={() => setShowPicker(false)}
-                        />
-                    )}
+                 <div ref={pickerRef} className="relative mt-1">
+                    <Reactions message={article} username={username} onReact={(emoji) => onReact(article.id, emoji)} onAddReactionClick={() => setShowPicker(prev => !prev)} />
+                    {showPicker && <ReactionPicker onSelect={(emoji) => onReact(article.id, emoji)} onClose={() => setShowPicker(false)} />}
                 </div>
             </div>
         </div>
@@ -115,22 +94,15 @@ const NewsMessage: React.FC<{ article: NewsArticle; username: string; onReact: (
 const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; onReact: (messageId: string, emoji: string) => void; }> = ({ message, userProfile, onReact }) => {
     const [showPicker, setShowPicker] = useState(false);
     const pickerRef = useRef<HTMLDivElement>(null);
-
-     // Menutup picker jika klik di luar
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => { if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) { setShowPicker(false); } };
-        if (showPicker) { document.addEventListener('mousedown', handleClickOutside); } else { document.removeEventListener('mousedown', handleClickOutside); }
-        return () => { document.removeEventListener('mousedown', handleClickOutside); };
-    }, [showPicker]);
+    useEffect(() => { const handleClickOutside = (event: MouseEvent) => { if (pickerRef.current && !pickerRef.current.contains(event.target as Node)) { setShowPicker(false); } }; if (showPicker) { document.addEventListener('mousedown', handleClickOutside); } else { document.removeEventListener('mousedown', handleClickOutside); } return () => { document.removeEventListener('mousedown', handleClickOutside); }; }, [showPicker]);
 
     const currentUsername = userProfile?.username || '';
     const isCurrentUser = message.sender === currentUsername;
-    // DIPERBAIKI: Pastikan nilai default adalah null
     const creationDate = isCurrentUser ? (userProfile?.createdAt ?? null) : null;
 
     return (
         <div className={`my-1 animate-fade-in-up py-1 flex ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-            <div className={`max-w-md ${isCurrentUser ? 'ml-auto' : ''}`}> {/* Tambah ml-auto jika user saat ini */}
+            <div className={`max-w-md ${isCurrentUser ? 'ml-auto' : ''}`}>
                 <div className={`flex items-start gap-3 ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
                     <div className="flex-1 overflow-hidden">
                         <div className={`flex items-center gap-2 flex-wrap ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
@@ -142,20 +114,9 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
                             {message.text}
                             <span className="text-xs text-gray-500 absolute bottom-1 right-2.5">{formatDate(message.timestamp)}</span>
                         </div>
-                         {/* Container untuk Reactions dan Picker */}
-                         <div ref={pickerRef} className="relative mt-1"> {/* Tambah relative & margin top */}
-                            <Reactions
-                                message={message}
-                                username={currentUsername}
-                                onReact={(emoji) => onReact(message.id, emoji)}
-                                onAddReactionClick={() => setShowPicker(prev => !prev)}
-                            />
-                             {showPicker && (
-                                <ReactionPicker
-                                    onSelect={(emoji) => onReact(message.id, emoji)}
-                                    onClose={() => setShowPicker(false)}
-                                />
-                             )}
+                         <div ref={pickerRef} className="relative mt-1">
+                            <Reactions message={message} username={currentUsername} onReact={(emoji) => onReact(message.id, emoji)} onAddReactionClick={() => setShowPicker(prev => !prev)} />
+                             {showPicker && <ReactionPicker onSelect={(emoji) => onReact(message.id, emoji)} onClose={() => setShowPicker(false)} />}
                         </div>
                     </div>
                 </div>
@@ -164,8 +125,7 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
     );
 };
 
-
-const SystemMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => (
+const SystemMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => ( /* ... (kode tetap sama) ... */
     <div className="text-center text-xs text-gray-500 py-2 italic animate-fade-in-up"> {message.text} </div>
 );
 
@@ -189,6 +149,11 @@ const ForumPage: React.FC<ForumPageProps> = ({
     // DIPERBAIKI: Pastikan username diambil dengan benar atau default string kosong
     const username = userProfile?.username ?? '';
 
+    // Tambahkan console log untuk debug username
+    console.log("ForumPage username:", username);
+    console.log("ForumPage userProfile:", userProfile);
+
+
     const safeMessages = Array.isArray(messages) ? messages : [];
 
     const sortedMessages = useMemo(() => { /* Sorting messages */
@@ -199,13 +164,19 @@ const ForumPage: React.FC<ForumPageProps> = ({
 
     const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => { /* Kirim pesan */
         e.preventDefault();
-        // DIPERBAIKI: Pastikan username tidak kosong
+        // Log saat mencoba mengirim
+        console.log("ForumPage handleSendMessage triggered. Username:", username, "Message:", newMessage, "Attachment:", !!attachment);
+        // Pastikan username tidak kosong
         if ((!newMessage.trim() && !attachment) || !username) {
-            console.warn("Cannot send message: empty content or no username."); // Debug log
+            console.warn("Send button clicked but conditions not met (empty msg/attachment or no username).");
             return;
         }
         const userMessage: ChatMessage = { id: `local-${Date.now()}-${Math.random()}`, type: 'user', text: newMessage.trim() || undefined, sender: username, timestamp: Date.now(), fileURL: attachment?.dataUrl, fileName: attachment?.name, reactions: {} };
-        onSendMessage(userMessage); setNewMessage(''); setAttachment(null); if(fileInputRef.current) fileInputRef.current.value = "";
+        console.log("Calling onSendMessage with:", userMessage); // Log data yang dikirim
+        onSendMessage(userMessage);
+        setNewMessage('');
+        setAttachment(null);
+        if(fileInputRef.current) fileInputRef.current.value = "";
     };
 
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { /* Pilih file */
@@ -215,6 +186,9 @@ const ForumPage: React.FC<ForumPageProps> = ({
     if (!room) { /* Handle jika room null */ return ( <div className="container mx-auto flex flex-col flex-grow items-center justify-center text-center"> <h2 className="text-xl font-bold text-gray-300">Room tidak ditemukan</h2> <p className="text-gray-500 mt-2">Pilih room untuk bergabung.</p> <button onClick={onLeaveRoom} className="mt-4 bg-electric hover:bg-electric/80 text-white font-semibold py-2 px-6 rounded-lg transition-all duration-300"> Kembali </button> </div> ) }
 
     const isDefaultRoom = ['berita-kripto', 'pengumuman-aturan'].includes(room.id);
+    // Hitung kondisi disabled untuk tombol
+    const isSendDisabled = (!newMessage.trim() && !attachment) || !username;
+    console.log("Send button disabled state:", isSendDisabled, {newMessage: !newMessage.trim(), attachment: !attachment, username: !username}); // Debug disabled state
 
     return (
         <div className="container mx-auto px-2 sm:px-4 py-3 animate-fade-in flex flex-col flex-grow h-[calc(100vh-56px)]">
@@ -232,7 +206,6 @@ const ForumPage: React.FC<ForumPageProps> = ({
                      : ( sortedMessages.map((item, index) => {
                            if (isChatMessage(item)) {
                                if (item.type === 'system') { if (room.id === 'pengumuman-aturan') { return <AnnouncementMessage key={item.id || `sys-${index}`} message={item} />; } return <SystemMessage key={item.id || `sys-${index}`} message={item} />; }
-                               // Jika sender = username saat ini, pass userProfile, jika tidak null
                                const senderProfile = item.sender === userProfile?.username ? userProfile : null;
                                return <UserMessage key={item.id || `user-${index}`} message={item} userProfile={senderProfile} onReact={onReact} />;
                            } else if (isNewsArticle(item)) { return <NewsMessage key={item.id || `news-${index}`} article={item} username={username} onReact={onReact} />; }
@@ -250,9 +223,9 @@ const ForumPage: React.FC<ForumPageProps> = ({
                             <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                             <button type="button" onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-electric p-2 rounded-full transition-colors flex-shrink-0"> <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg> </button>
                             <div className="relative flex-1"> <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Ketik pesan Anda..." className="w-full bg-gray-800 border border-gray-700 rounded-full py-2.5 pl-4 pr-12 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all" disabled={!username} /> </div>
-                            {/* DIPERBAIKI: Pastikan kondisi disabled benar */}
+                            {/* Tombol Submit */}
                             <button type="submit" className="bg-electric text-white rounded-full p-2.5 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0"
-                                disabled={(!newMessage.trim() && !attachment) || !username} // Cek jika tidak ada teks DAN tidak ada attachment, ATAU jika username kosong
+                                disabled={isSendDisabled} // Gunakan variabel state
                             >
                                 <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
                             </button>
@@ -276,4 +249,3 @@ const ForumPage: React.FC<ForumPageProps> = ({
 };
 
 export default ForumPage;
-
