@@ -42,6 +42,9 @@ const Particles = () => (
         <div className="particle absolute bg-magenta/50 rounded-full opacity-0 animate-[drift_25s_infinite_linear_-5s]" style={{ width: '2px', height: '2px', left: '25%'}}></div>
         <div className="particle absolute bg-lime/50 rounded-full opacity-0 animate-[drift_15s_infinite_linear_-10s]" style={{ width: '4px', height: '4px', left: '50%'}}></div>
          {/* Add more particles as needed */}
+         {/* Example additional particles */}
+        <div className="particle absolute bg-electric/30 rounded-full opacity-0 animate-[drift_18s_infinite_linear_-7s]" style={{ width: '2px', height: '2px', left: '75%'}}></div>
+        <div className="particle absolute bg-lime/40 rounded-full opacity-0 animate-[drift_22s_infinite_linear_-3s]" style={{ width: '3px', height: '3px', left: '90%'}}></div>
     </div>
 );
 
@@ -64,12 +67,14 @@ const AppContent = () => {
   const [isTrendingLoading, setIsTrendingLoading] = useState(true);
   const [trendingError, setTrendingError] = useState<string | null>(null);
   const [searchedCoin, setSearchedCoin] = useState<CryptoData | null>(null);
-  // Initial rooms state - assuming structure is correct
+  // Initial rooms state - corrected structure and added userCount for all rooms
   const [rooms, setRooms] = useState<Room[]>([
       { id: 'berita-kripto', name: 'Berita Kripto', userCount: 150 + Math.floor(Math.random() * 20) },
       { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 150 + Math.floor(Math.random() * 20) },
-      { id: 'umum', name: 'Kripto Naik/Turun Hari Ini', userCount: 134 + Math.floor(Math.random() * 20), createdBy: 'Admin_RTC'}, // Example with creator
-      // Add other rooms
+      { id: 'umum', name: 'Kripto Naik/Turun Hari Ini', userCount: 134 + Math.floor(Math.random() * 20), createdBy: 'Admin_RTC'},
+      { id: 'meme', name: 'Meme Coin Mania', userCount: 88 + Math.floor(Math.random() * 20)},
+      { id: 'xrp-army', name: 'Xrp Army', userCount: 73 + Math.floor(Math.random() * 20)},
+      { id: 'roblox-tuker-kripto', name: 'Roblox Tuker Kripto', userCount: 42 + Math.floor(Math.random() * 20)},
   ]);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
   const [joinedRoomIds, setJoinedRoomIds] = useState<Set<string>>( () => new Set(['berita-kripto', 'pengumuman-aturan']) );
@@ -325,32 +330,29 @@ const AppContent = () => {
 
     // Send Message
     const handleSendMessage = useCallback((message: ChatMessage) => {
-        // console.log("[App.tsx] handleSendMessage called with message:", JSON.stringify(message)); // Keep for debug if needed
         if (!database) { console.error("[App.tsx] Database not initialized!"); return; }
         if (!currentRoom?.id) { console.error("[App.tsx] currentRoom.id is missing!"); return; }
         if (!currentUser?.username) { console.error("[App.tsx] currentUser.username is missing!"); return; }
-        // console.log(`[App.tsx] Sending to room: ${currentRoom.id} by user: ${currentUser.username}`); // Keep for debug if needed
 
         const messageListRef = ref(database, `messages/${currentRoom.id}`);
-        const newMessageRef = push(messageListRef); // Generate unique key via push()
+        const newMessageRef = push(messageListRef);
 
-        // Construct the final message object *without* the local ID
-        const messageToSend: Omit<ChatMessage, 'id'> & { timestamp: number } = { // Use Omit to exclude id initially
+        // Ensure the message object sent matches the expected structure (without local id)
+        const messageToSend: Omit<ChatMessage, 'id'> = {
              type: 'user',
-             sender: message.sender, // Should match currentUser.username
-             timestamp: Date.now(), // Use server timestamp ideally, but Date.now() is fallback
-             reactions: {}, // Initialize reactions
+             sender: currentUser.username, // Use username from currentUser
+             timestamp: Date.now(), // Consider using Firebase ServerValue.TIMESTAMP for accuracy
+             reactions: {}, // Always initialize reactions
              ...(message.text && { text: message.text }),
-             ...(message.fileURL && { fileURL: message.fileURL, fileName: message.fileName }),
+             ...(message.fileURL && { fileURL: message.fileURL }),
+             ...(message.fileName && { fileName: message.fileName }),
         };
 
-        // console.log("[App.tsx] Final message object to send:", JSON.stringify(messageToSend)); // Keep for debug if needed
-
-        set(newMessageRef, messageToSend) // Send the data without the ID field
-            .then(() => { /* console.log("[App.tsx] Message sent successfully! ID:", newMessageRef.key); */ }) // Key is available after success
+        set(newMessageRef, messageToSend)
+            .then(() => { /* Message sent */ })
             .catch((error) => { console.error("[App.tsx] Firebase send message failed:", error); alert("Gagal kirim pesan."); });
 
-    }, [currentRoom, currentUser, database]); // Added database dependency
+    }, [currentRoom, currentUser, database]);
 
 
     // Listen for Messages
@@ -496,12 +498,13 @@ const AppContent = () => {
                  } else {
                      console.log("No new news articles to add.");
                  }
-             } catch (err: unknown) { // Catch as unknown
+             // FIX: Corrected catch block to properly handle 'unknown' type
+             } catch (err) { // Catch as unknown is safer
                  let errorMessage = 'Unknown error during news fetch/process';
                  if (err instanceof Error) {
-                     errorMessage = err.message; // Line 229 area
+                     errorMessage = err.message; // Line 229 area - Now safe
                  } else if (typeof err === 'string') {
-                     errorMessage = err;
+                    errorMessage = err;
                  } else {
                      // Attempt to get a string representation, fallback if complex object
                       try {
