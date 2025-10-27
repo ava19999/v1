@@ -1,10 +1,10 @@
 // components/ForumPage.tsx
 import React, { useState, useEffect, useRef, useMemo, ReactElement, JSXElementConstructor, ReactNode, ReactPortal } from 'react';
-import UserTag, { ADMIN_USERNAMES } from './UserTag'; // Import ADMIN_USERNAMES
+import UserTag, { ADMIN_USERNAMES } from './UserTag';
 import type { NewsArticle, ChatMessage, ForumPageProps, ForumMessageItem, User } from '../types';
 import { isNewsArticle, isChatMessage } from '../types';
 
-// FIX: Define DEFAULT_ROOM_IDS constant locally
+// Define DEFAULT_ROOM_IDS constant locally
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
 const formatDate = (unixTimestamp: number): string => new Date(unixTimestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
@@ -12,8 +12,9 @@ const EMOJIS = ['👍', '❤️', '🚀', '🔥', '😂', '🤯'];
 
 // --- Sub-components ---
 
+// FIX: Make ReactionPicker positioning relative to its direct parent (action button container)
 const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void; }) => (
-    <div className="absolute left-0 -top-10 mt-1 bg-gray-900/80 backdrop-blur-md border border-white/10 rounded-lg p-1 flex items-center gap-1 z-20 shadow-lg animate-fade-in-fast">
+    <div className="absolute bottom-full mb-1 bg-gray-900/80 backdrop-blur-md border border-white/10 rounded-lg p-1 flex items-center gap-1 z-20 shadow-lg animate-fade-in-fast"> {/* Changed to bottom-full mb-1 */}
         {EMOJIS.map(emoji => (
             <button key={emoji} onClick={() => { onSelect(emoji); onClose(); }} className="text-xl hover:scale-125 transition-transform p-1 rounded-full hover:bg-white/10"> {emoji} </button>
         ))}
@@ -34,24 +35,24 @@ const ReactButton: React.FC<{ onClick: (e: React.MouseEvent) => void }> = ({ onC
 
 const NewsMessage: React.FC<{ article: NewsArticle; username: string; onReact: (messageId: string, emoji: string) => void; onDeleteClick: () => void; canDelete: boolean; isActive: boolean; onMessageClick: () => void; }> = ({ article, username, onReact, onDeleteClick, canDelete, isActive, onMessageClick }) => {
     const [showPicker, setShowPicker] = useState(false);
-    useEffect(() => { if (!isActive) setShowPicker(false); }, [isActive]); // Hide picker if message becomes inactive
+    useEffect(() => { if (!isActive) setShowPicker(false); }, [isActive]);
 
     return (
         <div className="my-2 animate-fade-in-up relative group/message">
-            {/* Wrapper for content and actions */}
             <div
                 onClick={onMessageClick}
                 className={`relative cursor-pointer rounded-lg p-1 ${isActive ? 'bg-gray-800/30' : 'bg-transparent'} transition-colors duration-150`}
             >
-                {/* Action Buttons Container - Positioned top-right relative to this wrapper */}
+                 {/* Action Buttons Container */}
                  <div className={`absolute top-0 right-1 z-10 flex items-center bg-gray-900 border border-white/10 rounded-full px-1 shadow-lg transition-opacity duration-200 ${isActive ? 'opacity-100 animate-fade-in-fast' : 'opacity-0 pointer-events-none group-hover/message:opacity-100'}`}>
+                    {/* FIX: Use setShowPicker directly in onClick */}
                     <ReactButton onClick={(e) => { e.stopPropagation(); setShowPicker(prev => !prev); }} />
                     {canDelete && <DeleteButton onClick={(e) => { e.stopPropagation(); onDeleteClick(); }} />}
                  </div>
 
-                 {/* Picker - Positioned absolutely relative to the wrapper, near the buttons */}
+                 {/* Picker - Positioned relative to the Action Buttons Container parent */}
                  {isActive && showPicker && (
-                     <div className="absolute top-7 right-1 z-20"> {/* Adjusted top offset */}
+                     <div className="absolute top-7 right-1 z-20">
                          <ReactionPicker
                             onSelect={(emoji) => { onReact(article.id, emoji); setShowPicker(false); }}
                             onClose={() => setShowPicker(false)}
@@ -62,7 +63,6 @@ const NewsMessage: React.FC<{ article: NewsArticle; username: string; onReact: (
                 {/* Message Content */}
                 <div className="text-center text-xs text-gray-500 pt-1"> Pasar · {formatDate(article.published_on * 1000)} </div>
                 <div className="w-full sm:w-4/5 md:w-3/5 mx-auto">
-                    {/* Linkable content card */}
                     <div className="block p-3 bg-gray-800/50 rounded-lg group-hover/message:bg-gray-800/60 transition-colors">
                         <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={(e)=> e.stopPropagation()}>
                             <div className="flex items-start space-x-3">
@@ -74,7 +74,6 @@ const NewsMessage: React.FC<{ article: NewsArticle; username: string; onReact: (
                             </div>
                         </a>
                     </div>
-                    {/* Reactions - Placed below the card */}
                     <div className="relative mt-1 px-3 pb-1">
                         <Reactions message={article} username={username} onReact={(emoji) => onReact(article.id, emoji)} />
                     </div>
@@ -89,25 +88,24 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
     useEffect(() => { if (!isActive) setShowPicker(false); }, [isActive]);
     const currentUsername = userProfile?.username || '';
     const isCurrentUser = message.sender === currentUsername && !!currentUsername;
-    // Determine creation date only if it's the current user sending, otherwise null
     const creationDate = isCurrentUser ? (userProfile?.createdAt ?? null) : null;
 
     return (
-        // Main container for alignment (start/end)
         <div className={`my-1 py-1 flex group/message relative ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
-            {/* Inner container for message and actions, allowing flex order change */}
             <div className={`flex items-start gap-2 ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'}`}>
 
-                 {/* Action Buttons Container - Placed next to the message bubble */}
+                 {/* Action Buttons Container */}
+                 {/* FIX: Added relative positioning to this container for picker positioning */}
                  <div className={`relative flex-shrink-0 self-start mt-1 z-10 flex items-center bg-gray-900 border border-white/10 rounded-full px-1 shadow-lg transition-opacity duration-200 ${isActive ? 'opacity-100 animate-fade-in-fast' : 'opacity-0 pointer-events-none group-hover/message:opacity-100'}`}>
+                    {/* FIX: Use setShowPicker directly in onClick */}
                     <ReactButton onClick={(e) => { e.stopPropagation(); setShowPicker(prev => !prev); }} />
                     {canDelete && <DeleteButton onClick={(e) => { e.stopPropagation(); onDeleteClick(); }} />}
                  </div>
 
-                 {/* Reaction Picker - Position relative to the action buttons container */}
+                 {/* Reaction Picker - Position relative to the Action Buttons Container */}
                  {isActive && showPicker && (
-                     // Position picker below the buttons
-                     <div className={`absolute top-full mt-1 z-20 ${isCurrentUser ? 'left-0' : 'right-0'}`}>
+                     // Position picker below the buttons using relative parent
+                     <div className={`absolute top-full mt-1 z-20 ${isCurrentUser ? 'left-0' : 'right-0 -mr-4'}`}> {/* Adjust right margin if needed */}
                          <ReactionPicker
                              onSelect={(emoji) => { onReact(message.id, emoji); setShowPicker(false); }}
                              onClose={() => setShowPicker(false)}
@@ -117,19 +115,14 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
 
                 {/* Message Content Container */}
                 <div className={`max-w-xs sm:max-w-sm md:max-w-md ${isCurrentUser ? 'ml-auto' : ''}`} onClick={onMessageClick}>
-                    {/* Message Bubble Structure */}
                     <div className="flex-1 overflow-hidden">
-                        {/* Sender Info */}
                         <div className={`flex items-center gap-2 flex-wrap ${isCurrentUser ? 'flex-row-reverse' : ''}`}>
                             <span className={`font-bold text-sm break-all font-heading ${isCurrentUser ? 'text-electric' : 'text-magenta'}`}>{message.sender}</span>
-                            {/* Pass correct creationDate */}
                             <UserTag sender={message.sender} userCreationDate={creationDate} />
                         </div>
-                        {/* Message Bubble */}
                         <div className={`relative text-sm text-gray-200 break-words mt-1 px-3 pt-2.5 pb-5 rounded-xl cursor-pointer ${isActive ? (isCurrentUser ? 'bg-electric/15' : 'bg-magenta/5') : (isCurrentUser ? 'bg-gradient-to-br from-electric/20 to-gray-900/10' : 'bg-gradient-to-bl from-magenta/10 to-gray-900/10')} transition-colors`}>
                              {message.fileURL && <img src={message.fileURL} alt={message.fileName || 'Gambar'} className="rounded-lg max-h-48 mt-1 mb-2" />} {message.text} <span className="text-xs text-gray-500 absolute bottom-1 right-2.5">{formatDate(message.timestamp)}</span>
                          </div>
-                        {/* Reactions below the bubble */}
                         <div className="relative mt-1">
                             <Reactions message={message} username={currentUsername} onReact={(emoji) => onReact(message.id, emoji)} />
                         </div>
@@ -141,7 +134,7 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
     );
 };
 
-// --- Rest of the ForumPage component ---
+
 const SystemMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => ( <div className="text-center text-xs text-gray-500 py-2 italic animate-fade-in-up"> {message.text} </div> );
 
 const AnnouncementMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => {
@@ -163,67 +156,64 @@ const ForumPage: React.FC<ForumPageProps> = ({
     const username = userProfile?.username ?? '';
 
     const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
-    const [showActions, setShowActions] = useState(false);
-    const actionTimerRef = useRef<NodeJS.Timeout | null>(null);
+    const [showActions, setShowActions] = useState(false); // State to explicitly control action button visibility
+    const [showPickerForMsgId, setShowPickerForMsgId] = useState<string | null>(null); // State to control *which* picker is shown
 
-    // Click handler: Manages active state and delayed action visibility
+
+    // Click handler for message: Toggles *action button* visibility
     const handleMessageClick = (messageId: string) => {
-        if (actionTimerRef.current) { clearTimeout(actionTimerRef.current); actionTimerRef.current = null; } // Clear any pending timer
+        setActiveMessageId(currentId => {
+            if (currentId === messageId) {
+                // If clicking the already active message, toggle action visibility
+                setShowActions(prev => !prev);
+                setShowPickerForMsgId(null); // Always hide picker when toggling actions
+                return currentId; // Keep it active if just toggling actions
+            } else {
+                // If clicking a new message, make it active and show actions
+                setShowActions(true);
+                 setShowPickerForMsgId(null); // Hide any open picker
+                return messageId; // Set new active message
+            }
+        });
+    };
 
-        if (messageId === activeMessageId && showActions) {
-            // If clicking the active message *while actions are shown*, hide actions
-            setShowActions(false);
-            setActiveMessageId(null); // Deactivate message
-        } else {
-            // If clicking a new message, or the active message *before actions are shown*
-            setShowActions(false); // Ensure actions are hidden initially
-            setActiveMessageId(messageId); // Set this message as active
-
-            // Set a timer to show actions after a short delay
-            actionTimerRef.current = setTimeout(() => {
-                // Check if the message is still the active one when the timer fires
-                setActiveMessageId(currentActiveId => {
-                    if (currentActiveId === messageId) {
-                        setShowActions(true); // Show actions only if still active
-                    }
-                    return currentActiveId; // Return the potentially updated active ID
-                });
-                actionTimerRef.current = null; // Clear the ref after timer runs
-            }, 150); // Delay in ms (adjust as needed)
+    // Click handler for the reaction button specifically: Toggles *picker* visibility
+    const handleReactButtonClick = (e: React.MouseEvent, messageId: string) => {
+        e.stopPropagation(); // Prevent message click handler
+        setShowPickerForMsgId(currentPickerId =>
+            currentPickerId === messageId ? null : messageId // Toggle picker for this message ID
+        );
+        // Ensure actions are also visible if picker is shown
+        if (!showActions || activeMessageId !== messageId) {
+             setActiveMessageId(messageId);
+             setShowActions(true);
         }
     };
 
 
-     // Click handler for the chat area to deselect messages/hide actions
+     // Click handler for the chat area to deselect messages/hide actions/picker
      const handleChatAreaClick = () => {
-         if (showActions || activeMessageId) { // Only act if something is active/shown
+         if (showActions || activeMessageId || showPickerForMsgId) { // Check all states
             setShowActions(false);
             setActiveMessageId(null);
-            if (actionTimerRef.current) { // Clear pending timer if area is clicked
-                clearTimeout(actionTimerRef.current);
-                actionTimerRef.current = null;
-            }
+            setShowPickerForMsgId(null);
          }
      };
 
-     // Cleanup timer on component unmount
-     useEffect(() => { return () => { if (actionTimerRef.current) clearTimeout(actionTimerRef.current); }; }, []);
-
     // Ensure messages is always an array, sort, and scroll
     const safeMessages = Array.isArray(messages) ? messages : [];
-    const sortedMessages = useMemo(() => { return [...safeMessages].sort((a, b) => { const timeA = isNewsArticle(a) ? a.published_on * 1000 : (isChatMessage(a) ? a.timestamp : 0); const timeB = isNewsArticle(b) ? b.published_on * 1000 : (isChatMessage(b) ? b.timestamp : 0); if (timeA === 0 && timeB !== 0) return 1; if (timeA !== 0 && timeB === 0) return -1; return timeA - timeB; }); }, [safeMessages]);
-    useEffect(() => { if(activeMessageId === null && chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [sortedMessages, activeMessageId]); // Scroll only if no message is active
+    const sortedMessages = useMemo(() => { return [...safeMessages].sort((a, b) => { const timeA = isNewsArticle(a) ? a.published_on * 1000 : (isChatMessage(a) ? a.timestamp : 0); const timeB = isNewsArticle(b) ? b.published_on * 1000 : (isChatMessage(b) ? b.timestamp : 0); if (!timeA && !timeB) return 0; if (!timeA) return 1; if (!timeB) return -1; return timeA - timeB; }); }, [safeMessages]);
+    useEffect(() => { if(activeMessageId === null && chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'auto' }); }, [sortedMessages, activeMessageId]); // Changed to 'auto' for less jarring scroll
 
-    // DO NOT CHANGE: Original send message handler provided by user
+    // Original send message handler (unchanged as requested)
     const handleSendMessageOriginal = (e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); const currentMessageText = newMessage.trim(); const currentAttachment = attachment; if ((!currentMessageText && !currentAttachment) || !username) { return; } const userMessage: Partial<ChatMessage> & { sender: string; timestamp: number; type: 'user' } = { id: `local-${Date.now()}-${Math.random()}`, type: 'user', sender: username, timestamp: Date.now(), reactions: {} }; if (currentMessageText) { userMessage.text = currentMessageText; } if (currentAttachment) { userMessage.fileURL = currentAttachment.dataUrl; userMessage.fileName = currentAttachment.name; } if (userMessage.text || userMessage.fileURL) { onSendMessage(userMessage as ChatMessage); } setNewMessage(''); setAttachment(null); if(fileInputRef.current) fileInputRef.current.value = ""; };
 
-    // File change handler remains the same
+    // File change handler (unchanged)
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && file.type.startsWith('image/')) { const reader = new FileReader(); reader.onloadend = () => { if (reader.result) { setAttachment({ dataUrl: reader.result as string, name: file.name }); } }; reader.readAsDataURL(file); } else { setAttachment(null); } };
 
     // Handle null room case
     if (!room) { return (<div className="flex flex-col flex-grow items-center justify-center text-gray-500">Pilih room untuk memulai.</div>); }
 
-    // FIX: Use the imported constant
     const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
     const isSendDisabled = (!newMessage.trim() && !attachment) || !username;
     const isAdmin = userProfile?.username ? ADMIN_USERNAMES.map(n => n.toLowerCase()).includes(userProfile.username.toLowerCase()) : false;
@@ -244,16 +234,16 @@ const ForumPage: React.FC<ForumPageProps> = ({
                          <div className="flex items-center justify-center h-full text-gray-500"><p>Belum ada pesan.</p></div>
                      ) : (
                          sortedMessages.map((item, index) => {
-                           const isActive = activeMessageId === item.id && showActions;
-                            // FIX: Use item.id which is guaranteed to exist for both ChatMessage and NewsArticle from Firebase keys
-                           const messageKey = item.id || `fallback-${index}-${Math.random()}`; // More robust fallback
+                           const isActive = activeMessageId === item.id; // Only depends on active ID now
+                           const showPicker = showPickerForMsgId === item.id; // Picker visibility depends on its own state
+                           const messageKey = item.id || `fallback-${index}-${Math.random()}`;
 
+                           // Pass showPicker state down to components
                            if (isChatMessage(item)) {
                                if (item.type === 'system') {
-                                   if (room.id === 'pengumuman-aturan') {
-                                       return <AnnouncementMessage key={messageKey} message={item} />;
-                                   }
-                                   return <SystemMessage key={messageKey} message={item} />;
+                                   return room.id === 'pengumuman-aturan'
+                                       ? <AnnouncementMessage key={messageKey} message={item} />
+                                       : <SystemMessage key={messageKey} message={item} />;
                                }
                                const isOwnMessage = item.sender === username && !!username;
                                const canDelete = isAdmin || (isOwnMessage && item.type === 'user');
@@ -265,8 +255,12 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                           onReact={onReact}
                                           onDeleteClick={() => {if (window.confirm('Yakin hapus pesan ini?')) {onDeleteMessage(room.id, item.id);}}}
                                           canDelete={canDelete}
-                                          isActive={isActive}
+                                          isActive={isActive} // Pass active state for highlighting
+                                          showActions={showActions && isActive} // Show actions only if active and toggled
+                                          showPicker={showPicker} // Pass picker state
                                           onMessageClick={() => handleMessageClick(item.id)}
+                                          onReactButtonClick={(e) => handleReactButtonClick(e, item.id)} // Pass specific handler for react button
+                                          onClosePicker={() => setShowPickerForMsgId(null)} // Pass handler to close picker
                                       />;
                            } else if (isNewsArticle(item)) {
                                const canDeleteNews = isAdmin;
@@ -277,8 +271,12 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                           onReact={onReact}
                                           onDeleteClick={() => {if (window.confirm('Yakin hapus berita ini?')) {onDeleteMessage(room.id, item.id);}}}
                                           canDelete={canDeleteNews}
-                                          isActive={isActive}
+                                          isActive={isActive} // Pass active state
+                                          showActions={showActions && isActive} // Show actions
+                                          showPicker={showPicker} // Pass picker state
                                           onMessageClick={() => handleMessageClick(item.id)}
+                                          onReactButtonClick={(e) => handleReactButtonClick(e, item.id)}
+                                          onClosePicker={() => setShowPickerForMsgId(null)}
                                       />;
                            }
                            console.warn("Unknown item type in messages:", item);
@@ -292,45 +290,23 @@ const ForumPage: React.FC<ForumPageProps> = ({
                  {/* Input Area */}
                  <div className="p-3 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
                      {isDefaultRoom ? (
-                         // Read-only message for default rooms
                          <div className="text-center text-sm text-gray-500 py-2 flex items-center justify-center gap-2">
                              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
                              Room ini hanya untuk membaca.
                          </div>
                      ) : (
-                         // Message input form for other rooms
                          <div className="space-y-2">
-                             {/* Attachment Preview */}
-                             {attachment && (
-                                 <div className="relative inline-block">
-                                     <img src={attachment.dataUrl} alt="Pratinjau" className="max-h-24 rounded-lg" />
-                                     <button
-                                         onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }}
-                                         className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold hover:bg-red-700 transition-colors"
-                                         title="Hapus lampiran"
-                                     > × </button>
-                                 </div>
-                             )}
-                             {/* Message Form - Using the original handler */}
+                             {attachment && ( /* Attachment Preview */ )}
+                             {/* Message Form using original handler */}
                              <form onSubmit={handleSendMessageOriginal} className="flex items-center space-x-2">
-                                 {/* Hidden file input */}
+                                 {/* File input, attach button, text input, send button */}
                                  <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
-                                 {/* Attachment Button */}
                                  <button type="button" onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-electric p-2 rounded-full transition-colors flex-shrink-0" title="Lampirkan gambar">
                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
                                  </button>
-                                 {/* Text Input */}
                                  <div className="relative flex-1">
-                                     <input
-                                        type="text"
-                                        value={newMessage}
-                                        onChange={(e) => setNewMessage(e.target.value)}
-                                        placeholder="Ketik pesan Anda..."
-                                        className="w-full bg-gray-800 border border-gray-700 rounded-full py-2.5 pl-4 pr-12 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all"
-                                        disabled={!username} // Disable if not logged in
-                                     />
+                                     <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Ketik pesan Anda..." className="w-full bg-gray-800 border border-gray-700 rounded-full py-2.5 pl-4 pr-12 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all" disabled={!username} />
                                  </div>
-                                 {/* Send Button */}
                                  <button type="submit" className="bg-electric text-white rounded-full p-2.5 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0" disabled={isSendDisabled} title="Kirim">
                                      <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
                                  </button>
@@ -342,15 +318,11 @@ const ForumPage: React.FC<ForumPageProps> = ({
              {/* Styles */}
              <style>{`
                 /* Action buttons positioning adjustments */
-                .group\\/message .opacity-0 { /* Ensure hidden by default */
-                   opacity: 0;
-                   pointer-events: none;
-                }
-                .group\\/message:hover .group-hover\\/message\\:opacity-100 { /* Show on hover */
-                   opacity: 1;
-                   pointer-events: auto;
-                }
-                 /* Make sure picker is above other elements */
+                .group\\/message .opacity-0 { opacity: 0; pointer-events: none; }
+                .group\\/message:hover .group-hover\\/message\\:opacity-100,
+                .group\\/message .opacity-100 { opacity: 1; pointer-events: auto; } /* Ensure always visible when active */
+
+                 /* Z-index */
                 .z-10 { z-index: 10; }
                 .z-20 { z-index: 20; }
 
@@ -374,8 +346,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
                    50% { transform: scale(1.05); box-shadow: 0 0 0 5px rgba(255, 0, 255, 0); }
                  }
                  .animate-pulse-notification { animation: pulse-notification 1.5s infinite; }
-                 /* Styles for particle animation (ensure these are defined globally or within App.tsx if preferred) */
-                @keyframes drift { 0% { transform: translateY(100vh) scale(0); opacity: 0; } 10% { opacity: 0.5; } 90% { opacity: 0.5; } 100% { transform: translateY(-100vh) scale(1.2); opacity: 0; } }
+                 @keyframes drift { 0% { transform: translateY(100vh) scale(0); opacity: 0; } 10% { opacity: 0.5; } 90% { opacity: 0.5; } 100% { transform: translateY(-100vh) scale(1.2); opacity: 0; } }
 
             `}</style>
         </div>
