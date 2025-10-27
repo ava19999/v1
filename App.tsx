@@ -1,4 +1,4 @@
-// ava19999/v1/v1-c5d7d0ddb102ed890fdcf6a9b98065e6ff8b15c3/App.tsx
+// ava19999/v1/v1-e83f8e599322c0ffce54b5e4675868924f36d587/App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -100,40 +100,40 @@ const AppContent = () => {
 
     // Mengirim pesan
     const handleSendMessage = useCallback((message: ChatMessage) => {
-        console.log("App.tsx: handleSendMessage called with message:", JSON.stringify(message)); // Log 1: Pastikan fungsi terpanggil
+        console.log("[App.tsx] handleSendMessage triggered with:", JSON.stringify(message)); // Log 1
 
-        if (!database) { console.error("App.tsx: Database not initialized for sendMessage"); return; } // Check database
-        if (!currentRoom?.id) { console.error("App.tsx: Cannot send message: currentRoom is null or has no ID."); return; }
-        if (!currentUser?.username) { console.error("App.tsx: Cannot send message: currentUser is null or has no username."); return; }
+        if (!database) { console.error("[App.tsx] Database not initialized!"); return; }
+        if (!currentRoom?.id) { console.error("[App.tsx] currentRoom.id is missing!"); return; }
+        if (!currentUser?.username) { console.error("[App.tsx] currentUser.username is missing!"); return; }
 
-        console.log(`App.tsx: Attempting to send to room: ${currentRoom.id} by user: ${currentUser.username}`); // Log 2
+        console.log(`[App.tsx] Sending to room: ${currentRoom.id}, User: ${currentUser.username}`); // Log 2
 
         const messageListRef = ref(database, `messages/${currentRoom.id}`);
         const newMessageRef = push(messageListRef);
-        // Pastikan 'type' dan 'id' sudah benar sebelum mengirim
+
+        // Pastikan semua properti yang dibutuhkan ada dan valid
         const messageToSend: ChatMessage = {
-             ...message,
-             type: message.sender === 'system' ? 'system' : 'user', // Tentukan tipe
-             id: newMessageRef.key ?? `local-${Date.now()}-${Math.random()}`, // Gunakan key Firebase
-             timestamp: message.timestamp || Date.now(), // Pastikan timestamp
-             // Pastikan properti opsional ada atau undefined (bukan null jika tidak ada)
-             text: message.text || undefined,
+             id: newMessageRef.key ?? `local-${Date.now()}-${Math.random()}`, // Gunakan key Firebase atau fallback
+             type: message.sender === 'system' ? 'system' : 'user',
+             sender: message.sender || currentUser.username, // Pastikan sender ada
+             timestamp: message.timestamp || Date.now(),
+             text: message.text || undefined, // Pastikan text ada atau undefined
              fileURL: message.fileURL || undefined,
              fileName: message.fileName || undefined,
-             reactions: message.reactions || {} // Pastikan reactions adalah objek
+             reactions: message.reactions || {}
             };
 
-        console.log("App.tsx: Data to send to Firebase:", JSON.stringify(messageToSend)); // Log 3
+        console.log("[App.tsx] Final message object to send:", JSON.stringify(messageToSend)); // Log 3
 
         set(newMessageRef, messageToSend)
             .then(() => {
-                console.log("App.tsx: Message successfully sent to Firebase with ID:", newMessageRef.key); // Log Sukses
+                console.log("[App.tsx] Message sent successfully! ID:", newMessageRef.key); // Log Sukses
             })
             .catch((error) => {
-                console.error("App.tsx: Firebase send message failed:", error); // Log Error Firebase
-                alert("Gagal kirim pesan. Periksa koneksi atau izin database.");
+                console.error("[App.tsx] Firebase send message failed:", error); // Log Error
+                alert("Gagal mengirim pesan. Silakan cek koneksi atau hubungi admin jika masalah berlanjut.");
             });
-    }, [currentRoom, currentUser]); // Dependencies tetap
+    }, [currentRoom, currentUser]); // Dependencies
 
     // Mendengarkan pesan
     useEffect(() => {
