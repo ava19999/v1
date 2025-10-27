@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import type { LoginPageProps } from '../types'; // Import tipe yang benar
+import type { LoginPageProps } from '../types'; // Pastikan impor ini ada
 
 const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess, onLogin }) => {
     const [username, setUsername] = useState('');
@@ -22,6 +22,65 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess, onLogin 
             handleLoginSubmit();
         }
     };
+
+    // --- FUNGSI BARU UNTUK GOOGLE LOGIN ---
+    const handleGoogleLoginClick = async () => {
+        try {
+            // Panggil Netlify Function untuk mendapatkan URL otentikasi
+            const response = await fetch('/.netlify/functions/auth-url');
+            if (!response.ok) {
+                throw new Error('Gagal mendapatkan URL otentikasi Google.');
+            }
+            const { url } = await response.json();
+
+            // Buka jendela pop-up untuk login Google
+            const width = 500;
+            const height = 600;
+            const left = (window.screen.width - width) / 2;
+            const top = (window.screen.height - height) / 2;
+
+            const authWindow = window.open(
+                url,
+                'Google Login',
+                `width=${width},height=${height},left=${left},top=${top}`
+            );
+
+            // Listener untuk menerima data user dari jendela pop-up setelah login berhasil
+            const handleMessage = (event: MessageEvent) => {
+                 // Pastikan pesan berasal dari origin yang sama (keamanan)
+                if (event.origin !== window.location.origin) {
+                    console.warn("Pesan diterima dari origin yang tidak dikenal:", event.origin);
+                    return;
+                 }
+
+                if (event.data && event.data.type === 'GOOGLE_AUTH_SUCCESS') {
+                    window.removeEventListener('message', handleMessage);
+                    // Panggil fungsi onGoogleRegisterSuccess yang ada di App.tsx
+                    // dengan data user yang diterima
+                    onGoogleRegisterSuccess(event.data.user);
+                    if (authWindow) {
+                        authWindow.close();
+                    }
+                }
+            };
+
+            window.addEventListener('message', handleMessage);
+
+            // Cek secara berkala jika jendela pop-up ditutup
+            const checkWindow = setInterval(() => {
+                if (authWindow?.closed) {
+                    clearInterval(checkWindow);
+                    window.removeEventListener('message', handleMessage); // Hapus listener jika jendela ditutup
+                }
+            }, 500);
+
+        } catch (error) {
+            console.error('Google login error:', error);
+            setError(error instanceof Error ? error.message : 'Terjadi kesalahan saat mencoba login dengan Google.');
+        }
+    };
+    // --- AKHIR FUNGSI BARU ---
+
 
     return (
         <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-900 text-white font-sans flex flex-col items-center justify-center p-4 relative overflow-hidden">
@@ -54,7 +113,8 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess, onLogin 
                     {/* Google Login Section */}
                     <div className="mb-6">
                         <button
-                            onClick={() => onGoogleRegisterSuccess({})} // Assuming an empty object for mock, adjust if needed
+                            // --- PERBARUI onClick DI SINI ---
+                            onClick={handleGoogleLoginClick}
                             className="w-full bg-white hover:bg-gray-50 text-gray-800 font-semibold py-3 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-3 shadow-lg"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
