@@ -20,6 +20,10 @@ import { database } from './services/firebaseService'; // database bisa jadi nul
 import { ref, set, push, onValue, off, update, get, DatabaseReference } from "firebase/database";
 import { FirebaseApp } from 'firebase/app';
 
+// FIX: Define DEFAULT_ROOM_IDS constant
+const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
+
+
 // Default messages structure (assuming it's defined elsewhere or similar to previous versions)
 const defaultMessages: { [key: string]: ForumMessageItem[] } = {
     'pengumuman-aturan': [
@@ -492,7 +496,6 @@ const AppContent = () => {
                  } else {
                      console.log("No new news articles to add.");
                  }
-            // FIX: Refined catch block to correctly handle different error types
              } catch (err: unknown) { // Catch as unknown
                  let errorMessage = 'Unknown error during news fetch/process';
                  if (err instanceof Error) {
@@ -501,7 +504,11 @@ const AppContent = () => {
                      errorMessage = err;
                  } else {
                      // Attempt to get a string representation, fallback if complex object
-                     errorMessage = 'An non-error object was thrown: ' + String(err);
+                      try {
+                         errorMessage = JSON.stringify(err);
+                      } catch {
+                         errorMessage = 'An non-error object was thrown and could not be stringified.';
+                      }
                  }
                  console.error("News fetch/process failed:", errorMessage);
              }
