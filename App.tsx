@@ -1,4 +1,4 @@
-// ava19999/v1/v1-3144be21370e87e39a698551c2b24db3e4bf3bd0/App.tsx
+// ava19999/v1/v1-1340aa22ce1177029d39fe3f8689ee2fb3a9c123/App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -126,7 +126,8 @@ const AppContent = () => {
          const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
 
          const fetchAndProcessNews = async () => {
-             const currentTime = Date.now(); // Gunakan Date.now()
+             // PERBAIKAN: Gunakan Date.now() bukan 'now'
+             const currentTime = Date.now();
              const lastFetch = parseInt(localStorage.getItem(LAST_FETCH_KEY) || '0', 10);
              /* if (currentTime - lastFetch < NEWS_FETCH_INTERVAL) return; */
              try {
@@ -151,10 +152,10 @@ const AppContent = () => {
                  if (newArticleAdded) {
                      console.log(`Adding ${Object.keys(updates).length} news.`);
                      await update(newsRoomRef, updates);
-                     // Gunakan currentTime
+                     // PERBAIKAN: Gunakan currentTime bukan 'now'
                      localStorage.setItem(LAST_FETCH_KEY, currentTime.toString());
                      if (currentRoom?.id !== NEWS_ROOM_ID) {
-                         // Gunakan currentTime
+                         // PERBAIKAN: Gunakan currentTime bukan 'now'
                          setUnreadCounts(prev => ({ ...prev, [NEWS_ROOM_ID]: { count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length, lastUpdate: currentTime } }));
                      }
                  } else {
@@ -218,7 +219,7 @@ const AppContent = () => {
 // Wrap AppContent with GoogleOAuthProvider
 const App = () => {
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
-    if (!googleClientId) { return ( /* ... Error message ... */ ); }
+    if (!googleClientId) { return ( <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}> <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}> <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Konfigurasi</h1> <p style={{ marginTop: '10px', lineHeight: '1.6' }}> Variabel lingkungan <strong>GOOGLE_CLIENT_ID</strong> tidak ditemukan. </p> </div> </div> ); }
     return ( <GoogleOAuthProvider clientId={googleClientId}> <AppContent /> </GoogleOAuthProvider> );
 };
 

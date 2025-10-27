@@ -9,7 +9,7 @@ const EMOJIS = ['👍', '❤️', '🚀', '🔥', '😂', '🤯'];
 
 // --- Sub-components ---
 
-// PERBAIKAN: Memastikan syntax JSX benar
+// PERBAIKAN: Memperbaiki syntax TS1109
 const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void; }) => (
     <div className="absolute left-0 -top-10 mt-1 bg-gray-900/80 backdrop-blur-md border border-white/10 rounded-lg p-1 flex items-center gap-1 z-20 shadow-lg animate-fade-in-fast">
         {EMOJIS.map(emoji => (
@@ -21,16 +21,16 @@ const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => vo
     </div>
 );
 
-// PERBAIKAN: Memastikan syntax JSX benar
+// PERBAIKAN: Memperbaiki syntax TS1109
 const Reactions = ({ message, username, onReact }: { message: NewsArticle | ChatMessage | undefined | null; username: string; onReact: (emoji: string) => void; }) => {
     const reactions = message?.reactions || {}; const hasReactions = Object.keys(reactions).length > 0;
     if (!hasReactions) return null;
     return ( <div className="flex items-center gap-1.5 mt-1.5 flex-wrap"> {Object.entries(reactions).map(([emoji, users]) => { const userList = users as string[]; if (!Array.isArray(userList) || userList.length === 0) return null; return ( <button key={emoji} onClick={() => onReact(emoji)} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-all duration-200 ${userList.includes(username) ? 'bg-electric/80 text-white' : 'bg-gray-600/50 hover:bg-gray-600/80 text-gray-300'}`}> <span>{emoji}</span> <span>{userList.length}</span> </button> ); })} </div> );
 };
 
-// PERBAIKAN: Memastikan syntax JSX benar
+// PERBAIKAN: Memperbaiki syntax TS1109
 const DeleteButton: React.FC<{ onClick: () => void }> = ({ onClick }) => ( <button onClick={onClick} className="p-1 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors" title="Hapus Pesan"> <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> </button> );
-// PERBAIKAN: Memastikan syntax JSX benar
+// PERBAIKAN: Memperbaiki syntax TS1109
 const ReactButton: React.FC<{ onClick: () => void }> = ({ onClick }) => ( <button onClick={onClick} className="p-1 text-gray-500 hover:text-electric hover:bg-electric/10 rounded-full transition-colors" title="Beri Reaksi"> <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> </button> );
 
 const NewsMessage: React.FC<{ article: NewsArticle; username: string; onReact: (messageId: string, emoji: string) => void; onDeleteClick: () => void; canDelete: boolean; isActive: boolean; onMessageClick: () => void; }> = ({ article, username, onReact, onDeleteClick, canDelete, isActive, onMessageClick }) => {
@@ -112,10 +112,10 @@ const ForumPage: React.FC<ForumPageProps> = ({
          else {
              setShowActions(false); setActiveMessageId(messageId);
              actionTimerRef.current = setTimeout(() => {
-                 // PERBAIKAN: Gunakan callback function untuk update state berdasarkan state sebelumnya
+                 // PERBAIKAN: Gunakan callback function untuk update state dengan benar (TS1005: '=>' expected)
                  setActiveMessageId(currentActiveId => {
                       if (currentActiveId === messageId) { setShowActions(true); }
-                      return currentActiveId; // Kembalikan state saat ini
+                      return currentActiveId; // Selalu return state saat ini
                  });
                  actionTimerRef.current = null;
              }, 300);
@@ -159,11 +159,9 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                const isOwnMessage = item.sender === username && !!username;
                                const canDelete = isAdmin || (isOwnMessage && item.type === 'user');
                                const senderProfile = isOwnMessage ? userProfile : null;
-                               // PERBAIKAN: Sederhanakan onMessageClick prop
                                return <UserMessage key={item.id || `user-${index}`} message={item} userProfile={senderProfile} onReact={onReact} onDeleteClick={() => {if (window.confirm('Yakin hapus pesan ini?')) {onDeleteMessage(room.id, item.id);}}} canDelete={canDelete} isActive={isActive} onMessageClick={() => handleMessageClick(item.id)} />;
                            } else if (isNewsArticle(item)) {
                                const canDeleteNews = isAdmin;
-                               // PERBAIKAN: Sederhanakan onMessageClick prop
                                return <NewsMessage key={item.id || `news-${index}`} article={item} username={username} onReact={onReact} onDeleteClick={() => {if (window.confirm('Yakin hapus berita ini?')) {onDeleteMessage(room.id, item.id);}}} canDelete={canDeleteNews} isActive={isActive} onMessageClick={() => handleMessageClick(item.id)} />;
                            }
                            return null;
