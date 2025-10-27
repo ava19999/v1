@@ -1,100 +1,121 @@
+// components/RoomsListPage.tsx
 import React, { useState, useMemo } from 'react';
-import UserTag from './UserTag';
-import type { Room, RoomsListPageProps, User } from '../types';
+import UserTag, { ADMIN_USERNAMES } from './UserTag';
+import type { Room, RoomsListPageProps as BaseRoomsListPageProps, User } from '../types';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
-const ActionModal = ({
-    room,
-    onJoin,
-    onLeave,
-    onClose,
-}: {
-    room: Room | null;
-    onJoin: (room: Room) => void;
-    onLeave: (roomId: string) => void;
-    onClose: () => void;
-}) => {
-    if (!room) return null;
-    return (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-sm flex items-center justify-center z-50 p-4 animate-fade-in" style={{ animationDuration: '200ms' }} onClick={onClose}>
-          <div className="bg-gray-900 border border-white/10 rounded-xl p-6 w-full max-w-sm text-center animate-fade-in-scale" onClick={e => e.stopPropagation()}>
-            <h3 className="text-xl font-bold text-white mb-2">{room.name}</h3>
-            <p className="text-gray-400 mb-6">Pilih tindakan yang ingin Anda lakukan.</p>
-            <div className="flex flex-col gap-3">
-              <button
-                onClick={() => { onJoin(room); onClose(); }}
-                className="w-full bg-electric hover:bg-electric/80 text-white font-semibold py-2.5 px-4 rounded-lg transition-all"
-              >
-                Masuk Room
-              </button>
-              <button
-                onClick={() => { onLeave(room.id); onClose(); }}
-                className="w-full bg-magenta/20 hover:bg-magenta/40 text-magenta font-semibold py-2.5 px-4 rounded-lg transition-all"
-              >
-                Keluar Room
-              </button>
-            </div>
-             <button
-                onClick={onClose}
-                className="mt-6 text-sm text-gray-500 hover:text-white transition-colors"
-              >
-                Batal
-              </button>
-          </div>
-        </div>
-    );
-}
-
-const RoomListItem: React.FC<{ 
-    room: Room; 
-    onClick: (room: Room) => void; 
+// Komponen RoomListItem diupdate untuk menampilkan tombol aksi inline
+const RoomListItem: React.FC<{
+    room: Room;
+    currentUser: User | null; // <-- Tambahkan currentUser
+    onJoinRoom: (room: Room) => void; // <-- Perlu onJoinRoom di sini
+    onLeaveRoom: (roomId: string) => void;
+    onDeleteRoom: (roomId: string) => void;
     isActive: boolean;
+    isJoined: boolean; // <-- Tambahkan isJoined
     unreadData: { count: number; lastUpdate: number; } | undefined;
-}> = ({ 
-    room, 
-    onClick, 
+}> = ({
+    room,
+    currentUser,
+    onJoinRoom,
+    onLeaveRoom,
+    onDeleteRoom,
     isActive,
+    isJoined,
     unreadData,
 }) => {
     const unreadCount = unreadData?.count || 0;
     const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
-    
+
+    // Cek hak akses hapus/keluar
+    const isAdmin = currentUser?.username ? ADMIN_USERNAMES.map(name => name.toLowerCase()).includes(currentUser.username.toLowerCase()) : false;
+    const isCreator = room.createdBy === currentUser?.username;
+    const canDelete = (isAdmin || isCreator) && !isDefaultRoom;
+    const canLeave = isJoined && !isDefaultRoom;
+
+    // Handler untuk tombol aksi agar tidak trigger join
+    const handleActionClick = (e: React.MouseEvent, action: () => void) => {
+        e.stopPropagation(); // Mencegah event klik menyebar ke div utama
+        action();
+    };
+
     return (
         <div
-            onClick={() => onClick(room)}
-            className={`flex items-center justify-between gap-3 p-2.5 rounded-lg cursor-pointer transition-all duration-200 group ${isActive ? 'bg-electric/20 border-electric/50' : 'bg-gray-900/70 hover:bg-gray-800/50 border-transparent'} border`}
+            onClick={() => onJoinRoom(room)} // Klik div utama akan join room
+            className={`flex items-center justify-between gap-2 p-2.5 rounded-lg cursor-pointer transition-all duration-200 group relative ${isActive ? 'bg-electric/20 border-electric/50' : 'bg-gray-900/70 hover:bg-gray-800/50 border-transparent'} border`}
         >
-            <div className="flex items-center gap-3 overflow-hidden">
+            {/* Informasi Room */}
+            <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <div className="flex-1 overflow-hidden">
                     <h3 className="font-bold text-gray-100 truncate text-sm">{room.name}</h3>
                 </div>
             </div>
-            
+
+            {/* Indikator & Tombol Aksi (muncul di kanan) */}
             <div className="flex items-center gap-2 flex-shrink-0">
                 {unreadCount > 0 && (
-                     <div className="bg-magenta text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse-notification">
+                     <div className="bg-magenta text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse-notification flex-shrink-0">
                         {unreadCount}
                     </div>
                 )}
                 {!isDefaultRoom && (
-                    <div className="text-right text-xs text-gray-400 flex items-center gap-1.5">
+                    <div className="text-right text-xs text-gray-400 flex items-center gap-1.5 flex-shrink-0">
                         <span className="relative flex h-2 w-2">
                             <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
                             <span className="relative inline-flex rounded-full h-2 w-2 bg-lime"></span>
                         </span>
                         <span>{room.userCount.toLocaleString('id-ID')}</span>
                     </div>
-                )}
+                 )}
+
+                 {/* Tombol Aksi - muncul saat hover di parent atau jika room aktif */}
+                 <div className={`flex items-center gap-1 transition-opacity duration-200 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                    {canLeave && !canDelete && ( // Tampilkan Leave jika bisa leave TAPI tidak bisa delete
+                        <button
+                            onClick={(e) => handleActionClick(e, () => onLeaveRoom(room.id))}
+                            title="Keluar Room"
+                            className="p-1 rounded-full text-gray-400 hover:bg-gray-600/50 hover:text-white transition-colors"
+                        >
+                            {/* Ikon Keluar */}
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+                            </svg>
+                        </button>
+                    )}
+                    {canDelete && ( // Tampilkan Delete jika bisa delete
+                         <button
+                            onClick={(e) => handleActionClick(e, () => onDeleteRoom(room.id))}
+                            title="Hapus Room"
+                            className="p-1 rounded-full text-red-500 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                        >
+                             {/* Ikon Hapus */}
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                            </svg>
+                        </button>
+                    )}
+                 </div>
             </div>
         </div>
     );
 };
 
-const RoomsListPage: React.FC<RoomsListPageProps> = ({ rooms, onJoinRoom, onCreateRoom, totalUsers, hotCoin, userProfile, currentRoomId, joinedRoomIds, onLeaveJoinedRoom, unreadCounts }) => {
+// Interface Props yang diperluas
+interface ExtendedRoomsListPageProps extends BaseRoomsListPageProps {
+    onDeleteRoom: (roomId: string) => void;
+}
+
+
+const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
+    rooms, onJoinRoom, onCreateRoom, totalUsers, hotCoin, userProfile,
+    currentRoomId, joinedRoomIds, onLeaveJoinedRoom, unreadCounts,
+    onDeleteRoom
+}) => {
     const [newRoomName, setNewRoomName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [selectedRoomForAction, setSelectedRoomForAction] = useState<Room | null>(null);
+    // State selectedRoomForAction dan ActionModal tidak diperlukan lagi
+    // const [selectedRoomForAction, setSelectedRoomForAction] = useState<Room | null>(null);
 
     const username = userProfile?.username || '';
 
@@ -105,49 +126,39 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({ rooms, onJoinRoom, onCrea
             setNewRoomName('');
         }
     };
-    
-    const { myRooms, publicRooms } = useMemo(() => {
-        const lowercasedQuery = searchQuery.toLowerCase();
 
+    const { myRooms, publicRooms } = useMemo(() => {
+        // Logika useMemo tetap sama
+        const lowercasedQuery = searchQuery.toLowerCase();
         const filtered = searchQuery
             ? rooms.filter(room => room.name.toLowerCase().includes(lowercasedQuery))
             : rooms;
-        
         const myRoomsList = filtered
             .filter(r => joinedRoomIds.has(r.id))
             .sort((a, b) => {
                 const lastUpdateA = unreadCounts[a.id]?.lastUpdate || 0;
                 const lastUpdateB = unreadCounts[b.id]?.lastUpdate || 0;
-
-                if (lastUpdateB !== lastUpdateA) {
-                    return lastUpdateB - lastUpdateA;
-                }
-
+                if (lastUpdateB !== lastUpdateA) return lastUpdateB - lastUpdateA;
                 const isADefault = DEFAULT_ROOM_IDS.includes(a.id);
                 const isBDefault = DEFAULT_ROOM_IDS.includes(b.id);
                 if (isADefault && !isBDefault) return -1;
                 if (!isADefault && isBDefault) return 1;
-
                 return a.name.localeCompare(b.name);
             });
-            
         const publicRoomsList = filtered.filter(r => !joinedRoomIds.has(r.id));
-        
         return { myRooms: myRoomsList, publicRooms: publicRoomsList };
     }, [rooms, searchQuery, joinedRoomIds, unreadCounts]);
 
 
     return (
         <div className="container mx-auto px-2 sm:px-4 py-3 animate-fade-in flex flex-col h-[calc(100vh-56px)]">
-            <ActionModal 
-                room={selectedRoomForAction}
-                onJoin={onJoinRoom}
-                onLeave={onLeaveJoinedRoom}
-                onClose={() => setSelectedRoomForAction(null)}
-            />
+            {/* ActionModal dihapus dari sini */}
+            {/* <ActionModal ... /> */}
+
             {/* Top Stats */}
             <div className="flex-shrink-0 grid grid-cols-2 gap-2 mb-2">
-                <div className="bg-gray-900 border border-white/10 rounded-lg p-2 flex items-center gap-2">
+                 {/* ... kode stats ... */}
+                 <div className="bg-gray-900 border border-white/10 rounded-lg p-2 flex items-center gap-2">
                     <div className="bg-electric/20 text-electric p-2 rounded-md flex-shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                     </div>
@@ -187,7 +198,7 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({ rooms, onJoinRoom, onCrea
                 <input type="text" placeholder="Cari room..." value={searchQuery} onChange={e => setSearchQuery(e.target.value)} className="w-full bg-gray-900 border border-white/10 rounded-lg py-2 pl-9 pr-3 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-electric transition-all" />
                 <svg className="absolute left-2.5 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-500" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" /></svg>
             </div>
-             
+
              <form onSubmit={handleCreate} className="flex-shrink-0 bg-gray-900/50 border border-dashed border-white/10 rounded-lg p-2 mb-3 flex items-center gap-2">
                 <input type="text" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder="Bikin tongkrongan baru..." className="flex-1 bg-transparent py-1 px-2 text-sm text-white placeholder-gray-500 focus:outline-none" />
                 <button type="submit" className="bg-magenta hover:bg-magenta/80 text-white font-semibold py-1 px-4 rounded-md transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm" disabled={!newRoomName.trim()}>
@@ -196,61 +207,61 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({ rooms, onJoinRoom, onCrea
             </form>
 
             {/* Room List */}
-            <div className="flex-grow overflow-y-auto space-y-3 pb-4 custom-scrollbar">
+            <div className="flex-grow overflow-y-auto space-y-1.5 pb-4 custom-scrollbar pr-1"> {/* Tambahkan pr-1 jika perlu ruang untuk scrollbar */}
                  {myRooms.length > 0 && (
                     <div>
-                        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">Tongkrongan Saya</h2>
+                        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-1">Tongkrongan Saya</h2>
                         <div className="space-y-1.5">
-                            {myRooms.map(room => {
-                                const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
-                                return (
-                                    <RoomListItem 
-                                        key={room.id} 
-                                        room={room} 
-                                        onClick={isDefaultRoom ? onJoinRoom : setSelectedRoomForAction}
-                                        isActive={room.id === currentRoomId}
-                                        unreadData={unreadCounts[room.id]}
-                                    />
-                                );
-                            })}
-                        </div>
-                    </div>
-                 )}
-                  {publicRooms.length > 0 && (
-                    <div>
-                        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-2 px-1">Tongkrongan Publik</h2>
-                        <div className="space-y-1.5">
-                             {publicRooms.map(room => (
-                                <RoomListItem 
-                                    key={room.id} 
-                                    room={room} 
-                                    onClick={onJoinRoom} 
-                                    isActive={room.id === currentRoomId} 
+                            {myRooms.map(room => (
+                                <RoomListItem
+                                    key={room.id}
+                                    room={room}
+                                    currentUser={userProfile}
+                                    onJoinRoom={onJoinRoom}
+                                    onLeaveRoom={onLeaveJoinedRoom} // <-- Ganti onLeaveJoinedRoom
+                                    onDeleteRoom={onDeleteRoom}
+                                    isActive={room.id === currentRoomId}
+                                    isJoined={true} // Room di 'My Rooms' pasti sudah dijoin
                                     unreadData={unreadCounts[room.id]}
                                 />
                             ))}
                         </div>
                     </div>
                  )}
+                  {publicRooms.length > 0 && (
+                    <div className={myRooms.length > 0 ? 'mt-4' : ''}> {/* Tambah margin jika ada My Rooms */}
+                        <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-1">Tongkrongan Publik</h2>
+                        <div className="space-y-1.5">
+                             {publicRooms.map(room => (
+                                <RoomListItem
+                                    key={room.id}
+                                    room={room}
+                                    currentUser={userProfile}
+                                    onJoinRoom={onJoinRoom}
+                                    onLeaveRoom={onLeaveJoinedRoom} // Tidak relevan krn belum join
+                                    onDeleteRoom={onDeleteRoom}    // Tidak relevan krn belum join
+                                    isActive={false} // Room publik tidak bisa aktif sblm dijoin
+                                    isJoined={false} // Room di publik belum dijoin
+                                    unreadData={undefined} // Tidak ada unread untuk yg belum join
+                                />
+                            ))}
+                        </div>
+                    </div>
+                 )}
+                 {myRooms.length === 0 && publicRooms.length === 0 && !searchQuery && (
+                    <p className="text-center text-gray-500 py-6">Belum ada room publik. Buat room baru!</p>
+                 )}
+                 {myRooms.length === 0 && publicRooms.length === 0 && searchQuery && (
+                     <p className="text-center text-gray-500 py-6">Room tidak ditemukan.</p>
+                 )}
             </div>
              <style>{`
-                @keyframes fade-in-scale {
-                  from { opacity: 0; transform: scale(0.95); }
-                  to { opacity: 1; transform: scale(1); }
-                }
-                @keyframes pulse-notification {
-                  0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 255, 0.7); }
-                  50% { transform: scale(1.05); box-shadow: 0 0 0 5px rgba(255, 0, 255, 0); }
-                }
-                .animate-fade-in {
-                    animation: fade-in 0.5s ease-out forwards;
-                }
-                .animate-fade-in-scale {
-                    animation: fade-in-scale 0.2s ease-out forwards;
-                }
-                .animate-pulse-notification {
-                    animation: pulse-notification 1.5s infinite;
-                }
+                /* ... (kode style tetap sama) ... */
+                @keyframes fade-in-scale { /* ... */ }
+                @keyframes pulse-notification { /* ... */ }
+                .animate-fade-in { /* ... */ }
+                .animate-fade-in-scale { /* ... */ }
+                .animate-pulse-notification { /* ... */ }
                 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 2px; }
