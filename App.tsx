@@ -158,21 +158,16 @@ const AppContent = () => {
                  } else {
                      console.log("No new news.");
                  }
-            // FIX: Corrected catch block syntax and error handling
+            // FIX: Simplified catch block error message handling
              } catch (err) {
                  // Log the error message safely
                  let errorMessage = 'Unknown error during news fetch/process';
                  if (err instanceof Error) {
-                     errorMessage = err.message;
+                     errorMessage = err.message; // Line 234
                  } else if (typeof err === 'string') {
                     errorMessage = err;
                  } else {
-                    // Attempt to stringify if it's an object, otherwise use default message
-                    try {
-                        errorMessage = JSON.stringify(err);
-                    } catch {
-                        // Keep the default message if stringify fails
-                    }
+                    errorMessage = 'An non-error object was thrown: ' + String(err);
                  }
                  console.error("News fetch/process failed:", errorMessage);
              }
