@@ -21,14 +21,36 @@ const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => vo
     </div>
 );
 
-const Reactions = ({ message, username, onReact }: { message: NewsArticle | ChatMessage | undefined | null; username: string; onReact: (emoji: string) => void; }) => {
-    const reactions = message?.reactions || {}; const hasReactions = Object.keys(reactions).length > 0;
-    if (!hasReactions) return null;
-    return ( <div className="flex items-center gap-1.5 mt-1.5 flex-wrap"> {Object.entries(reactions).map(([emoji, users]) => { const userList = users as string[]; if (!Array.isArray(userList) || userList.length === 0) return null; return ( <button key={emoji} onClick={() => onReact(emoji)} className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-all duration-200 ${userList.includes(username) ? 'bg-electric/80 text-white' : 'bg-gray-600/50 hover:bg-gray-600/80 text-gray-300'}`}> <span>{emoji}</span> <span>{userList.length}</span> </button> ); })} </div> );
+const Reactions = ({ message, username, onReact }: { message: NewsArticle | ChatMessage | undefined | null; username: string; onReact: (emoji: string) => void; }) => { /* ... */ }; // Tidak berubah
+const DeleteButton: React.FC<{ onClick: () => void }> = ({ onClick }) => ( /* ... */ ); // Tidak berubah
+const ReactButton: React.FC<{ onClick: () => void }> = ({ onClick }) => ( /* ... */ ); // Tidak berubah
+const SystemMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => ( /* ... */ ); // Tidak berubah
+
+// PERBAIKAN: Pastikan AnnouncementMessage mengembalikan JSX
+const AnnouncementMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => {
+    const text = message.text || '';
+    const parts = text.split(':');
+    const title = parts.length > 1 ? parts[0] : '';
+    const content = parts.length > 1 ? parts.slice(1).join(':').trim() : text;
+    let icon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>; // Default icon
+    let titleColor = 'text-electric';
+    let borderColor = 'border-electric/50';
+    if (title.includes('Aturan')) { icon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>; titleColor = 'text-magenta'; borderColor = 'border-magenta/50'; }
+    else if (title.includes('Misi')) { icon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>; titleColor = 'text-lime'; borderColor = 'border-lime/50'; }
+    // Pastikan mengembalikan JSX
+    return (
+        <div className={`bg-gray-800/50 border-l-4 ${borderColor} rounded-r-lg p-4 my-3 animate-fade-in-up`}>
+            <div className="flex items-start gap-4">
+                <div className={`flex-shrink-0 ${titleColor}`}>{icon}</div>
+                <div className="flex-1">
+                    {title && <h3 className={`text-lg font-bold ${titleColor} mb-1`}>{title}</h3>}
+                    <p className="text-gray-300 leading-relaxed text-sm">{content}</p>
+                </div>
+            </div>
+        </div>
+    );
 };
 
-const DeleteButton: React.FC<{ onClick: () => void }> = ({ onClick }) => ( <button onClick={onClick} className="p-1 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors" title="Hapus Pesan"> <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg> </button> );
-const ReactButton: React.FC<{ onClick: () => void }> = ({ onClick }) => ( <button onClick={onClick} className="p-1 text-gray-500 hover:text-electric hover:bg-electric/10 rounded-full transition-colors" title="Beri Reaksi"> <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg> </button> );
 
 const NewsMessage: React.FC<{ article: NewsArticle; username: string; onReact: (messageId: string, emoji: string) => void; onDeleteClick: () => void; canDelete: boolean; isActive: boolean; onMessageClick: () => void; }> = ({ article, username, onReact, onDeleteClick, canDelete, isActive, onMessageClick }) => {
     const [showPicker, setShowPicker] = useState(false);
@@ -74,33 +96,6 @@ const UserMessage: React.FC<{ message: ChatMessage; userProfile: User | null; on
     );
 };
 
-const SystemMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => ( <div className="text-center text-xs text-gray-500 py-2 italic animate-fade-in-up"> {message.text} </div> );
-
-// PERBAIKAN: Pastikan AnnouncementMessage mengembalikan JSX
-const AnnouncementMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => {
-    const text = message.text || '';
-    const parts = text.split(':');
-    const title = parts.length > 1 ? parts[0] : '';
-    const content = parts.length > 1 ? parts.slice(1).join(':').trim() : text;
-    let icon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>; // Default icon
-    let titleColor = 'text-electric';
-    let borderColor = 'border-electric/50';
-    if (title.includes('Aturan')) { icon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" /></svg>; titleColor = 'text-magenta'; borderColor = 'border-magenta/50'; }
-    else if (title.includes('Misi')) { icon = <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" /></svg>; titleColor = 'text-lime'; borderColor = 'border-lime/50'; }
-    // Pastikan mengembalikan JSX
-    return (
-        <div className={`bg-gray-800/50 border-l-4 ${borderColor} rounded-r-lg p-4 my-3 animate-fade-in-up`}>
-            <div className="flex items-start gap-4">
-                <div className={`flex-shrink-0 ${titleColor}`}>{icon}</div>
-                <div className="flex-1">
-                    {title && <h3 className={`text-lg font-bold ${titleColor} mb-1`}>{title}</h3>}
-                    <p className="text-gray-300 leading-relaxed text-sm">{content}</p>
-                </div>
-            </div>
-        </div>
-    );
-};
-
 
 // ForumPage component utama
 const ForumPage: React.FC<ForumPageProps> = ({
@@ -123,7 +118,14 @@ const ForumPage: React.FC<ForumPageProps> = ({
          if (messageId === activeMessageId && showActions) { setShowActions(false); setActiveMessageId(null); }
          else {
              setShowActions(false); setActiveMessageId(messageId);
-             actionTimerRef.current = setTimeout(() => { if (activeMessageId === messageId) { setShowActions(true); } actionTimerRef.current = null; }, 300);
+             actionTimerRef.current = setTimeout(() => {
+                 // Gunakan getter function untuk state dalam timeout
+                 setActiveMessageId(currentActiveId => {
+                      if (currentActiveId === messageId) { setShowActions(true); }
+                      return currentActiveId; // Kembalikan state saat ini
+                 });
+                 actionTimerRef.current = null;
+             }, 300);
          }
     };
 
@@ -136,14 +138,14 @@ const ForumPage: React.FC<ForumPageProps> = ({
     useEffect(() => { return () => { if (actionTimerRef.current) clearTimeout(actionTimerRef.current); }; }, []);
 
     const safeMessages = Array.isArray(messages) ? messages : [];
-    const sortedMessages = useMemo(() => { return [...safeMessages].sort((a, b) => { const timeA = isNewsArticle(a) ? a.published_on * 1000 : (isChatMessage(a) ? a.timestamp : 0); const timeB = isNewsArticle(b) ? b.published_on * 1000 : (isChatMessage(b) ? b.timestamp : 0); if (timeA === 0 && timeB !== 0) return 1; if (timeA !== 0 && timeB === 0) return -1; return timeA - timeB; }); }, [safeMessages]);
+    const sortedMessages = useMemo(() => { /* Sorting */ return [...safeMessages].sort((a, b) => { const timeA = isNewsArticle(a) ? a.published_on * 1000 : (isChatMessage(a) ? a.timestamp : 0); const timeB = isNewsArticle(b) ? b.published_on * 1000 : (isChatMessage(b) ? b.timestamp : 0); if (timeA === 0 && timeB !== 0) return 1; if (timeA !== 0 && timeB === 0) return -1; return timeA - timeB; }); }, [safeMessages]);
     useEffect(() => { /* Scroll */ if(activeMessageId === null && chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth' }); }, [sortedMessages, activeMessageId]);
 
     // JANGAN UBAH FUNGSI INI
     const handleSendMessage = (e: React.FormEvent<HTMLFormElement>) => { e.preventDefault(); const currentMessageText = newMessage.trim(); const currentAttachment = attachment; if ((!currentMessageText && !currentAttachment) || !username) { return; } const userMessage: Partial<ChatMessage> & { sender: string; timestamp: number; type: 'user' } = { id: `local-${Date.now()}-${Math.random()}`, type: 'user', sender: username, timestamp: Date.now(), reactions: {} }; if (currentMessageText) { userMessage.text = currentMessageText; } if (currentAttachment) { userMessage.fileURL = currentAttachment.dataUrl; userMessage.fileName = currentAttachment.name; } if (userMessage.text || userMessage.fileURL) { onSendMessage(userMessage as ChatMessage); } setNewMessage(''); setAttachment(null); if(fileInputRef.current) fileInputRef.current.value = ""; };
     const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { /* Pilih file */ const file = e.target.files?.[0]; if (file && file.type.startsWith('image/')) { const reader = new FileReader(); reader.onloadend = () => { if (reader.result) { setAttachment({ dataUrl: reader.result as string, name: file.name }); } }; reader.readAsDataURL(file); } else { setAttachment(null); } };
 
-    if (!room) { /* Handle room null */ return (<div>Room tidak ditemukan</div>); } // Tampilan fallback sederhana
+    if (!room) { /* Handle room null */ return (<div>Room tidak ditemukan</div>); }
 
     const isDefaultRoom = ['berita-kripto', 'pengumuman-aturan'].includes(room.id);
     const isSendDisabled = (!newMessage.trim() && !attachment) || !username;

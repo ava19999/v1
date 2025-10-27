@@ -1,4 +1,4 @@
-// ava19999/v1/v1-7f15eca86a7d76b1afc61f2fcc63d508e826b61c/types.ts
+// ava19999/v1/v1-3144be21370e87e39a698551c2b24db3e4bf3bd0/types.ts
 
 // --- Basic Types ---
 export type Page = 'home' | 'rooms' | 'forum' | 'about';

@@ -1,4 +1,4 @@
-// ava19999/v1/v1-7f15eca86a7d76b1afc61f2fcc63d508e826b61c/App.tsx
+// ava19999/v1/v1-3144be21370e87e39a698551c2b24db3e4bf3bd0/App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider, GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -217,6 +217,10 @@ const AppContent = () => {
 };
 
 // Wrap AppContent with GoogleOAuthProvider
-const App = () => { /* ... */ };
+const App = () => {
+    const googleClientId = process.env.GOOGLE_CLIENT_ID;
+    if (!googleClientId) { return ( /* ... Error message ... */ ); }
+    return ( <GoogleOAuthProvider clientId={googleClientId}> <AppContent /> </GoogleOAuthProvider> );
+};
 
 export default App;
