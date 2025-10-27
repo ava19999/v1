@@ -1,10 +1,5 @@
 import React, { useState } from 'react';
-
-// Mock types for demonstration
-interface LoginPageProps {
-    onGoogleRegisterSuccess: (credentialResponse: any) => void;
-    onLogin: (username: string, password: string) => Promise<string | undefined>;
-}
+import type { LoginPageProps } from '../types'; // Import tipe yang benar
 
 const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess, onLogin }) => {
     const [username, setUsername] = useState('');
@@ -59,7 +54,7 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess, onLogin 
                     {/* Google Login Section */}
                     <div className="mb-6">
                         <button
-                            onClick={() => onGoogleRegisterSuccess({})}
+                            onClick={() => onGoogleRegisterSuccess({})} // Assuming an empty object for mock, adjust if needed
                             className="w-full bg-white hover:bg-gray-50 text-gray-800 font-semibold py-3 px-6 rounded-xl transition-all duration-300 flex items-center justify-center gap-3 shadow-lg"
                         >
                             <svg className="w-5 h-5" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
@@ -160,12 +155,12 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess, onLogin 
             </div>
 
             <style>{`
-                @keyframes fade-in-up { 
-                    from { opacity: 0; transform: translateY(20px); } 
-                    to { opacity: 1; transform: translateY(0); } 
+                @keyframes fade-in-up {
+                    from { opacity: 0; transform: translateY(20px); }
+                    to { opacity: 1; transform: translateY(0); }
                 }
-                .animate-fade-in-up { 
-                    animation: fade-in-up 0.6s ease-out forwards; 
+                .animate-fade-in-up {
+                    animation: fade-in-up 0.6s ease-out forwards;
                 }
             `}</style>
         </div>
