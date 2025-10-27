@@ -1,4 +1,4 @@
-// ava19999/v1/v1-a55800044f80d0f00370f9f03c7fe8adc53a2627/vite.config.ts
+// ava19999/v1/v1-c5d7d0ddb102ed890fdcf6a9b98065e6ff8b15c3/vite.config.ts
 import { defineConfig, loadEnv } from 'vite'
 import react from '@vitejs/plugin-react'
 
@@ -20,8 +20,11 @@ export default defineConfig(({ mode }) => {
       'process.env.FIREBASE_MESSAGING_SENDER_ID': JSON.stringify(env.FIREBASE_MESSAGING_SENDER_ID),
       'process.env.FIREBASE_APP_ID': JSON.stringify(env.FIREBASE_APP_ID),
       'process.env.FIREBASE_MEASUREMENT_ID': JSON.stringify(env.FIREBASE_MEASUREMENT_ID),
-      // Tambahkan definisi untuk databaseURL
       'process.env.FIREBASE_DATABASE_URL': JSON.stringify(env.FIREBASE_DATABASE_URL),
-    }
+    },
+    // Naikkan batas warning ukuran chunk (misalnya ke 1000 kB)
+    build: {
+      chunkSizeWarningLimit: 1000,
+    },
   }
 })
