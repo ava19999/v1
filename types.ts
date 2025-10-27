@@ -1,4 +1,4 @@
-// ava19999/v1/v1-e9d21554693c716e0e65bad33afe7587274395eb/types.ts
+// ava19999/v1/v1-7f15eca86a7d76b1afc61f2fcc63d508e826b61c/types.ts
 
 // --- Basic Types ---
 export type Page = 'home' | 'rooms' | 'forum' | 'about';
@@ -12,11 +12,11 @@ export interface GoogleProfile {
 }
 
 export interface User {
-  email: string;
-  username: string;
-  password?: string;
-  googleProfilePicture?: string;
-  createdAt: number;
+  email: string; // From Google or manual registration, unique identifier
+  username: string; // Set during profile completion or manual registration
+  password?: string; // Set during profile completion or manual registration
+  googleProfilePicture?: string; // From Google if applicable
+  createdAt: number; // Timestamp of profile completion/registration
 }
 
 
@@ -28,16 +28,42 @@ export interface CryptoData {
   price: number;
   change: number;
   image: string;
-  sparkline_in_7d: { price: number[]; };
+  sparkline_in_7d: {
+    price: number[];
+  };
   high_24h: number;
   low_24h: number;
   market_cap: number;
 }
 
-export interface AnalysisResult { /* ... */ }
-export interface ExchangeTicker { /* ... */ }
-export interface CoinListItem { /* ... */ }
-export interface MarketDominance { /* ... */ }
+export interface AnalysisResult {
+  position: 'Long' | 'Short';
+  entryPrice: string;
+  stopLoss: string;
+  takeProfit: string;
+  confidence: string;
+  reasoning: string;
+}
+
+export interface ExchangeTicker {
+  name: string;
+  logo: string;
+  price: number;
+  tradeUrl: string;
+}
+
+export interface CoinListItem {
+  id: string;
+  symbol: string;
+  name: string;
+  image: string;
+}
+
+export interface MarketDominance {
+  btc: number;
+  usdt: number;
+  alts: number;
+}
 
 // --- Forum Types ---
 export interface Room {
@@ -48,39 +74,53 @@ export interface Room {
 }
 
 export interface NewsArticle {
-  id: string;
-  type: 'news';
+  id: string; // Can be URL or generated unique ID
+  type: 'news'; // Add type discriminator
   title: string;
   url: string;
   imageurl: string;
-  published_on: number;
+  published_on: number; // Unix timestamp
   source: string;
   body: string;
   reactions?: { [key: string]: string[] };
 }
 
+
 export interface ChatMessage {
-  id: string;
-  type: 'user' | 'system';
+  id: string; // Firebase key or generated unique ID
+  type: 'user' | 'system'; // Add type discriminator
   text?: string;
-  sender: string;
+  sender: string; // 'system', username
   timestamp: number;
   fileURL?: string;
   fileName?: string;
   reactions?: { [key: string]: string[] };
 }
 
+// Union type for items in the forum feed
 export type ForumMessageItem = NewsArticle | ChatMessage;
 
 // --- Type Guards ---
-export const isNewsArticle = (item: ForumMessageItem | null | undefined): item is NewsArticle => { /* ... */ };
-export const isChatMessage = (item: ForumMessageItem | null | undefined): item is ChatMessage => { /* ... */ };
+// PERBAIKAN: Tambahkan return false eksplisit
+export const isNewsArticle = (item: ForumMessageItem | null | undefined): item is NewsArticle => {
+    if (!!item && item.type === 'news' && typeof (item as NewsArticle).published_on === 'number') {
+        return true;
+    }
+    return false; // Return false eksplisit
+};
+// PERBAIKAN: Tambahkan return false eksplisit
+export const isChatMessage = (item: ForumMessageItem | null | undefined): item is ChatMessage => {
+    if (!!item && (item.type === 'user' || item.type === 'system') && typeof (item as ChatMessage).timestamp === 'number') {
+        return true;
+    }
+    return false; // Return false eksplisit
+};
+
 
 // --- Component Props Interfaces ---
 export interface HeaderProps { /* ... */ }
 export interface HomePageProps { /* ... */ }
 
-// Prop onDeleteMessage sudah ditambahkan
 export interface ForumPageProps {
   room: Room | null;
   messages: ForumMessageItem[];
@@ -99,10 +139,6 @@ export interface LoginPageProps { /* ... */ }
 export interface CreateIdPageProps { /* ... */ }
 
 // Pastikan definisi tipe props lengkap jika belum
-export interface AnalysisResult { position: 'Long' | 'Short'; entryPrice: string; stopLoss: string; takeProfit: string; confidence: string; reasoning: string;}
-export interface ExchangeTicker { name: string; logo: string; price: number; tradeUrl: string;}
-export interface CoinListItem { id: string; symbol: string; name: string; image: string;}
-export interface MarketDominance { btc: number; usdt: number; alts: number;}
 export interface HeaderProps { userProfile: User | null; onLogout: () => void; activePage: Page; onNavigate: (page: Page) => void; currency: Currency; onCurrencyChange: (currency: Currency) => void; hotCoin: { name: string; logo: string; price: number; change: number; } | null; idrRate: number | null;}
 export interface HomePageProps { idrRate: number | null; isRateLoading: boolean; currency: Currency; onIncrementAnalysisCount: (coinId: string) => void; fullCoinList: CoinListItem[]; isCoinListLoading: boolean; coinListError: string | null; heroCoin: CryptoData | null; otherTrendingCoins: CryptoData[]; isTrendingLoading: boolean; trendingError: string | null; onSelectCoin: (coinId: string) => void; onReloadTrending: () => void;}
 export interface RoomsListPageProps { rooms: Room[]; onJoinRoom: (room: Room) => void; onCreateRoom: (roomName: string) => void; totalUsers: number; hotCoin: { name: string; logo: string } | null; userProfile: User | null; currentRoomId: string | null; joinedRoomIds: Set<string>; onLeaveJoinedRoom: (roomId: string) => void; unreadCounts: { [key: string]: { count: number; lastUpdate: number } }; onDeleteRoom: (roomId: string) => void;}
