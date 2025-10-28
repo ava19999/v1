@@ -128,6 +128,7 @@ const AppContent: React.FC = () => {
   const [firebaseMessages, setFirebaseMessages] = useState<{ [roomId: string]: ForumMessageItem[] }>({});
   const [lastMessageTimestamps, setLastMessageTimestamps] = useState<{ [roomId: string]: number }>({});
   const [userLastVisit, setUserLastVisit] = useState<{ [roomId: string]: number }>({});
+  const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
 
   // Ref untuk melacak total unread count sebelumnya
   const prevTotalUnreadRef = useRef<number>(0);
@@ -147,6 +148,27 @@ const AppContent: React.FC = () => {
     setActivePage('home');
     fetchTrendingData(true);
   }, [fetchTrendingData]);
+
+  // Fungsi untuk mengambil dan menyimpan berita kripto ke localStorage
+  const fetchAndStoreNews = useCallback(async () => {
+    try {
+      const fetchedArticles = await fetchNewsArticles();
+      if (fetchedArticles && fetchedArticles.length > 0) {
+        setNewsArticles(fetchedArticles);
+        localStorage.setItem('cryptoNews', JSON.stringify(fetchedArticles));
+        
+        // Update unread counts untuk room berita kripto jika tidak sedang aktif
+        if (currentRoom?.id !== 'berita-kripto') {
+          setUnreadCounts(prev => ({
+            ...prev,
+            'berita-kripto': (prev['berita-kripto'] || 0) + 1
+          }));
+        }
+      }
+    } catch (error) {
+      console.error('Gagal mengambil berita kripto:', error);
+    }
+  }, [currentRoom]);
 
   useEffect(() => {
     try {
@@ -257,6 +279,25 @@ const AppContent: React.FC = () => {
   
   useEffect(() => { fetchTrendingData(); }, [fetchTrendingData]);
 
+  // Load berita dari localStorage saat pertama kali
+  useEffect(() => {
+    const savedNews = localStorage.getItem('cryptoNews');
+    if (savedNews) {
+      try {
+        setNewsArticles(JSON.parse(savedNews));
+      } catch (e) {
+        console.error('Gagal load berita dari localStorage:', e);
+      }
+    }
+    
+    // Fetch berita pertama kali
+    fetchAndStoreNews();
+    
+    // Set interval untuk update berita setiap 20 menit
+    const newsInterval = setInterval(fetchAndStoreNews, 20 * 60 * 1000);
+    return () => clearInterval(newsInterval);
+  }, [fetchAndStoreNews]);
+
   // Hitung total unread counts untuk sound notification
   const totalUnreadCount = useMemo(() => {
     return Object.values(unreadCounts).reduce((total, count) => total + count, 0);
@@ -277,6 +318,12 @@ const AppContent: React.FC = () => {
       return;
     }
     if (!currentRoom?.id) return;
+
+    // Skip listener untuk room berita kripto karena menggunakan localStorage
+    if (currentRoom.id === 'berita-kripto') {
+      setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] }));
+      return;
+    }
 
     const messagesRef = ref(database, `messages/${currentRoom.id}`);
     const listener = onValue(messagesRef, (snapshot) => {
@@ -363,14 +410,14 @@ const AppContent: React.FC = () => {
     };
   }, [currentRoom, database, lastMessageTimestamps]);
 
-  // Listener untuk semua room untuk unread counts
+  // Listener untuk semua room untuk unread counts (kecuali berita kripto)
   useEffect(() => {
     if (!database) return;
 
     const roomUnsubscribes: (() => void)[] = [];
 
     joinedRoomIds.forEach(roomId => {
-      if (roomId === currentRoom?.id) return;
+      if (roomId === currentRoom?.id || roomId === 'berita-kripto') return;
 
       const messagesRef = ref(database, `messages/${roomId}`);
       const listener = onValue(messagesRef, (snapshot) => {
@@ -401,74 +448,6 @@ const AppContent: React.FC = () => {
       roomUnsubscribes.forEach(unsubscribe => unsubscribe());
     };
   }, [joinedRoomIds, currentRoom, database, userLastVisit]);
-
-  useEffect(() => {
-    if (!database) {
-      console.warn('News fetch skipped: DB not initialized.');
-      return;
-    }
-    const NEWS_ROOM_ID = 'berita-kripto';
-    const NEWS_FETCH_INTERVAL = 20 * 60 * 1000;
-    const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
-    let isMounted = true;
-
-    const fetchAndProcessNews = async () => {
-      const currentTime = Date.now();
-      try {
-        const fetchedArticles = await fetchNewsArticles();
-        if (!isMounted || !fetchedArticles || fetchedArticles.length === 0) return;
-
-        const newsRoomRef = ref(database!, `messages/${NEWS_ROOM_ID}`);
-        const snapshot = await get(newsRoomRef);
-        const existingNewsData = snapshot.val() || {};
-        const existingNewsValues = (typeof existingNewsData === 'object' && existingNewsData !== null) ? Object.values<any>(existingNewsData) : [];
-        const existingNewsUrls = new Set(existingNewsValues.map(news => news?.url).filter(url => typeof url === 'string'));
-
-        let newArticleAdded = false;
-        const updates: { [key: string]: Omit<NewsArticle, 'id'> } = {};
-
-        fetchedArticles.forEach(article => {
-          if (article.url && article.title && article.published_on && article.source && !existingNewsUrls.has(article.url)) {
-            const newsRef = push(newsRoomRef);
-            if (newsRef.key) {
-              const articleData: Omit<NewsArticle, 'id'> & { type: 'news' } = {
-                type: 'news',
-                title: article.title,
-                url: article.url,
-                imageurl: article.imageurl || '',
-                published_on: article.published_on,
-                source: article.source,
-                body: article.body || '',
-                reactions: {}
-              };
-              updates[newsRef.key] = articleData;
-              newArticleAdded = true;
-            }
-          }
-        });
-
-        if (newArticleAdded && isMounted) {
-          await update(newsRoomRef, updates);
-          localStorage.setItem(LAST_FETCH_KEY, currentTime.toString());
-          if (currentRoom?.id !== NEWS_ROOM_ID) {
-            setUnreadCounts(prev => ({
-              ...prev,
-              [NEWS_ROOM_ID]: (prev[NEWS_ROOM_ID] || 0) + Object.keys(updates).length
-            }));
-          }
-        }
-      } catch (err: unknown) {
-        let errorMessage = 'Unknown error during news fetch';
-        if (err instanceof Error) errorMessage = err.message;
-        else if (typeof err === 'string') errorMessage = err;
-        console.error('News fetch failed:', errorMessage);
-      }
-    };
-
-    fetchAndProcessNews();
-    const intervalId = setInterval(fetchAndProcessNews, NEWS_FETCH_INTERVAL);
-    return () => { isMounted = false; clearInterval(intervalId); };
-  }, [currentRoom, database]);
 
   const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => {
     setAuthError(null);
@@ -583,8 +562,8 @@ const AppContent: React.FC = () => {
       [room.id]: 0
     }));
 
-    // Tambahkan disclaimer jika room baru atau belum ada pesan
-    if (database && (!firebaseMessages[room.id] || firebaseMessages[room.id].length === 0)) {
+    // Tambahkan disclaimer jika room baru atau belum ada pesan (kecuali room berita kripto)
+    if (database && room.id !== 'berita-kripto' && (!firebaseMessages[room.id] || firebaseMessages[room.id].length === 0)) {
       const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
         type: 'system',
         text: DISCLAIMER_MESSAGE_TEXT,
@@ -767,7 +746,15 @@ const AppContent: React.FC = () => {
       case 'rooms':
         return <RoomsListPage rooms={rooms} onJoinRoom={handleJoinRoom} onCreateRoom={handleCreateRoom} totalUsers={totalUsers} hotCoin={hotCoinForHeader} userProfile={currentUser} currentRoomId={currentRoom?.id || null} joinedRoomIds={joinedRoomIds} onLeaveJoinedRoom={handleLeaveJoinedRoom} unreadCounts={unreadCounts} onDeleteRoom={handleDeleteRoom} />;
       case 'forum': {
-        const displayMessages = currentRoom ? (firebaseMessages[currentRoom.id] || []) : [];
+        let displayMessages: ForumMessageItem[] = [];
+        if (currentRoom) {
+          if (currentRoom.id === 'berita-kripto') {
+            // Gunakan berita dari localStorage untuk room berita kripto
+            displayMessages = newsArticles;
+          } else {
+            displayMessages = firebaseMessages[currentRoom.id] || [];
+          }
+        }
         const messagesToPass = Array.isArray(displayMessages) ? displayMessages : [];
         
         return <ForumPage room={currentRoom} messages={messagesToPass} userProfile={currentUser} onSendMessage={handleSendMessage} onLeaveRoom={handleLeaveRoom} onReact={handleReaction} onDeleteMessage={handleDeleteMessage} />;
