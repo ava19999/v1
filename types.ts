@@ -156,7 +156,7 @@ export interface RoomsListPageProps {
   currentRoomId: string | null;
   joinedRoomIds: Set<string>;
   onLeaveJoinedRoom: (roomId: string) => void;
-  unreadCounts: { [key: string]: { count: number; lastUpdate: number } };
+  unreadCounts: { [key: string]: number };
   onDeleteRoom: (roomId: string) => void;
 }
 

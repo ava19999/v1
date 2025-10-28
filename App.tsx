@@ -59,6 +59,17 @@ const defaultMessages: { [key: string]: ForumMessageItem[] } = {
 const DISCLAIMER_MESSAGE_TEXT =
   '⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.';
 
+// Sound notification
+const playNotificationSound = () => {
+  try {
+    const audio = new Audio('/notification.mp3'); // Pastikan file notification.mp3 ada di folder public
+    audio.volume = 0.3;
+    audio.play().catch(e => console.log('Gagal memutar suara notifikasi:', e));
+  } catch (error) {
+    console.log('Error memutar suara notifikasi:', error);
+  }
+};
+
 const Particles: React.FC = () => (
   <div className="particles fixed top-0 left-0 w-full h-full -z-10 pointer-events-none">
     <div className="particle absolute bg-electric/50 rounded-full opacity-0" style={{ width: '3px', height: '3px', left: '10%', animation: 'drift 20s linear infinite', animationDelay: '-1s' }} />
@@ -113,9 +124,13 @@ const AppContent: React.FC = () => {
     }
     return new Set(DEFAULT_ROOM_IDS);
   });
-  const [unreadCounts, setUnreadCounts] = useState<{ [key: string]: { count: number; lastUpdate: number } }>({});
+  const [unreadCounts, setUnreadCounts] = useState<{ [key: string]: number }>({});
   const [firebaseMessages, setFirebaseMessages] = useState<{ [roomId: string]: ForumMessageItem[] }>({});
-  const [roomFirstVisit, setRoomFirstVisit] = useState<{ [key: string]: boolean }>({});
+  const [lastMessageTimestamps, setLastMessageTimestamps] = useState<{ [roomId: string]: number }>({});
+  const [userLastVisit, setUserLastVisit] = useState<{ [roomId: string]: number }>({});
+
+  // Ref untuk melacak total unread count sebelumnya
+  const prevTotalUnreadRef = useRef<number>(0);
 
   const fetchTrendingData = useCallback(async (showSkeleton = true) => {
     if (showSkeleton) { setIsTrendingLoading(true); setTrendingError(null); }
@@ -194,6 +209,17 @@ const AppContent: React.FC = () => {
   useEffect(() => { 
     localStorage.setItem('unreadCounts', JSON.stringify(unreadCounts)); 
   }, [unreadCounts]);
+
+  useEffect(() => { 
+    const saved = localStorage.getItem('userLastVisit'); 
+    if (saved) try { 
+      setUserLastVisit(JSON.parse(saved)); 
+    } catch (e) { console.error('Gagal parse userLastVisit', e); } 
+  }, []);
+  
+  useEffect(() => { 
+    localStorage.setItem('userLastVisit', JSON.stringify(userLastVisit)); 
+  }, [userLastVisit]);
   
   useEffect(() => {
     const lastReset = localStorage.getItem('lastAnalysisResetDate');
@@ -231,6 +257,19 @@ const AppContent: React.FC = () => {
   
   useEffect(() => { fetchTrendingData(); }, [fetchTrendingData]);
 
+  // Hitung total unread counts untuk sound notification
+  const totalUnreadCount = useMemo(() => {
+    return Object.values(unreadCounts).reduce((total, count) => total + count, 0);
+  }, [unreadCounts]);
+
+  // Play sound ketika unread count bertambah
+  useEffect(() => {
+    if (totalUnreadCount > prevTotalUnreadRef.current && prevTotalUnreadRef.current > 0) {
+      playNotificationSound();
+    }
+    prevTotalUnreadRef.current = totalUnreadCount;
+  }, [totalUnreadCount]);
+
   useEffect(() => {
     if (!database) {
       console.warn('Messages listener skipped: DB not initialized.');
@@ -257,7 +296,25 @@ const AppContent: React.FC = () => {
               const reactions = typeof msgData.reactions === 'object' && msgData.reactions !== null ? msgData.reactions : {};
               const uid = type === 'user' ? msgData.uid : undefined;
               const timestamp = type === 'news' ? msgData.published_on * 1000 : msgData.timestamp;
-              messagesArray.push({ ...msgData, id: key, type, reactions, uid, timestamp });
+              const userCreationDate = type === 'user' ? msgData.userCreationDate : undefined;
+              
+              messagesArray.push({ 
+                ...msgData, 
+                id: key, 
+                type, 
+                reactions, 
+                uid, 
+                timestamp,
+                ...(userCreationDate && { userCreationDate })
+              });
+
+              // Update last message timestamp untuk unread counts
+              if (timestamp > (lastMessageTimestamps[currentRoom.id] || 0)) {
+                setLastMessageTimestamps(prev => ({
+                  ...prev,
+                  [currentRoom.id]: timestamp
+                }));
+              }
             } else {
               console.warn('Invalid or missing message type:', key, msgData);
             }
@@ -284,18 +341,17 @@ const AppContent: React.FC = () => {
 
       // Update unread counts untuk room lain
       if (currentRoom.id) {
-        setUnreadCounts(prev => {
-          const newCounts = { ...prev };
-          Object.keys(prev).forEach(roomId => {
-            if (roomId !== currentRoom.id && newCounts[roomId]) {
-              newCounts[roomId] = {
-                ...newCounts[roomId],
-                count: Math.max(0, newCounts[roomId].count)
-              };
-            }
-          });
-          return newCounts;
-        });
+        const currentTime = Date.now();
+        setUserLastVisit(prev => ({
+          ...prev,
+          [currentRoom.id]: currentTime
+        }));
+
+        // Reset unread count untuk room yang sedang aktif
+        setUnreadCounts(prev => ({
+          ...prev,
+          [currentRoom.id]: 0
+        }));
       }
     }, (error) => {
       console.error(`Firebase listener error room ${currentRoom?.id}:`, error);
@@ -305,7 +361,46 @@ const AppContent: React.FC = () => {
     return () => {
       if (database) off(messagesRef, 'value', listener);
     };
-  }, [currentRoom, database]);
+  }, [currentRoom, database, lastMessageTimestamps]);
+
+  // Listener untuk semua room untuk unread counts
+  useEffect(() => {
+    if (!database) return;
+
+    const roomUnsubscribes: (() => void)[] = [];
+
+    joinedRoomIds.forEach(roomId => {
+      if (roomId === currentRoom?.id) return;
+
+      const messagesRef = ref(database, `messages/${roomId}`);
+      const listener = onValue(messagesRef, (snapshot) => {
+        const data = snapshot.val();
+        if (!data) return;
+
+        let latestTimestamp = 0;
+        Object.values(data).forEach((msgData: any) => {
+          const timestamp = msgData.published_on ? msgData.published_on * 1000 : msgData.timestamp;
+          if (timestamp > latestTimestamp) {
+            latestTimestamp = timestamp;
+          }
+        });
+
+        if (latestTimestamp > (userLastVisit[roomId] || 0)) {
+          const newMessagesCount = Object.keys(data).length;
+          setUnreadCounts(prev => ({
+            ...prev,
+            [roomId]: newMessagesCount
+          }));
+        }
+      });
+
+      roomUnsubscribes.push(() => off(messagesRef, 'value', listener));
+    });
+
+    return () => {
+      roomUnsubscribes.forEach(unsubscribe => unsubscribe());
+    };
+  }, [joinedRoomIds, currentRoom, database, userLastVisit]);
 
   useEffect(() => {
     if (!database) {
@@ -360,10 +455,7 @@ const AppContent: React.FC = () => {
           if (currentRoom?.id !== NEWS_ROOM_ID) {
             setUnreadCounts(prev => ({
               ...prev,
-              [NEWS_ROOM_ID]: {
-                count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length,
-                lastUpdate: currentTime
-              }
+              [NEWS_ROOM_ID]: (prev[NEWS_ROOM_ID] || 0) + Object.keys(updates).length
             }));
           }
         }
@@ -444,7 +536,6 @@ const AppContent: React.FC = () => {
       .then(() => {
         setActivePage('home');
         setCurrentRoom(null);
-        setRoomFirstVisit({});
       })
       .catch((error) => {
         console.error('Firebase signOut error:', error);
@@ -452,7 +543,6 @@ const AppContent: React.FC = () => {
         setFirebaseUser(null);
         setActivePage('home');
         setCurrentRoom(null);
-        setRoomFirstVisit({});
       });
   }, []);
 
@@ -479,23 +569,41 @@ const AppContent: React.FC = () => {
   }, []);
 
   const handleJoinRoom = useCallback((room: Room) => {
+    const currentTime = Date.now();
+    
     setCurrentRoom(room);
     setJoinedRoomIds(prev => new Set(prev).add(room.id));
     
-    // Reset unread count saat join room
-    setUnreadCounts(prev => ({ 
-      ...prev, 
-      [room.id]: { count: 0, lastUpdate: Date.now() } 
+    // Set last visit time dan reset unread count
+    setUserLastVisit(prev => ({
+      ...prev,
+      [room.id]: currentTime
     }));
     
-    // Tandai sebagai kunjungan pertama
-    setRoomFirstVisit(prev => ({
+    setUnreadCounts(prev => ({
       ...prev,
-      [room.id]: true
+      [room.id]: 0
     }));
+
+    // Tambahkan disclaimer jika room baru atau belum ada pesan
+    if (database && (!firebaseMessages[room.id] || firebaseMessages[room.id].length === 0)) {
+      const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
+        type: 'system',
+        text: DISCLAIMER_MESSAGE_TEXT,
+        sender: 'system',
+        timestamp: Date.now(),
+        reactions: {}
+      };
+
+      const messageListRef = ref(database, `messages/${room.id}`);
+      const newMessageRef = push(messageListRef);
+      set(newMessageRef, disclaimerMsg).catch(error => {
+        console.error('Gagal menambahkan disclaimer:', error);
+      });
+    }
     
     setActivePage('forum');
-  }, []);
+  }, [database, firebaseMessages]);
 
   const handleLeaveRoom = useCallback(() => { 
     setCurrentRoom(null); 
@@ -506,6 +614,7 @@ const AppContent: React.FC = () => {
     if (DEFAULT_ROOM_IDS.includes(roomId)) return;
     setJoinedRoomIds(prev => { const newIds = new Set(prev); newIds.delete(roomId); return newIds; });
     setUnreadCounts(prev => { const newCounts = { ...prev }; delete newCounts[roomId]; return newCounts; });
+    setUserLastVisit(prev => { const newVisits = { ...prev }; delete newVisits[roomId]; return newVisits; });
     if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
   }, [currentRoom]);
 
@@ -522,18 +631,18 @@ const AppContent: React.FC = () => {
     setRooms(prev => [newRoom, ...prev]);
     
     // Tambahkan disclaimer ke room baru
-    const disclaimerMsg: ChatMessage = {
-      id: `${newRoom.id}-disclaimer`,
-      type: 'system',
-      text: DISCLAIMER_MESSAGE_TEXT,
-      sender: 'system',
-      timestamp: Date.now(),
-      reactions: {}
-    };
-    
     if (database) {
-      const messageRef = ref(database, `messages/${newRoom.id}/${disclaimerMsg.id}`);
-      set(messageRef, disclaimerMsg).catch(error => {
+      const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
+        type: 'system',
+        text: DISCLAIMER_MESSAGE_TEXT,
+        sender: 'system',
+        timestamp: Date.now(),
+        reactions: {}
+      };
+
+      const messageListRef = ref(database, `messages/${newRoom.id}`);
+      const newMessageRef = push(messageListRef);
+      set(newMessageRef, disclaimerMsg).catch(error => {
         console.error('Gagal menambahkan disclaimer ke room baru:', error);
       });
     }
@@ -577,12 +686,13 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    const messageToSend: Omit<ChatMessage, 'id'> & { type: 'user' } = {
+    const messageToSend: Omit<ChatMessage, 'id'> & { type: 'user'; userCreationDate: number } = {
       type: 'user',
       uid: firebaseUser.uid,
       sender: currentUser.username,
       timestamp: Date.now(),
       reactions: {},
+      userCreationDate: currentUser.createdAt,
       ...(message.text && { text: message.text.trim() }),
       ...(message.fileURL && { fileURL: message.fileURL }),
       ...(message.fileName && { fileName: message.fileName }),
@@ -595,16 +705,12 @@ const AppContent: React.FC = () => {
       alert(`Gagal mengirim pesan.${(error as any).code === 'PERMISSION_DENIED' ? ' Akses ditolak. Periksa aturan database.' : ''}`);
     });
 
-    // Update unread counts untuk user lain di room yang sama
+    // Update unread counts untuk user lain
     setUnreadCounts(prev => {
       const newCounts = { ...prev };
       Object.keys(newCounts).forEach(roomId => {
-        if (roomId !== currentRoom.id && newCounts[roomId]) {
-          newCounts[roomId] = {
-            ...newCounts[roomId],
-            count: newCounts[roomId].count + 1,
-            lastUpdate: Date.now()
-          };
+        if (roomId !== currentRoom.id) {
+          newCounts[roomId] = (newCounts[roomId] || 0) + 1;
         }
       });
       return newCounts;
@@ -663,49 +769,9 @@ const AppContent: React.FC = () => {
       case 'rooms':
         return <RoomsListPage rooms={rooms} onJoinRoom={handleJoinRoom} onCreateRoom={handleCreateRoom} totalUsers={totalUsers} hotCoin={hotCoinForHeader} userProfile={currentUser} currentRoomId={currentRoom?.id || null} joinedRoomIds={joinedRoomIds} onLeaveJoinedRoom={handleLeaveJoinedRoom} unreadCounts={unreadCounts} onDeleteRoom={handleDeleteRoom} />;
       case 'forum': {
-        let displayMessages = currentRoom ? (firebaseMessages[currentRoom.id] || []) : [];
-
-        // Tampilkan hanya disclaimer untuk kunjungan pertama
-        const isFirstVisit = currentRoom && roomFirstVisit[currentRoom.id];
-        if (isFirstVisit && currentRoom) {
-          const disclaimerMsg: ChatMessage = {
-            id: `${currentRoom.id}-disclaimer-first`,
-            type: 'system',
-            text: DISCLAIMER_MESSAGE_TEXT,
-            sender: 'system',
-            timestamp: Date.now(),
-            reactions: {}
-          };
-          displayMessages = [disclaimerMsg];
-          
-          // Hapus status first visit setelah beberapa detik
-          setTimeout(() => {
-            setRoomFirstVisit(prev => {
-              const newState = { ...prev };
-              delete newState[currentRoom.id];
-              return newState;
-            });
-          }, 3000);
-        }
-        // Untuk room yang sudah pernah dikunjungi, tambahkan disclaimer jika belum ada
-        else if (currentRoom && !DEFAULT_ROOM_IDS.includes(currentRoom.id) && displayMessages.length > 0) {
-          const hasDisclaimer = displayMessages.some(msg => 
-            isChatMessage(msg) && msg.type === 'system' && msg.text === DISCLAIMER_MESSAGE_TEXT
-          );
-          if (!hasDisclaimer) {
-            const disclaimerMsg: ChatMessage = {
-              id: `${currentRoom.id}-disclaimer-${Date.now()}`,
-              type: 'system',
-              text: DISCLAIMER_MESSAGE_TEXT,
-              sender: 'system',
-              timestamp: Date.now() - 1,
-              reactions: {}
-            };
-            displayMessages = [disclaimerMsg, ...displayMessages];
-          }
-        }
-
+        const displayMessages = currentRoom ? (firebaseMessages[currentRoom.id] || []) : [];
         const messagesToPass = Array.isArray(displayMessages) ? displayMessages : [];
+        
         return <ForumPage room={currentRoom} messages={messagesToPass} userProfile={currentUser} onSendMessage={handleSendMessage} onLeaveRoom={handleLeaveRoom} onReact={handleReaction} onDeleteMessage={handleDeleteMessage} />;
       }
       case 'about':

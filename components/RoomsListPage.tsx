@@ -13,9 +13,8 @@ const RoomListItem: React.FC<{
     onDeleteRoom: (roomId: string) => void;
     isActive: boolean;
     isJoined: boolean;
-    unreadData: { count: number; lastUpdate: number; } | undefined;
-}> = ({ room, currentUser, onJoinRoom, onLeaveRoom, onDeleteRoom, isActive, isJoined, unreadData }) => {
-    const unreadCount = unreadData?.count || 0;
+    unreadCount: number;
+}> = ({ room, currentUser, onJoinRoom, onLeaveRoom, onDeleteRoom, isActive, isJoined, unreadCount }) => {
     const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
     const isAdmin = currentUser?.username ? ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(currentUser.username.toLowerCase()) : false;
     const isCreator = room.createdBy === currentUser?.username;
@@ -43,7 +42,7 @@ const RoomListItem: React.FC<{
             <div className="flex items-center gap-2 flex-shrink-0">
                 {unreadCount > 0 && (
                      <div className="bg-magenta text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse-notification flex-shrink-0">
-                        {unreadCount}
+                        {unreadCount > 99 ? '99+' : unreadCount}
                     </div>
                 )}
                 {!isDefaultRoom && (
@@ -96,9 +95,9 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({
         const myRoomsList = filtered
             .filter((r) => joinedRoomIds.has(r.id))
             .sort((a, b) => {
-                const lastUpdateA = unreadCounts[a.id]?.lastUpdate || 0;
-                const lastUpdateB = unreadCounts[b.id]?.lastUpdate || 0;
-                if (lastUpdateB !== lastUpdateA) return lastUpdateB - lastUpdateA;
+                const unreadA = unreadCounts[a.id] || 0;
+                const unreadB = unreadCounts[b.id] || 0;
+                if (unreadB !== unreadA) return unreadB - unreadA;
                 const isADefault = DEFAULT_ROOM_IDS.includes(a.id);
                 const isBDefault = DEFAULT_ROOM_IDS.includes(b.id);
                 if (isADefault && !isBDefault) return -1;
@@ -180,7 +179,7 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({
                                     onDeleteRoom={onDeleteRoom}
                                     isActive={room.id === currentRoomId}
                                     isJoined={true}
-                                    unreadData={unreadCounts[room.id]}
+                                    unreadCount={unreadCounts[room.id] || 0}
                                 />
                             ))}
                         </div>
@@ -200,7 +199,7 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({
                                     onDeleteRoom={onDeleteRoom}
                                     isActive={false}
                                     isJoined={false}
-                                    unreadData={undefined}
+                                    unreadCount={0}
                                 />
                             ))}
                         </div>

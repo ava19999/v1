@@ -212,8 +212,8 @@ const UserMessage: React.FC<{
   const currentUsername = userProfile?.username || '';
   const isCurrentUser = message.sender === currentUsername && !!currentUsername;
   
-  // Gunakan userCreationDate dari pesan jika tersedia, atau dari userProfile
-  const creationDate = message.userCreationDate || userProfile?.createdAt || null;
+  // Gunakan userCreationDate dari pesan untuk menentukan tag
+  const creationDate = message.userCreationDate;
 
   return (
     <div className={`my-0.5 flex relative ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
@@ -223,7 +223,7 @@ const UserMessage: React.FC<{
           <span className={`font-bold text-[11px] break-all font-heading ${isCurrentUser ? 'text-electric' : 'text-magenta'}`}>
             {message.sender}
           </span>
-          {/* UserTag ditampilkan untuk semua pesan */}
+          {/* UserTag ditampilkan untuk semua pesan dengan creationDate dari pesan */}
           <UserTag sender={message.sender} userCreationDate={creationDate} />
         </div>
 
@@ -400,12 +400,12 @@ const ForumPage: React.FC<ForumPageProps> = ({
     const currentAttachment = attachment;
     if ((!currentMessageText && !currentAttachment) || !username) return;
     
-    const messageData: Partial<ChatMessage> & { type: 'user'; sender: string; timestamp: number; userCreationDate?: number } = {
+    const messageData: Partial<ChatMessage> & { type: 'user'; sender: string; timestamp: number; userCreationDate: number } = {
       type: 'user',
       sender: username,
       timestamp: Date.now(),
       reactions: {},
-      userCreationDate: userProfile?.createdAt,
+      userCreationDate: userProfile?.createdAt || Date.now(),
       ...(currentMessageText && { text: currentMessageText }),
       ...(currentAttachment && { fileURL: currentAttachment.dataUrl, fileName: currentAttachment.name }),
     };
