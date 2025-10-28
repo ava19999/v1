@@ -378,7 +378,6 @@ const ForumPage: React.FC<ForumPageProps> = ({
     
     const seenMessageIds = new Set();
     return messages.filter(message => {
-      // Skip jika message id sudah dilihat
       if (seenMessageIds.has(message.id)) {
         return false;
       }
@@ -449,43 +448,41 @@ const ForumPage: React.FC<ForumPageProps> = ({
   const isAdmin = userProfile?.username ? ADMIN_USERNAMES.map((n) => n.toLowerCase()).includes(userProfile.username.toLowerCase()) : false;
 
   return (
-    <div className="container mx-auto px-2 sm:px-4 py-3 animate-fade-in flex flex-col flex-grow h-[calc(100vh-56px)]">
+    <div className="flex flex-col flex-grow h-full">
       {/* Main Chat Area Container */}
-      <div className="bg-gray-900 border border-white/10 rounded-xl flex flex-col flex-grow overflow-hidden">
+      <div className="bg-gray-900 border border-white/10 rounded-xl flex flex-col flex-grow overflow-hidden h-full">
         {/* Header Room yang Fixed */}
-        <div className="flex-shrink-0 p-4 border-b border-white/10 bg-gray-900">
-          <div className="flex items-center justify-between gap-4 mb-3">
+        <div className="flex-shrink-0 p-3 border-b border-white/10 bg-gray-900">
+          <div className="flex items-center justify-between gap-3 mb-2">
             <button onClick={onLeaveRoom} className="flex items-center gap-2 text-gray-400 hover:text-electric transition-colors">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
               </svg>
               <span className="text-sm font-semibold">Semua Room</span>
             </button>
-            <div className="flex items-center gap-2.5">
-              <div className="relative flex h-2.5 w-2.5">
+            <div className="flex items-center gap-2">
+              <div className="relative flex h-2 w-2">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-lime"></span>
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-lime"></span>
               </div>
               <p className="text-sm font-semibold">
                 <span className="text-white">{room.userCount.toLocaleString('id-ID')}</span>
-                <span className="text-gray-400 ml-1.5">Online</span>
+                <span className="text-gray-400 ml-1">Online</span>
               </p>
             </div>
           </div>
-          <div className="flex items-center">
-            <div>
-              <h1 className="text-2xl md:text-3xl font-black tracking-tight bg-gradient-to-r from-electric to-magenta text-transparent bg-clip-text truncate font-heading">
-                {room.name}
-              </h1>
-              <p className="text-yellow-400 text-xs mt-1 break-words max-w-2xl">
-                ⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.
-              </p>
-            </div>
+          <div>
+            <h1 className="text-xl font-black tracking-tight bg-gradient-to-r from-electric to-magenta text-transparent bg-clip-text truncate font-heading">
+              {room.name}
+            </h1>
+            <p className="text-yellow-400 text-[10px] mt-0.5 break-words leading-tight">
+              ⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.
+            </p>
           </div>
         </div>
 
         {/* Message List Area - HANYA INI YANG SCROLL */}
-        <div className="flex-grow overflow-y-auto p-2 md:p-4 space-y-1 custom-scrollbar" onClick={handleChatAreaClick}>
+        <div className="flex-grow overflow-y-auto p-2 space-y-1 custom-scrollbar" onClick={handleChatAreaClick}>
           {sortedMessages.length === 0 ? (
             <div className="flex items-center justify-center h-full text-gray-500">
               <p>Belum ada pesan.</p>
@@ -548,7 +545,6 @@ const ForumPage: React.FC<ForumPageProps> = ({
                   />
                 );
               }
-              console.warn('Unknown item type in messages:', item);
               return null;
             })
           )}
@@ -556,40 +552,40 @@ const ForumPage: React.FC<ForumPageProps> = ({
         </div>
 
         {/* Input Area */}
-        <div className="p-3 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
+        <div className="p-2 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
           {isDefaultRoom ? (
-            <div className="text-center text-sm text-gray-500 py-2 flex items-center justify-center gap-2">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="text-center text-xs text-gray-500 py-2 flex items-center justify-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
               Room ini hanya untuk membaca.
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {attachment && (
                 <div className="relative inline-block">
-                  <img src={attachment.dataUrl} alt="Pratinjau" className="max-h-24 rounded-lg" />
+                  <img src={attachment.dataUrl} alt="Pratinjau" className="max-h-20 rounded-lg" />
                   <button
                     onClick={() => {
                       setAttachment(null);
                       if (fileInputRef.current) fileInputRef.current.value = '';
                     }}
-                    className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold hover:bg-red-700 transition-colors"
+                    className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold hover:bg-red-700 transition-colors"
                     title="Hapus lampiran"
                   >
                     ×
                   </button>
                 </div>
               )}
-              <form onSubmit={handleSendMessageSubmit} className="flex items-center space-x-2">
+              <form onSubmit={handleSendMessageSubmit} className="flex items-center space-x-1">
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-gray-400 hover:text-electric p-2 rounded-full transition-colors flex-shrink-0"
+                  className="text-gray-400 hover:text-electric p-1.5 rounded-full transition-colors flex-shrink-0"
                   title="Lampirkan gambar"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                   </svg>
                 </button>
@@ -599,17 +595,17 @@ const ForumPage: React.FC<ForumPageProps> = ({
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Ketik pesan Anda..."
-                    className="w-full bg-gray-800 border border-gray-700 rounded-full py-2 pl-4 pr-12 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-full py-2 pl-3 pr-10 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-electric transition-all"
                     disabled={!username}
                   />
                 </div>
                 <button
                   type="submit"
-                  className="bg-electric text-white rounded-full p-2.5 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0"
+                  className="bg-electric text-white rounded-full p-2 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0"
                   disabled={isSendDisabled}
                   title="Kirim"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                   </svg>
                 </button>
@@ -647,9 +643,9 @@ const ForumPage: React.FC<ForumPageProps> = ({
         @keyframes fade-in-fast { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         .animate-fade-in-fast { animation: fade-in-fast 0.15s ease-out forwards; }
 
-        .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+        .custom-scrollbar::-webkit-scrollbar { width: 4px; height: 4px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
-        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+        .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 2px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0, 191, 255, 0.5); }
         .custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; }
 
