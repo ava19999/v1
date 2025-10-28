@@ -11,9 +11,8 @@ const EMOJIS = ['👍', '❤️', '🚀', '🔥', '😂', '🤯'];
 
 // --- Sub-komponen ---
 
-// Reaction Picker (Emoji Selector) - DIPINDAHKAN ke ForumPage, styling diubah
+// Reaction Picker (Emoji Selector) - Centralized Modal
 const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void; }) => (
-    // Fixed position, centered, with overlay
     <div
         className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in-fast"
         onClick={onClose} // Klik overlay untuk menutup
@@ -33,10 +32,10 @@ const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => vo
 );
 
 
-// Display Existing Reactions (Tetap sama)
+// Display Existing Reactions
 const Reactions = ({ message, username, onReact }: { message: NewsArticle | ChatMessage | undefined | null; username: string; onReact: (emoji: string) => void; }) => {
     const reactions = message?.reactions || {};
-    const hasReactions = Object.keys(reactions).length > 0 && Object.values(reactions).some(users => Array.isArray(users) && users.length > 0); // Pastikan ada user di dalamnya
+    const hasReactions = Object.keys(reactions).length > 0 && Object.values(reactions).some(users => Array.isArray(users) && users.length > 0);
     if (!hasReactions) return null;
 
     return (
@@ -45,7 +44,6 @@ const Reactions = ({ message, username, onReact }: { message: NewsArticle | Chat
                 const userList = users as string[];
                 if (!Array.isArray(userList) || userList.length === 0) return null;
                 const currentUserReacted = userList.includes(username);
-                // Batasi jumlah nama yang ditampilkan di tooltip jika terlalu banyak
                 const userListPreview = userList.slice(0, 10).join(', ') + (userList.length > 10 ? '...' : '');
                 const tooltipText = currentUserReacted
                     ? `Anda${userList.length > 1 ? ` & ${userList.length - 1} lainnya` : ''} bereaksi dengan ${emoji}`
@@ -54,11 +52,11 @@ const Reactions = ({ message, username, onReact }: { message: NewsArticle | Chat
                 return (
                     <button
                         key={emoji}
-                        onClick={(e) => { e.stopPropagation(); onReact(emoji); }} // Hentikan propagasi agar tidak memicu klik pesan
+                        onClick={(e) => { e.stopPropagation(); onReact(emoji); }}
                         className={`flex items-center gap-1 text-xs px-2 py-0.5 rounded-full transition-all duration-200 ${
                             currentUserReacted ? 'bg-electric/80 text-white' : 'bg-gray-600/50 hover:bg-gray-600/80 text-gray-300'
                         }`}
-                        title={tooltipText} // Tooltip lebih informatif
+                        title={tooltipText}
                         data-message-interactive="true" // Tandai tombol ini
                     >
                         <span>{emoji}</span>
@@ -70,13 +68,13 @@ const Reactions = ({ message, username, onReact }: { message: NewsArticle | Chat
     );
 };
 
-// Delete Button Component (Tetap sama)
+// Delete Button Component
 const DeleteButton: React.FC<{ onClick: (e: React.MouseEvent) => void }> = ({ onClick }) => (
     <button onClick={onClick} className="p-1 text-gray-500 hover:text-red-500 hover:bg-red-500/10 rounded-full transition-colors" title="Hapus Pesan" data-message-interactive="true">
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /></svg>
     </button>
 );
-// React Button Component (Tetap sama)
+// React Button Component
 const ReactButton: React.FC<{ onClick: (e: React.MouseEvent) => void }> = ({ onClick }) => (
     <button onClick={onClick} className="p-1 text-gray-500 hover:text-electric hover:bg-electric/10 rounded-full transition-colors" title="Beri Reaksi" data-message-interactive="true">
         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" /></svg>
@@ -84,7 +82,7 @@ const ReactButton: React.FC<{ onClick: (e: React.MouseEvent) => void }> = ({ onC
 );
 
 
-// News Message Component (UI Aksi diperbarui)
+// News Message Component
 const NewsMessage: React.FC<{
     article: NewsArticle;
     username: string;
@@ -92,9 +90,9 @@ const NewsMessage: React.FC<{
     onDeleteClick: () => void;
     canDelete: boolean;
     isActive: boolean;
-    showActions: boolean; // Hanya perlu showActions, tidak perlu showPicker di sini
+    showActions: boolean;
     onMessageClick: () => void;
-    onReactButtonClick: (e: React.MouseEvent) => void; // Tidak perlu onClosePicker
+    onReactButtonClick: (e: React.MouseEvent) => void;
 }> = ({
     article, username, onReact, onDeleteClick, canDelete,
     isActive, showActions, onMessageClick, onReactButtonClick
@@ -102,13 +100,13 @@ const NewsMessage: React.FC<{
 
     return (
         <div className="my-2 animate-fade-in-up">
-            <div className="w-full sm:w-4/5 md:w-3/5 mx-auto relative"> {/* Hapus group jika tidak diperlukan hover */}
+            <div className="w-full sm:w-4/5 md:w-3/5 mx-auto relative">
                  <div
                     onClick={onMessageClick}
-                    className={`block p-3 bg-gray-800/50 rounded-lg transition-colors cursor-pointer ${isActive ? 'bg-gray-800/60 ring-1 ring-electric/30' : 'hover:bg-gray-800/70'}`} // Tambah ring saat aktif
-                    data-message-interactive="true" // Tandai bubble
+                    className={`block p-3 bg-gray-800/50 rounded-lg transition-colors cursor-pointer ${isActive ? 'bg-gray-800/60 ring-1 ring-electric/30' : 'hover:bg-gray-800/70'}`}
+                    data-message-interactive="true"
                  >
-                    {/* Konten Berita (Tetap sama) */}
+                    {/* Konten Berita */}
                     <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={(e)=> e.stopPropagation()}>
                         <div className="flex items-start space-x-3">
                             <img src={article.imageurl} alt={article.title} className="w-20 h-14 object-cover rounded-md flex-shrink-0 bg-gray-700" loading="lazy" />
@@ -126,13 +124,13 @@ const NewsMessage: React.FC<{
                         <Reactions message={article} username={username} onReact={(emoji) => onReact(article.id, emoji)} />
                     </div>
 
-                    {/* Tombol Aksi (HANYA muncul jika showActions true) */}
+                    {/* Tombol Aksi */}
                     <div className="relative flex-shrink-0">
-                         <div className={`flex items-center gap-1 transition-opacity duration-200 ${showActions ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}> {/* Hilangkan group-hover, tambahkan pointer-events-none */}
+                         {/* ✨ ADDED transition-opacity for smoother appearance */}
+                         <div className={`flex items-center gap-1 transition-opacity duration-200 ${showActions ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                              <ReactButton onClick={onReactButtonClick} />
                              {canDelete && <DeleteButton onClick={(e) => { e.stopPropagation(); onDeleteClick(); }} />}
                          </div>
-                         {/* Picker Emoji Dihapus dari sini */}
                     </div>
                  </div>
             </div>
@@ -141,7 +139,7 @@ const NewsMessage: React.FC<{
 };
 
 
-// User Message Component (UI Aksi & Posisi Username diperbarui)
+// User Message Component
 const UserMessage: React.FC<{
     message: ChatMessage;
     userProfile: User | null;
@@ -149,9 +147,9 @@ const UserMessage: React.FC<{
     onDeleteClick: () => void;
     canDelete: boolean;
     isActive: boolean;
-    showActions: boolean; // Hanya perlu showActions
+    showActions: boolean;
     onMessageClick: () => void;
-    onReactButtonClick: (e: React.MouseEvent) => void; // Tidak perlu onClosePicker
+    onReactButtonClick: (e: React.MouseEvent) => void;
 }> = ({
     message, userProfile, onReact, onDeleteClick, canDelete,
     isActive, showActions, onMessageClick, onReactButtonClick
@@ -159,31 +157,27 @@ const UserMessage: React.FC<{
 
     const currentUsername = userProfile?.username || '';
     const isCurrentUser = message.sender === currentUsername && !!currentUsername;
-    // Dapatkan creation date HANYA jika itu pesan user saat ini & userProfile tersedia
     const creationDate = (isCurrentUser && userProfile) ? userProfile.createdAt : null;
 
     return (
         <div className={`my-1 py-1 flex relative ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
             <div className={`max-w-xs sm:max-w-sm md:max-w-md ${isCurrentUser ? 'ml-auto' : ''}`}>
-                 {/* --- PERUBAHAN POSISI USERNAME/TAG --- */}
-                 {/* Tampilkan di atas untuk SEMUA pesan */}
+                 {/* Username/Tag Info */}
                  <div className={`flex items-center gap-2 flex-wrap mb-1 ${isCurrentUser ? 'justify-end' : ''}`}>
                     <span className={`font-bold text-sm break-all font-heading ${isCurrentUser ? 'text-electric' : 'text-magenta'}`}>{message.sender}</span>
-                    {/* Berikan creationDate jika itu pesan user saat ini, jika tidak null */}
                     <UserTag sender={message.sender} userCreationDate={creationDate} />
                  </div>
-                 {/* --- AKHIR PERUBAHAN --- */}
 
                 {/* Message Bubble */}
                 <div
                     onClick={onMessageClick}
                     className={`relative text-sm text-gray-200 break-words px-3 pt-2.5 pb-2 rounded-xl cursor-pointer ${
-                        isActive ? (isCurrentUser ? 'bg-electric/15 ring-1 ring-electric/30' : 'bg-magenta/5 ring-1 ring-magenta/30') : // Tambah ring saat aktif
+                        isActive ? (isCurrentUser ? 'bg-electric/15 ring-1 ring-electric/30' : 'bg-magenta/5 ring-1 ring-magenta/30') :
                         (isCurrentUser ? 'bg-gradient-to-br from-electric/20 to-gray-900/10' : 'bg-gradient-to-bl from-magenta/10 to-gray-900/10')
                     } transition-colors`}
-                    data-message-interactive="true" // Tandai bubble
+                    data-message-interactive="true"
                 >
-                    {/* Konten Pesan (Tetap sama) */}
+                    {/* Konten Pesan */}
                     {message.fileURL && <img src={message.fileURL} alt={message.fileName || 'Gambar'} className="rounded-lg max-h-48 mt-1 mb-2" />}
                     {message.text}
                     <span className="text-xs text-gray-500 absolute bottom-1 right-2.5 opacity-70">{formatDate(message.timestamp)}</span>
@@ -194,16 +188,15 @@ const UserMessage: React.FC<{
                         <Reactions message={message} username={currentUsername} onReact={(emoji) => onReact(message.id, emoji)} />
                     </div>
 
-                    {/* Tombol Aksi (HANYA muncul jika showActions true) */}
+                    {/* Tombol Aksi */}
                     <div className={`relative flex-shrink-0 ${isCurrentUser ? 'ml-2' : 'mr-2'}`}>
-                         <div className={`flex items-center gap-1 transition-opacity duration-200 ${showActions ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}> {/* Hilangkan group-hover, tambahkan pointer-events-none */}
+                          {/* ✨ ADDED transition-opacity for smoother appearance */}
+                         <div className={`flex items-center gap-1 transition-opacity duration-200 ${showActions ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
                              <ReactButton onClick={onReactButtonClick} />
                              {canDelete && <DeleteButton onClick={(e) => { e.stopPropagation(); onDeleteClick(); }} />}
                          </div>
-                         {/* Picker Emoji Dihapus dari sini */}
                     </div>
                  </div>
-                 {/* Info sender di bawah dihapus karena sudah dipindah ke atas */}
             </div>
         </div>
     );
@@ -221,7 +214,7 @@ const AnnouncementMessage: React.FC<{ message: ChatMessage; }> = ({ message }) =
 };
 
 
-// ForumPage Component Utama (State & Handler Aksi diperbarui)
+// ForumPage Component Utama
 const ForumPage: React.FC<ForumPageProps> = ({
     room, messages = [], userProfile, onSendMessage, onLeaveRoom, onReact, onDeleteMessage
 }) => {
@@ -231,52 +224,36 @@ const ForumPage: React.FC<ForumPageProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const username = userProfile?.username ?? '';
 
-    // State untuk mengelola interaksi pesan
+    // State untuk interaksi pesan
     const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
-    // State untuk picker emoji terpusat
     const [showPickerForMsgId, setShowPickerForMsgId] = useState<string | null>(null);
 
-    // Handler saat pesan di-klik: toggle state aktif
+    // Handler klik pesan: toggle state aktif
     const handleMessageClick = (messageId: string) => {
         setActiveMessageId(currentId => {
             const isCurrentlyActive = currentId === messageId;
-            // Jika mengklik pesan yang sudah aktif, nonaktifkan
-            // Jika mengklik pesan lain, aktifkan
             const nextActiveId = isCurrentlyActive ? null : messageId;
-            // Selalu tutup picker saat pesan diklik (jika picker sedang terbuka)
-            if (showPickerForMsgId) {
-                setShowPickerForMsgId(null);
-            }
+            if (showPickerForMsgId) { setShowPickerForMsgId(null); } // Selalu tutup picker saat pesan diklik
             return nextActiveId;
         });
     };
 
-    // Handler saat tombol React di-klik: tampilkan picker terpusat
+    // Handler klik tombol React: tampilkan picker terpusat
     const handleReactButtonClick = (e: React.MouseEvent, messageId: string) => {
         e.stopPropagation(); // Hentikan event agar tidak trigger handleMessageClick
         setShowPickerForMsgId(messageId); // Set ID pesan untuk picker
-        // Jika mengklik React pada pesan yang *tidak aktif*, aktifkan juga
-         if (activeMessageId !== messageId) {
-             setActiveMessageId(messageId);
-         }
+         if (activeMessageId !== messageId) { setActiveMessageId(messageId); } // Aktifkan pesan jika belum aktif
     };
 
      // Handler untuk menutup picker/actions saat klik di area chat
-     // DIPERBAIKI: Pastikan tipe event benar
      const handleChatAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
-        // Cek apakah klik terjadi di dalam elemen interaktif pesan
         const targetElement = e.target as Element;
+        // Hanya tutup jika klik BUKAN pada elemen interaktif pesan
         if (!targetElement.closest('[data-message-interactive="true"]')) {
-             // Jika klik di luar area interaktif, tutup semua
-             if (activeMessageId !== null) {
-                setActiveMessageId(null);
-             }
-             if (showPickerForMsgId !== null) {
-                setShowPickerForMsgId(null);
-             }
+             if (activeMessageId !== null) { setActiveMessageId(null); }
+             if (showPickerForMsgId !== null) { setShowPickerForMsgId(null); }
         }
     };
-
 
     // --- (Sisa kode useEffect, useMemo, handleSendMessageSubmit, handleFileChange, render tidak berubah) ---
     const safeMessages = Array.isArray(messages) ? messages : [];
@@ -304,12 +281,11 @@ const ForumPage: React.FC<ForumPageProps> = ({
 
     const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
     const isSendDisabled = (!newMessage.trim() && !attachment) || !username;
-    // Cek apakah user saat ini adalah admin
     const isAdmin = userProfile?.username ? ADMIN_USERNAMES.map(n => n.toLowerCase()).includes(userProfile.username.toLowerCase()) : false;
 
     return (
         <div className="container mx-auto px-2 sm:px-4 py-3 animate-fade-in flex flex-col flex-grow h-[calc(100vh-56px)]">
-             {/* Header Room (tidak berubah) */}
+             {/* Header Room */}
              <div className="mb-3 flex-shrink-0">
                  <div className="flex items-center justify-between gap-4 mb-3"> <button onClick={onLeaveRoom} className="flex items-center gap-2 text-gray-400 hover:text-electric transition-colors"> <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg> <span className="text-sm font-semibold">Semua Room</span> </button> <div className="flex items-center gap-2.5"> <div className="relative flex h-2.5 w-2.5"> <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span> <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-lime"></span> </div> <p className="text-sm font-semibold"> <span className="text-white">{room.userCount.toLocaleString('id-ID')}</span> <span className="text-gray-400 ml-1.5">Online</span> </p> </div> </div>
                   <div className="flex items-center"> <div> <h1 className="text-2xl md:text-3xl font-black tracking-tight bg-gradient-to-r from-electric to-magenta text-transparent bg-clip-text truncate font-heading">{room.name}</h1> <p className="text-gray-400 text-xs mt-1">Diskusikan pasar. Berita terbaru muncul otomatis.</p> </div> </div>
@@ -318,38 +294,31 @@ const ForumPage: React.FC<ForumPageProps> = ({
             {/* Main Chat Area Container */}
             <div className="bg-gray-900 border border-white/10 rounded-xl flex flex-col flex-grow overflow-hidden">
                 {/* Message List Area */}
-                {/* Tambahkan onClick={handleChatAreaClick} di sini */}
+                {/* ✨ ADDED onClick={handleChatAreaClick} */}
                 <div className="p-2 md:p-4 flex-grow overflow-y-auto space-y-1 custom-scrollbar" onClick={handleChatAreaClick}>
                      {sortedMessages.length === 0 ? (
                          <div className="flex items-center justify-center h-full text-gray-500"><p>Belum ada pesan.</p></div>
                      ) : (
                          sortedMessages.map((item, index) => {
                            const isActive = activeMessageId === item.id;
-                           // Tentukan apakah picker harus tampil untuk pesan ini (TIDAK LAGI DIPERLUKAN DI SINI)
-                           // const showPicker = showPickerForMsgId === item.id;
-                           // Key unik
                            const messageKey = item.id || `fallback-${item.type}-${index}`;
-                           // Tentukan apakah tombol aksi harus tampil (hanya jika pesan aktif)
-                           const showActions = isActive;
+                           const showActions = isActive; // Show actions only if message is active
 
                            // Render berdasarkan tipe pesan
                            if (isChatMessage(item)) {
                                if (item.type === 'system') {
-                                   // Render Announcement atau System message
                                    return room.id === 'pengumuman-aturan'
                                        ? <AnnouncementMessage key={messageKey} message={item} />
                                        : <SystemMessage key={messageKey} message={item} />;
                                }
                                // Pesan User
                                const isOwnMessage = item.sender === username && !!username;
-                               // Cek apakah bisa dihapus (admin atau pemilik pesan)
                                const canDelete = isAdmin || (isOwnMessage && item.type === 'user');
-                               // Dapatkan profil user HANYA jika itu pesannya sendiri
                                const senderProfile = isOwnMessage ? userProfile : null;
                                return <UserMessage
                                           key={messageKey}
                                           message={item}
-                                          userProfile={senderProfile} // Kirim null jika bukan pesan sendiri
+                                          userProfile={senderProfile}
                                           onReact={onReact}
                                           onDeleteClick={() => {
                                               if (window.confirm('Yakin hapus pesan ini?')) {
@@ -358,16 +327,13 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                           }}
                                           canDelete={canDelete}
                                           isActive={isActive}
-                                          showActions={showActions} // <-- Gunakan showActions
-                                          // showPicker dihapus dari props
+                                          showActions={showActions} // Pass showActions state
                                           onMessageClick={() => handleMessageClick(item.id)}
                                           onReactButtonClick={(e) => handleReactButtonClick(e, item.id)}
-                                          // onClosePicker dihapus
-                                          // {...{ 'data-message-interactive': true }} // Atribut ini tidak diperlukan lagi di sini
                                       />;
                            } else if (isNewsArticle(item)) {
                                // Pesan Berita
-                               const canDeleteNews = isAdmin; // Hanya admin bisa hapus berita
+                               const canDeleteNews = isAdmin;
                                return <NewsMessage
                                           key={messageKey}
                                           article={item}
@@ -380,12 +346,9 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                           }}
                                           canDelete={canDeleteNews}
                                           isActive={isActive}
-                                          showActions={showActions} // <-- Gunakan showActions
-                                          // showPicker dihapus
+                                          showActions={showActions} // Pass showActions state
                                           onMessageClick={() => handleMessageClick(item.id)}
                                           onReactButtonClick={(e) => handleReactButtonClick(e, item.id)}
-                                          // onClosePicker dihapus
-                                          // {...{ 'data-message-interactive': true }} // Tidak diperlukan lagi
                                       />;
                            }
                            console.warn("Unknown item type in messages:", item);
@@ -396,7 +359,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
                     <div ref={chatEndRef} />
                 </div>
 
-                 {/* Input Area (tidak berubah) */}
+                 {/* Input Area */}
                  <div className="p-3 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
                        {isDefaultRoom ? (
                          <div className="text-center text-sm text-gray-500 py-2 flex items-center justify-center gap-2">
@@ -437,26 +400,26 @@ const ForumPage: React.FC<ForumPageProps> = ({
                     onClose={() => setShowPickerForMsgId(null)} // Tutup picker
                  />
              )}
-             {/* Styles (tidak berubah) */}
+             {/* Styles */}
              <style>{`
-                  /* Action buttons positioning */
-                .opacity-0 { opacity: 0; }
-                .opacity-100 { opacity: 1; }
-                .pointer-events-none { pointer-events: none; }
+                  /* ✨ ADDED: Z-index classes */
+                  .z-10 { z-index: 10; }
+                  .z-20 { z-index: 20; }
+                  .z-50 { z-index: 50; } /* Untuk picker */
 
-                .z-10 { z-index: 10; }
-                .z-20 { z-index: 20; }
-                .z-50 { z-index: 50; } /* Untuk picker */
+                 /* ✨ ADDED: Animation for picker */
+                 @keyframes fade-in-fast { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+                 .animate-fade-in-fast { animation: fade-in-fast 0.15s ease-out forwards; }
 
-                @keyframes fade-in-fast { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-                .animate-fade-in-fast { animation: fade-in-fast 0.15s ease-out forwards; }
-
+                /* Custom Scrollbar */
                 .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
                 .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0, 191, 255, 0.5); }
+                /* Firefox scrollbar */
                 .custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; }
 
+                 /* General Animations */
                  @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
                  @keyframes fade-in-up { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
                  .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
@@ -466,8 +429,6 @@ const ForumPage: React.FC<ForumPageProps> = ({
                    50% { transform: scale(1.05); box-shadow: 0 0 0 5px rgba(255, 0, 255, 0); }
                  }
                  .animate-pulse-notification { animation: pulse-notification 1.5s infinite; }
-                 @keyframes drift { 0% { transform: translateY(100vh) scale(0); opacity: 0; } 10% { opacity: 0.5; } 90% { opacity: 0.5; } 100% { transform: translateY(-100vh) scale(1.2); opacity: 0; } }
-
             `}</style>
         </div>
     );
