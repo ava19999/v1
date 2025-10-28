@@ -48,8 +48,6 @@ import { ref, set, push, onValue, off, update, get, Database } from 'firebase/da
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
-const DISCLAIMER_MESSAGE_TEXT = '⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.';
-
 // Helper function untuk safely menggunakan database
 const safeRef = (path: string) => {
   if (!database) {
@@ -445,7 +443,7 @@ const AppContent: React.FC = () => {
         });
       }
 
-      let finalMessages = messagesArray.sort((a, b) => {
+      const finalMessages = messagesArray.sort((a, b) => {
         const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0);
         const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0);
         if (!timeA && !timeB) return 0;
@@ -453,40 +451,6 @@ const AppContent: React.FC = () => {
         if (!timeB) return -1;
         return timeA - timeB;
       });
-
-      // Tambahkan disclaimer untuk room baru jika belum ada
-      const hasDisclaimer = finalMessages.some(msg => 
-        isChatMessage(msg) && 
-        msg.type === 'system' && 
-        msg.text === DISCLAIMER_MESSAGE_TEXT
-      );
-
-      if (!hasDisclaimer && !DEFAULT_ROOM_IDS.includes(currentRoom.id)) {
-        const disclaimerMessage: ChatMessage = {
-          id: `disclaimer-${currentRoom.id}-${Date.now()}`,
-          type: 'system',
-          text: DISCLAIMER_MESSAGE_TEXT,
-          sender: 'system',
-          timestamp: Date.now(),
-          reactions: {}
-        };
-        finalMessages = [disclaimerMessage, ...finalMessages];
-        
-        // Simpan disclaimer ke Firebase
-        try {
-          const messageListRef = safeRef(`messages/${currentRoom.id}`);
-          const newMessageRef = push(messageListRef);
-          set(newMessageRef, disclaimerMessage)
-            .then(() => {
-              console.log(`✅ Disclaimer berhasil ditambahkan ke room: ${currentRoom.id}`);
-            })
-            .catch(error => {
-              console.error('❌ Gagal menyimpan disclaimer ke Firebase:', error);
-            });
-        } catch (error) {
-          console.error('❌ Error saving disclaimer:', error);
-        }
-      }
 
       setFirebaseMessages(prev => ({ ...prev, [currentRoom.id!]: finalMessages }));
     }, (error) => {
@@ -735,34 +699,8 @@ const AppContent: React.FC = () => {
     };
     
     setRooms(prev => [newRoom, ...prev]);
-    
-    // Tambahkan disclaimer ke room baru
-    if (database) {
-      const disclaimerMessage: Omit<ChatMessage, 'id'> & { type: 'system' } = {
-        type: 'system',
-        text: DISCLAIMER_MESSAGE_TEXT,
-        sender: 'system',
-        timestamp: Date.now(),
-        reactions: {}
-      };
-
-      try {
-        const messageListRef = safeRef(`messages/${newRoom.id}`);
-        const newMessageRef = push(messageListRef);
-        set(newMessageRef, disclaimerMessage)
-          .then(() => {
-            console.log(`✅ Disclaimer berhasil ditambahkan ke room baru: ${newRoom.id}`);
-          })
-          .catch(error => {
-            console.error('❌ Gagal menambahkan disclaimer ke room baru:', error);
-          });
-      } catch (error) {
-        console.error('❌ Error adding disclaimer to new room:', error);
-      }
-    }
-    
     handleJoinRoom(newRoom);
-  }, [handleJoinRoom, rooms, currentUser, database]);
+  }, [handleJoinRoom, rooms, currentUser]);
 
   const handleDeleteRoom = useCallback((roomId: string) => {
     if (!currentUser?.username || !firebaseUser) { 

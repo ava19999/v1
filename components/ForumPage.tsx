@@ -6,8 +6,6 @@ import { isNewsArticle, isChatMessage } from '../types';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
-const DISCLAIMER_MESSAGE_TEXT = '⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.';
-
 const EMOJIS = ['👍', '❤️', '🚀', '🔥', '😂', '🤯'];
 
 /* ------------------------- Sub-komponen ------------------------- */
@@ -277,12 +275,10 @@ const UserMessage: React.FC<{
 };
 
 /* ------------------------- System & Announcement ------------------------- */
-const SystemMessage: React.FC<{ message: ChatMessage }> = ({ message }) => {
-  const isDisclaimer = message.text?.includes('⚠️ Penting Gengs:');
-  
+const SystemMessage: React.FC<{ message: ChatMessage }> = ({ message }) => {  
   return (
-    <div className={`text-center py-3 animate-fade-in-up ${isDisclaimer ? 'bg-magenta/10 border border-magenta/20 rounded-lg mx-2 my-3' : ''}`}>
-      <div className={`text-xs ${isDisclaimer ? 'text-magenta font-semibold px-4' : 'text-gray-500 italic'}`}>
+    <div className="text-center py-3 animate-fade-in-up">
+      <div className="text-gray-500 italic text-xs">
         {message.text}
       </div>
     </div>
@@ -376,7 +372,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
     }
   };
 
-  // Filter untuk menghindari duplikasi disclaimer - DIPERBAIKI
+  // Filter untuk menghindari duplikasi pesan
   const filteredMessages = useMemo(() => {
     if (!messages || !Array.isArray(messages)) return [];
     
@@ -387,18 +383,6 @@ const ForumPage: React.FC<ForumPageProps> = ({
         return false;
       }
       seenMessageIds.add(message.id);
-      
-      // Untuk disclaimer, juga filter berdasarkan teks
-      if (isChatMessage(message) && 
-          message.type === 'system' && 
-          message.text === DISCLAIMER_MESSAGE_TEXT) {
-        
-        // Hanya izinkan satu disclaimer per room
-        if (seenMessageIds.has('disclaimer')) {
-          return false;
-        }
-        seenMessageIds.add('disclaimer');
-      }
       return true;
     });
   }, [messages]);
