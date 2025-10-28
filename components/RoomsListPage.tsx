@@ -1,12 +1,12 @@
 // components/RoomsListPage.tsx
 import React, { useState, useMemo } from 'react';
 import UserTag, { ADMIN_USERNAMES } from './UserTag';
-// Gunakan tipe yang sudah diperbaiki dari types.ts
+// Impor tipe yang sudah diperbaiki
 import type { Room, User, ExtendedRoomsListPageProps } from '../types'; // <-- GUNAKAN ExtendedRoomsListPageProps
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
-// RoomListItem component (diasumsikan sudah benar dan tidak ada error di sini)
+// Komponen RoomListItem (Tetap sama)
 const RoomListItem: React.FC<{
     room: Room;
     currentUser: User | null;
@@ -16,7 +16,7 @@ const RoomListItem: React.FC<{
     isActive: boolean;
     isJoined: boolean;
     unreadData: { count: number; lastUpdate: number; } | undefined;
-}> = ({ /* ... props ... */ room, currentUser, onJoinRoom, onLeaveRoom, onDeleteRoom, isActive, isJoined, unreadData }) => {
+}> = ({ room, currentUser, onJoinRoom, onLeaveRoom, onDeleteRoom, isActive, isJoined, unreadData }) => {
     const unreadCount = unreadData?.count || 0;
     const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
     const isAdmin = currentUser?.username ? ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(currentUser.username.toLowerCase()) : false;
@@ -75,11 +75,12 @@ const RoomListItem: React.FC<{
 };
 
 
+// Komponen Utama RoomsListPage
 const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({ // <-- GUNAKAN ExtendedRoomsListPageProps
-    // Akses props langsung dari parameter
+    // Destructure props yang didefinisikan di ExtendedRoomsListPageProps
     rooms, onJoinRoom, onCreateRoom, totalUsers, hotCoin, userProfile,
     currentRoomId, joinedRoomIds, onLeaveJoinedRoom, unreadCounts,
-    onDeleteRoom // Terima prop onDeleteRoom
+    onDeleteRoom
 }) => {
     const [newRoomName, setNewRoomName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -201,11 +202,12 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({ // <-- GUNAKAN Ex
                                     room={room}
                                     currentUser={userProfile}
                                     onJoinRoom={onJoinRoom}
-                                    onLeaveRoom={onLeaveJoinedRoom} // Tetap teruskan, meski tidak akan ditampilkan
-                                    onDeleteRoom={onDeleteRoom}    // Tetap teruskan, meski tidak akan ditampilkan
-                                    isActive={false} // Room publik tidak 'aktif' di list ini
-                                    isJoined={false} // Room publik belum dijoin
-                                    unreadData={undefined} // Tidak ada unread untuk room publik yang belum join
+                                    // Props ini diperlukan oleh RoomListItem, meskipun tidak relevan di list publik
+                                    onLeaveRoom={onLeaveJoinedRoom}
+                                    onDeleteRoom={onDeleteRoom}
+                                    isActive={false}
+                                    isJoined={false}
+                                    unreadData={undefined}
                                 />
                             ))}
                         </div>
@@ -219,7 +221,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({ // <-- GUNAKAN Ex
                  )}
             </div>
              <style>{`
-                 /* ... CSS styles ... */
+                 @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
                  @keyframes fade-in-scale { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
                  @keyframes pulse-notification {
                    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 255, 0.7); }

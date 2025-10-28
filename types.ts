@@ -1,5 +1,5 @@
 // types.ts
-import type { CredentialResponse } from '@react-oauth/google'; // <-- TAMBAHKAN IMPOR INI
+import type { CredentialResponse } from '@react-oauth/google'; // <-- TAMBAHKAN IMPOR
 
 // --- Basic Types ---
 export type Page = 'home' | 'rooms' | 'forum' | 'about';
@@ -13,11 +13,11 @@ export interface GoogleProfile {
 }
 
 export interface User {
-  email: string; // From Google or manual registration, unique identifier
-  username: string; // Set during profile completion or manual registration
-  password?: string; // Set during profile completion or manual registration
-  googleProfilePicture?: string; // From Google if applicable
-  createdAt: number; // Timestamp of profile completion/registration
+  email: string;
+  username: string;
+  password?: string;
+  googleProfilePicture?: string;
+  createdAt: number;
 }
 
 
@@ -71,12 +71,12 @@ export interface Room {
   id: string;
   name: string;
   userCount: number;
-  createdBy?: string; // Add createdBy field
+  createdBy?: string;
 }
 
 export interface NewsArticle {
-  id: string; // Can be URL or generated unique ID
-  type: 'news'; // Add type discriminator
+  id: string;
+  type: 'news';
   title: string;
   url: string;
   imageurl: string;
@@ -88,44 +88,36 @@ export interface NewsArticle {
 
 
 export interface ChatMessage {
-  id: string; // Firebase key atau generated unique ID
-  type: 'user' | 'system'; // Add type discriminator
-  uid?: string; // JADIKAN OPSIONAL: Firebase Auth User ID
+  id: string;
+  type: 'user' | 'system';
+  uid?: string; // JADIKAN OPSIONAL
   text?: string;
-  sender: string; // 'system', username aplikasi
+  sender: string;
   timestamp: number;
   fileURL?: string;
   fileName?: string;
   reactions?: { [key: string]: string[] };
 }
 
-// Union type for items in the forum feed
 export type ForumMessageItem = NewsArticle | ChatMessage;
 
 // --- Type Guards ---
 export const isNewsArticle = (item: ForumMessageItem | null | undefined): item is NewsArticle => {
-    if (!!item && item.type === 'news' && typeof (item as NewsArticle).published_on === 'number') {
-        return true;
-    }
-    return false;
+    return !!item && item.type === 'news' && typeof (item as NewsArticle).published_on === 'number';
 };
 export const isChatMessage = (item: ForumMessageItem | null | undefined): item is ChatMessage => {
-     if (!!item && (item.type === 'user' || item.type === 'system') && typeof (item as ChatMessage).timestamp === 'number') {
-        return true;
-    }
-    return false;
+     return !!item && (item.type === 'user' || item.type === 'system') && typeof (item as ChatMessage).timestamp === 'number';
 };
 
 
 // --- Component Props Interfaces ---
-// Ensure definitions are complete
 export interface HeaderProps { userProfile: User | null; onLogout: () => void; activePage: Page; onNavigate: (page: Page) => void; currency: Currency; onCurrencyChange: (currency: Currency) => void; hotCoin: { name: string; logo: string; price: number; change: number; } | null; idrRate: number | null;}
 export interface HomePageProps { idrRate: number | null; isRateLoading: boolean; currency: Currency; onIncrementAnalysisCount: (coinId: string) => void; fullCoinList: CoinListItem[]; isCoinListLoading: boolean; coinListError: string | null; heroCoin: CryptoData | null; otherTrendingCoins: CryptoData[]; isTrendingLoading: boolean; trendingError: string | null; onSelectCoin: (coinId: string) => void; onReloadTrending: () => void;}
 export interface ForumPageProps {
   room: Room | null;
   messages: ForumMessageItem[];
   userProfile: User | null;
-  onSendMessage: (message: Partial<ChatMessage>) => void; // <-- PERBAIKI TIPE INI
+  onSendMessage: (message: Partial<ChatMessage>) => void; // Terima Partial
   onLeaveRoom: () => void;
   onReact: (messageId: string, emoji: string) => void;
   onDeleteMessage: (roomId: string, messageId: string) => void;
@@ -136,7 +128,8 @@ interface BaseRoomsListPageProps {
     onJoinRoom: (room: Room) => void;
     onCreateRoom: (roomName: string) => void;
     totalUsers: number;
-    hotCoin: { name: string; logo: string; price: number; change: number; } | null; // <-- PERBAIKI TIPE hotCoin
+    // Tipe hotCoin harus konsisten dengan yang ada di HeaderProps dan App.tsx
+    hotCoin: { name: string; logo: string; price: number; change: number; } | null;
     userProfile: User | null;
     currentRoomId: string | null;
     joinedRoomIds: Set<string>;
@@ -145,7 +138,7 @@ interface BaseRoomsListPageProps {
 }
 // Definisikan tipe props yang diperluas yang digunakan oleh komponen
 export interface ExtendedRoomsListPageProps extends BaseRoomsListPageProps {
-    onDeleteRoom: (roomId: string) => void; // Tambahkan prop onDeleteRoom
+    onDeleteRoom: (roomId: string) => void;
 }
 
 export interface HeroCoinProps { crypto: CryptoData; onAnalyze: (crypto: CryptoData) => void; idrRate: number | null; currency: Currency;}
