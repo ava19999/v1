@@ -162,7 +162,7 @@ const AppContent = () => {
 
     // Firebase Messages Listener Effect
      useEffect(() => {
-         if (!database) { console.warn("Messages listener skipped: Database not initialized."); if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] })); return () => {}; }
+         if (!database) { console.warn("Messages listener skipped: DB not initialized."); if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] })); return () => {}; }
          if (!currentRoom?.id) { return () => {}; }
 
          const messagesRef = ref(database, `messages/${currentRoom.id}`);
@@ -200,14 +200,11 @@ const AppContent = () => {
 
              setFirebaseMessages(prev => ({
                  ...prev,
-                 // --- PERBAIKAN DI SINI (Error TS1109 baris ~227) ---
-                 // Pastikan callback sort mengembalikan nilai
                  [currentRoom!.id]: finalMessages.sort((a, b) => {
                       const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0);
                       const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0);
-                      return timeA - timeB; // <-- Pastikan ada 'return'
+                      return timeA - timeB;
                   })
-                 // --- AKHIR PERBAIKAN ---
              }));
          }, (error) => {
              console.error(`Firebase listener error room ${currentRoom?.id}:`, error);
@@ -218,7 +215,7 @@ const AppContent = () => {
 
      // News Fetch Effect
      useEffect(() => {
-       if (!database) { console.warn("News fetch skipped: Database not initialized."); return; }
+       if (!database) { console.warn("News fetch skipped: DB not initialized."); return; }
        const currentDb = database;
        const NEWS_ROOM_ID = 'berita-kripto'; const NEWS_FETCH_INTERVAL = 20 * 60 * 1000; const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
        let isMounted = true;
@@ -253,18 +250,10 @@ const AppContent = () => {
                    if (currentRoom?.id !== NEWS_ROOM_ID) { setUnreadCounts(prev => ({ ...prev, [NEWS_ROOM_ID]: { count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length, lastUpdate: currentTime } })); }
                } else if (isMounted) { console.log("No new unique articles."); }
            } catch (err: unknown) {
-               // --- PERBAIKAN DI SINI (Error TS1109 baris ~249) ---
                let errorMessage = 'Unknown news fetch error';
-               if (err instanceof Error) {
-                  errorMessage = err.message;
-               } else if (typeof err === 'string') {
-                  errorMessage = err; // Gunakan string langsung jika itu tipenya
-               }
-               // Pastikan isMounted dicek sebelum console.error
-               if (isMounted) {
-                   console.error("News fetch failed:", errorMessage);
-               }
-               // --- AKHIR PERBAIKAN ---
+               if (err instanceof Error) { errorMessage = err.message; }
+               else if (typeof err === 'string') { errorMessage = err; }
+               if (isMounted) { console.error("News fetch failed:", errorMessage); }
            }
        };
        fetchAndProcessNews();
@@ -355,24 +344,39 @@ const AppContent = () => {
     const handleLeaveRoom = useCallback(() => { setCurrentRoom(null); setActivePage('rooms'); }, []);
     const handleLeaveJoinedRoom = useCallback((roomId: string) => { if (DEFAULT_ROOM_IDS.includes(roomId)) return; setJoinedRoomIds(prev => { const newIds = new Set(prev); newIds.delete(roomId); return newIds; }); if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); } }, [currentRoom]);
     const handleCreateRoom = useCallback((roomName: string) => { if (!currentUser?.username) { alert("Login dulu."); return; } const trimmedName = roomName.trim(); if (rooms.some(r => r.name.toLowerCase() === trimmedName.toLowerCase())) { alert('Nama room sudah ada.'); return; } const newRoom: Room = { id: trimmedName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), name: trimmedName, userCount: 1, createdBy: currentUser.username }; setRooms(prev => [newRoom, ...prev]); handleJoinRoom(newRoom); }, [handleJoinRoom, rooms, currentUser]);
+
     const handleDeleteRoom = useCallback((roomId: string) => {
-        if (!currentUser?.username || !database || !firebaseUser) { console.warn("Delete room prerequisites failed."); return; }
+        // --- PERBAIKAN DI SINI (Error TS2345 baris ~371) ---
+        // Pastikan database tidak null SEBELUM memanggil ref
+        if (!currentUser?.username || !database || !firebaseUser) {
+             console.warn("Delete room prerequisites failed.");
+             return; // Hentikan eksekusi jika database null
+        }
+        // --- AKHIR PERBAIKAN ---
+
         const roomToDelete = rooms.find(r => r.id === roomId);
         if (!roomToDelete || DEFAULT_ROOM_IDS.includes(roomId)) return;
+
+        // database di sini sudah pasti tidak null
         const adminsRef = ref(database, 'admins/' + firebaseUser.uid);
         get(adminsRef).then((snapshot) => {
             const isAdmin = snapshot.exists() && snapshot.val() === true;
             const isCreator = roomToDelete.createdBy === currentUser.username;
+
             if (!isAdmin && !isCreator) { alert("Hanya admin/pembuat yang bisa hapus."); return; }
+
             if (window.confirm(`Hapus room "${roomToDelete.name}"?`)) {
                 setRooms(prev => prev.filter(r => r.id !== roomId));
                 setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; });
                 if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
+                // database di sini sudah pasti tidak null
                 const messagesRef = ref(database, `messages/${roomId}`);
                 set(messagesRef, null).catch(error => console.error(`Gagal hapus pesan room ${roomId}:`, error));
             }
         }).catch(error => console.error("Gagal memeriksa status admin:", error));
+
     }, [currentUser, rooms, currentRoom, database, firebaseUser]);
+
     const handleSendMessage = useCallback((message: Partial<ChatMessage>) => {
         if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username) { console.error("Prasyarat kirim pesan gagal", { db: !!database, room: currentRoom?.id, fbUid: firebaseUser?.uid, appUser: currentUser?.username }); alert("Gagal mengirim: Belum login atau data tidak lengkap."); return; }
         const messageToSend: Omit<ChatMessage, 'id'> = { type: 'user', uid: firebaseUser.uid, sender: currentUser.username, timestamp: Date.now(), reactions: {}, ...(message.text && { text: message.text }), ...(message.fileURL && { fileURL: message.fileURL }), ...(message.fileName && { fileName: message.fileName }), };
@@ -381,6 +385,7 @@ const AppContent = () => {
         const newMessageRef = push(messageListRef);
         set(newMessageRef, messageToSend).catch((error) => { console.error("Firebase send error:", error); alert(`Gagal mengirim pesan.${error.code === 'PERMISSION_DENIED' ? ' Akses ditolak.' : ''}`); });
     }, [currentRoom, currentUser, database, firebaseUser]);
+
     const handleReaction = useCallback((messageId: string, emoji: string) => {
         if (!database || !currentRoom?.id || !firebaseUser?.uid || !messageId) { console.warn("React prerequisites failed"); return; }
         const username = currentUser?.username;
@@ -393,6 +398,7 @@ const AppContent = () => {
             set(reactionUserListRef, updatedUsers).catch(error => console.error("Update reaction failed:", error));
         }).catch(error => console.error("Get reaction failed:", error));
     }, [currentRoom, currentUser, database, firebaseUser]);
+
     const handleDeleteMessage = useCallback((roomId: string, messageId: string) => {
         if (!database || !roomId || !messageId) { console.error("Cannot delete message."); return; }
         const messageRef = ref(database, `messages/${roomId}/${messageId}`);
