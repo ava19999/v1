@@ -10,7 +10,7 @@ const formatDate = (unixTimestamp: number): string =>
   new Date(unixTimestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
 const EMOJIS = ['👍', '❤️', '🚀', '🔥', '😂', '🤯'];
 
-// --- Sub-komponen ---
+/* ------------------------- Sub-komponen ------------------------- */
 
 // Reaction Picker (Emoji Selector) - Centralized Modal
 const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) => (
@@ -114,7 +114,7 @@ const ReactButton: React.FC<{ onClick: (e: React.MouseEvent) => void }> = ({ onC
   </button>
 );
 
-// News Message Component
+/* ------------------------- News Message ------------------------- */
 const NewsMessage: React.FC<{
   article: NewsArticle;
   username: string;
@@ -190,7 +190,7 @@ const NewsMessage: React.FC<{
   );
 };
 
-// User Message Component
+/* ------------------------- User Message ------------------------- */
 const UserMessage: React.FC<{
   message: ChatMessage;
   userProfile: User | null;
@@ -258,7 +258,7 @@ const UserMessage: React.FC<{
           {message.text}
         </div>
 
-        {/* Waktu di bawah bubble */}
+        {/* Waktu di bawah bubble (di luar bubble) */}
         <div className={`text-[10px] text-gray-500 mt-0.5 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
           {formatDate(message.timestamp)}
         </div>
@@ -281,7 +281,7 @@ const UserMessage: React.FC<{
   );
 };
 
-// --- Komponen Lainnya (SystemMessage, AnnouncementMessage tetap sama) ---
+/* ------------------------- System & Announcement ------------------------- */
 const SystemMessage: React.FC<{ message: ChatMessage }> = ({ message }) => (
   <div className="text-center text-xs text-gray-500 py-2 italic animate-fade-in-up">{message.text}</div>
 );
@@ -327,7 +327,7 @@ const AnnouncementMessage: React.FC<{ message: ChatMessage }> = ({ message }) =>
   );
 };
 
-// ForumPage Component Utama
+/* ------------------------- ForumPage Component Utama ------------------------- */
 const ForumPage: React.FC<ForumPageProps> = ({
   room,
   messages = [],
@@ -347,7 +347,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const [showPickerForMsgId, setShowPickerForMsgId] = useState<string | null>(null);
 
-  // State untuk image preview modal
+  // Image preview modal
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const onImageClick = (url: string) => setPreviewImage(url);
 
@@ -356,9 +356,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
     setActiveMessageId((currentId) => {
       const isCurrentlyActive = currentId === messageId;
       const nextActiveId = isCurrentlyActive ? null : messageId;
-      if (showPickerForMsgId) {
-        setShowPickerForMsgId(null);
-      }
+      if (showPickerForMsgId) setShowPickerForMsgId(null);
       return nextActiveId;
     });
   };
@@ -367,21 +365,15 @@ const ForumPage: React.FC<ForumPageProps> = ({
   const handleReactButtonClick = (e: React.MouseEvent, messageId: string) => {
     e.stopPropagation();
     setShowPickerForMsgId(messageId);
-    if (activeMessageId !== messageId) {
-      setActiveMessageId(messageId);
-    }
+    if (activeMessageId !== messageId) setActiveMessageId(messageId);
   };
 
   // Handler untuk menutup picker/actions saat klik di area chat
   const handleChatAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const targetElement = e.target as Element;
     if (!targetElement.closest('[data-message-interactive="true"]')) {
-      if (activeMessageId !== null) {
-        setActiveMessageId(null);
-      }
-      if (showPickerForMsgId !== null) {
-        setShowPickerForMsgId(null);
-      }
+      if (activeMessageId !== null) setActiveMessageId(null);
+      if (showPickerForMsgId !== null) setShowPickerForMsgId(null);
     }
   };
 
@@ -397,6 +389,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
       return timeA - timeB;
     });
   }, [safeMessages]);
+
   useEffect(() => {
     if (activeMessageId === null && chatEndRef.current) {
       chatEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' });
@@ -407,9 +400,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
     e.preventDefault();
     const currentMessageText = newMessage.trim();
     const currentAttachment = attachment;
-    if ((!currentMessageText && !currentAttachment) || !username) {
-      return;
-    }
+    if ((!currentMessageText && !currentAttachment) || !username) return;
     const messageData: Partial<ChatMessage> & { type: 'user'; sender: string; timestamp: number } = {
       type: 'user',
       sender: username,
@@ -429,9 +420,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
       reader.onloadend = () => {
-        if (reader.result) {
-          setAttachment({ dataUrl: reader.result as string, name: file.name });
-        }
+        if (reader.result) setAttachment({ dataUrl: reader.result as string, name: file.name });
       };
       reader.readAsDataURL(file);
     } else {
