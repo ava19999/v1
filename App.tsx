@@ -59,12 +59,62 @@ const defaultMessages: { [key: string]: ForumMessageItem[] } = {
 const DISCLAIMER_MESSAGE_TEXT =
   '⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.';
 
-// Sound notification
+// Helper function untuk safely menggunakan database
+const safeRef = (path: string) => {
+  if (!database) {
+    throw new Error('Database not initialized');
+  }
+  return ref(database, path);
+};
+
+// Sound notification yang lebih reliable
 const playNotificationSound = () => {
   try {
-    const audio = new Audio('/notification.mp3');
-    audio.volume = 0.3;
-    audio.play().catch(e => console.log('Gagal memutar suara notifikasi:', e));
+    // Coba beberapa sumber audio
+    const audioSources = [
+      '/notification.mp3',
+      '/sounds/notification.mp3',
+      './notification.mp3'
+    ];
+    
+    let audioPlayed = false;
+    
+    audioSources.forEach((src, index) => {
+      if (!audioPlayed) {
+        const audio = new Audio(src);
+        audio.volume = 0.7;
+        
+        audio.play().then(() => {
+          console.log('🔊 Suara notifikasi diputar');
+          audioPlayed = true;
+        }).catch(e => {
+          if (index === audioSources.length - 1) {
+            console.log('Semua sumber suara gagal:', e);
+            // Fallback: buat suara menggunakan Web Audio API
+            try {
+              const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+              const oscillator = audioContext.createOscillator();
+              const gainNode = audioContext.createGain();
+              
+              oscillator.connect(gainNode);
+              gainNode.connect(audioContext.destination);
+              
+              oscillator.frequency.value = 800;
+              oscillator.type = 'sine';
+              gainNode.gain.value = 0.3;
+              
+              oscillator.start();
+              gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
+              oscillator.stop(audioContext.currentTime + 0.5);
+              
+              console.log('🔊 Suara fallback diputar');
+            } catch (fallbackError) {
+              console.log('Fallback sound juga gagal:', fallbackError);
+            }
+          }
+        });
+      }
+    });
   } catch (error) {
     console.log('Error memutar suara notifikasi:', error);
   }
@@ -87,14 +137,6 @@ const Particles: React.FC = () => (
     `}</style>
   </div>
 );
-
-// Helper function untuk safely menggunakan database
-const safeRef = (path: string) => {
-  if (!database) {
-    throw new Error('Database not initialized');
-  }
-  return ref(database, path);
-};
 
 const AppContent: React.FC = () => {
   const [activePage, setActivePage] = useState<Page>('home');
@@ -137,9 +179,27 @@ const AppContent: React.FC = () => {
   const [lastMessageTimestamps, setLastMessageTimestamps] = useState<{ [roomId: string]: number }>({});
   const [userLastVisit, setUserLastVisit] = useState<{ [roomId: string]: number }>({});
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
+  const [disclaimerShown, setDisclaimerShown] = useState<{ [roomId: string]: boolean }>({});
 
   // Ref untuk melacak total unread count sebelumnya
   const prevTotalUnreadRef = useRef<number>(0);
+
+  // Load disclaimer status dari localStorage
+  useEffect(() => {
+    const saved = localStorage.getItem('disclaimerShown');
+    if (saved) {
+      try {
+        setDisclaimerShown(JSON.parse(saved));
+      } catch (e) {
+        console.error('Gagal load disclaimer status:', e);
+      }
+    }
+  }, []);
+
+  // Simpan disclaimer status ke localStorage
+  useEffect(() => {
+    localStorage.setItem('disclaimerShown', JSON.stringify(disclaimerShown));
+  }, [disclaimerShown]);
 
   const fetchTrendingData = useCallback(async (showSkeleton = true) => {
     if (showSkeleton) { setIsTrendingLoading(true); setTrendingError(null); }
@@ -184,6 +244,41 @@ const AppContent: React.FC = () => {
       console.error('Gagal mengambil berita kripto:', error);
     }
   }, [currentRoom]);
+
+  // Fungsi untuk menambahkan disclaimer ke room
+  const addDisclaimerToRoom = useCallback((roomId: string) => {
+    if (!database || roomId === 'berita-kripto') return;
+
+    // Cek apakah disclaimer sudah ditampilkan untuk room ini
+    if (disclaimerShown[roomId]) return;
+
+    const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
+      type: 'system',
+      text: DISCLAIMER_MESSAGE_TEXT,
+      sender: 'system',
+      timestamp: Date.now(),
+      reactions: {}
+    };
+
+    try {
+      const messageListRef = safeRef(`messages/${roomId}`);
+      const newMessageRef = push(messageListRef);
+      set(newMessageRef, disclaimerMsg)
+        .then(() => {
+          console.log(`✅ Disclaimer ditambahkan ke room: ${roomId}`);
+          // Tandai disclaimer sudah ditampilkan untuk room ini
+          setDisclaimerShown(prev => ({
+            ...prev,
+            [roomId]: true
+          }));
+        })
+        .catch(error => {
+          console.error('Gagal menambahkan disclaimer:', error);
+        });
+    } catch (error) {
+      console.error('Error adding disclaimer:', error);
+    }
+  }, [database, disclaimerShown]);
 
   useEffect(() => {
     try {
@@ -324,13 +419,22 @@ const AppContent: React.FC = () => {
     return Object.values(unreadCounts).reduce((total, count) => total + count, 0);
   }, [unreadCounts]);
 
-  // Play sound ketika unread count bertambah
+  // Play sound ketika unread count bertambah - LOGIKA DIPERBAIKI
   useEffect(() => {
-    if (totalUnreadCount > prevTotalUnreadRef.current && prevTotalUnreadRef.current > 0) {
+    const currentTotal = totalUnreadCount;
+    const previousTotal = prevTotalUnreadRef.current;
+    
+    // Mainkan sound hanya jika:
+    // 1. Ada peningkatan jumlah unread
+    // 2. Bukan dari 0 (saat pertama kali load)
+    // 3. Peningkatan terjadi saat user tidak sedang di room tersebut
+    if (currentTotal > previousTotal && previousTotal > 0 && currentRoom) {
+      console.log(`🎯 Unread count meningkat: ${previousTotal} → ${currentTotal}`);
       playNotificationSound();
     }
-    prevTotalUnreadRef.current = totalUnreadCount;
-  }, [totalUnreadCount]);
+    
+    prevTotalUnreadRef.current = currentTotal;
+  }, [totalUnreadCount, currentRoom]);
 
   useEffect(() => {
     if (!database) {
@@ -407,7 +511,7 @@ const AppContent: React.FC = () => {
 
       setFirebaseMessages(prev => ({ ...prev, [currentRoom.id!]: finalMessages }));
 
-      // Update unread counts untuk room lain
+      // RESET UNREAD COUNT - PASTIKAN INI DIJALANKAN
       if (currentRoom.id) {
         const currentTime = Date.now();
         setUserLastVisit(prev => ({
@@ -420,6 +524,8 @@ const AppContent: React.FC = () => {
           ...prev,
           [currentRoom.id!]: 0
         }));
+        
+        console.log(`✅ Unread count direset untuk room: ${currentRoom.id}`);
       }
     }, (error) => {
       console.error(`Firebase listener error room ${currentRoom?.id}:`, error);
@@ -429,7 +535,7 @@ const AppContent: React.FC = () => {
     return () => {
       if (database) off(messagesRef, 'value', listener);
     };
-  }, [currentRoom, lastMessageTimestamps]);
+  }, [currentRoom, database, lastMessageTimestamps]);
 
   // Listener untuk semua room untuk unread counts (kecuali berita kripto)
   useEffect(() => {
@@ -445,20 +551,24 @@ const AppContent: React.FC = () => {
         const data = snapshot.val();
         if (!data) return;
 
-        let latestTimestamp = 0;
+        // Hitung pesan baru berdasarkan timestamp
+        let newMessagesCount = 0;
+        const lastVisit = userLastVisit[roomId] || 0;
+        
         Object.values(data).forEach((msgData: any) => {
           const timestamp = msgData.published_on ? msgData.published_on * 1000 : msgData.timestamp;
-          if (timestamp > latestTimestamp) {
-            latestTimestamp = timestamp;
+          if (timestamp > lastVisit) {
+            newMessagesCount++;
           }
         });
 
-        if (latestTimestamp > (userLastVisit[roomId] || 0)) {
-          const newMessagesCount = Object.keys(data).length;
+        // Update unread count hanya jika ada pesan baru
+        if (newMessagesCount > 0) {
           setUnreadCounts(prev => ({
             ...prev,
-            [roomId]: newMessagesCount
+            [roomId]: (prev[roomId] || 0) + newMessagesCount
           }));
+          console.log(`📨 Pesan baru di ${roomId}: ${newMessagesCount} pesan`);
         }
       });
 
@@ -468,7 +578,7 @@ const AppContent: React.FC = () => {
     return () => {
       roomUnsubscribes.forEach(unsubscribe => unsubscribe());
     };
-  }, [joinedRoomIds, currentRoom, userLastVisit]);
+  }, [joinedRoomIds, currentRoom, database, userLastVisit]);
 
   const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => {
     setAuthError(null);
@@ -583,29 +693,14 @@ const AppContent: React.FC = () => {
       [room.id]: 0
     }));
 
-    // Tambahkan disclaimer jika room baru atau belum ada pesan (kecuali room berita kripto)
-    if (database && room.id !== 'berita-kripto' && (!firebaseMessages[room.id] || firebaseMessages[room.id].length === 0)) {
-      try {
-        const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
-          type: 'system',
-          text: DISCLAIMER_MESSAGE_TEXT,
-          sender: 'system',
-          timestamp: Date.now(),
-          reactions: {}
-        };
-
-        const messageListRef = safeRef(`messages/${room.id}`);
-        const newMessageRef = push(messageListRef);
-        set(newMessageRef, disclaimerMsg).catch(error => {
-          console.error('Gagal menambahkan disclaimer:', error);
-        });
-      } catch (error) {
-        console.error('Error adding disclaimer:', error);
-      }
+    // TAMBAHKAN DISCLAIMER KE SEMUA ROOM (kecuali berita-kripto) SAAT USER MASUK
+    // TIDAK PERLU CEK APAKAH ROOM KOSONG ATAU TIDAK
+    if (database && room.id !== 'berita-kripto') {
+      addDisclaimerToRoom(room.id);
     }
     
     setActivePage('forum');
-  }, [firebaseMessages]);
+  }, [database, addDisclaimerToRoom]);
 
   const handleLeaveRoom = useCallback(() => { 
     setCurrentRoom(null); 
@@ -621,40 +716,33 @@ const AppContent: React.FC = () => {
   }, [currentRoom]);
 
   const handleCreateRoom = useCallback((roomName: string) => {
-    if (!currentUser?.username) { alert('Anda harus login untuk membuat room.'); return; }
+    if (!currentUser?.username) { 
+      alert('Anda harus login untuk membuat room.'); 
+      return; 
+    }
+    
     const trimmedName = roomName.trim();
-    if (rooms.some(r => r.name.toLowerCase() === trimmedName.toLowerCase())) { alert('Nama room sudah ada. Silakan pilih nama lain.'); return; }
+    if (rooms.some(r => r.name.toLowerCase() === trimmedName.toLowerCase())) { 
+      alert('Nama room sudah ada. Silakan pilih nama lain.'); 
+      return; 
+    }
+    
     const newRoom: Room = { 
       id: trimmedName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), 
       name: trimmedName, 
       userCount: 1, 
       createdBy: currentUser.username 
     };
+    
     setRooms(prev => [newRoom, ...prev]);
     
-    // Tambahkan disclaimer ke room baru
+    // TAMBAHKAN DISCLAIMER KE ROOM BARU
     if (database) {
-      try {
-        const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
-          type: 'system',
-          text: DISCLAIMER_MESSAGE_TEXT,
-          sender: 'system',
-          timestamp: Date.now(),
-          reactions: {}
-        };
-
-        const messageListRef = safeRef(`messages/${newRoom.id}`);
-        const newMessageRef = push(messageListRef);
-        set(newMessageRef, disclaimerMsg).catch(error => {
-          console.error('Gagal menambahkan disclaimer ke room baru:', error);
-        });
-      } catch (error) {
-        console.error('Error creating room:', error);
-      }
+      addDisclaimerToRoom(newRoom.id);
     }
     
     handleJoinRoom(newRoom);
-  }, [handleJoinRoom, rooms, currentUser]);
+  }, [handleJoinRoom, rooms, currentUser, database, addDisclaimerToRoom]);
 
   const handleDeleteRoom = useCallback((roomId: string) => {
     if (!currentUser?.username || !firebaseUser) { 

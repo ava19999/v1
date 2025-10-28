@@ -6,8 +6,8 @@ import { isNewsArticle, isChatMessage } from '../types';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
-const formatDate = (unixTimestamp: number): string =>
-  new Date(unixTimestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' });
+const DISCLAIMER_MESSAGE_TEXT = '⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.';
+
 const EMOJIS = ['👍', '❤️', '🚀', '🔥', '😂', '🤯'];
 
 /* ------------------------- Sub-komponen ------------------------- */
@@ -164,7 +164,7 @@ const NewsMessage: React.FC<{
             </div>
           </div>
           <div className="text-center text-xs text-gray-500 pt-2 mt-2 border-t border-white/5">
-            Pasar · {formatDate(article.published_on * 1000)}
+            Pasar · {new Date(article.published_on * 1000).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
           </div>
         </div>
 
@@ -256,7 +256,7 @@ const UserMessage: React.FC<{
         </div>
 
         <div className={`text-[10px] text-gray-500 mt-0.5 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
-          {formatDate(message.timestamp)}
+          {new Date(message.timestamp).toLocaleTimeString('id-ID', { hour: '2-digit', minute: '2-digit' })}
         </div>
 
         <div className="relative mt-0.5 px-1 flex justify-between items-start">
@@ -376,7 +376,26 @@ const ForumPage: React.FC<ForumPageProps> = ({
     }
   };
 
-  const safeMessages = Array.isArray(messages) ? messages : [];
+  // Filter untuk menghindari duplikasi disclaimer
+  const filteredMessages = useMemo(() => {
+    if (!messages || !Array.isArray(messages)) return [];
+    
+    const seenDisclaimerIds = new Set();
+    return messages.filter(message => {
+      if (isChatMessage(message) && 
+          message.type === 'system' && 
+          message.text === DISCLAIMER_MESSAGE_TEXT) {
+        
+        if (seenDisclaimerIds.has(message.id)) {
+          return false; // Hapus duplikat
+        }
+        seenDisclaimerIds.add(message.id);
+      }
+      return true;
+    });
+  }, [messages]);
+
+  const safeMessages = Array.isArray(filteredMessages) ? filteredMessages : [];
   const sortedMessages = useMemo(() => {
     return [...safeMessages].sort((a, b) => {
       const timeA = isNewsArticle(a) ? a.published_on * 1000 : isChatMessage(a) ? a.timestamp : 0;

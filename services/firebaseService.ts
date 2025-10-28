@@ -1,11 +1,11 @@
 // ava19999/v1/v1-7937f4b735b14d55e5e6024522254b32b9924b3b/services/firebaseService.ts
 import { initializeApp, FirebaseApp, FirebaseOptions } from "firebase/app";
-import { getDatabase, Database } from "firebase/database"; // Import Database type
+import { getDatabase, Database } from "firebase/database";
 // Import getAnalytics jika Anda menggunakannya
 // import { getAnalytics } from "firebase/analytics";
 
 // Buat objek konfigurasi dari variabel process.env
-const firebaseConfig = {
+const firebaseConfig: FirebaseOptions = {
   apiKey: process.env.FIREBASE_API_KEY,
   authDomain: process.env.FIREBASE_AUTH_DOMAIN,
   databaseURL: process.env.FIREBASE_DATABASE_URL,
@@ -17,32 +17,70 @@ const firebaseConfig = {
 };
 
 let app: FirebaseApp | null = null;
-let database: Database | null = null; // Tipe eksplisit Database | null
+let database: Database | null = null;
 
-// Validasi dan Inisialisasi dalam try-catch
-try {
-  // Validasi konfigurasi dasar
-  if (!firebaseConfig?.apiKey || !firebaseConfig?.databaseURL || !firebaseConfig?.projectId) {
-    throw new Error("Konfigurasi Firebase tidak lengkap! Pastikan API Key, DatabaseURL, dan ProjectId ada.");
-  }
+// Fungsi untuk mendapatkan instance Firebase (Singleton Pattern)
+export const getFirebaseApp = (): FirebaseApp | null => {
+  if (app) return app;
+  
+  try {
+    // Validasi konfigurasi yang lebih ketat
+    const requiredConfigs = [
+      { key: 'apiKey', value: firebaseConfig.apiKey },
+      { key: 'databaseURL', value: firebaseConfig.databaseURL },
+      { key: 'projectId', value: firebaseConfig.projectId },
+      { key: 'appId', value: firebaseConfig.appId }
+    ];
 
-  // Inisialisasi Firebase
-  // Berikan tipe FirebaseOptions secara eksplisit untuk kejelasan
-  app = initializeApp(firebaseConfig as FirebaseOptions);
+    const missingConfigs = requiredConfigs.filter(config => !config.value);
+    
+    if (missingConfigs.length > 0) {
+      const missingKeys = missingConfigs.map(config => config.key).join(', ');
+      throw new Error(`Konfigurasi Firebase tidak lengkap! Missing: ${missingKeys}`);
+    }
 
-  // Dapatkan instance Realtime Database
-  database = getDatabase(app);
-
-  console.log("Firebase initialized successfully."); // Konfirmasi inisialisasi
-
-  // Inisialisasi Analytics jika diperlukan
-  // const analytics = getAnalytics(app);
-
-} catch (error) {
+    // Inisialisasi Firebase
+    app = initializeApp(firebaseConfig);
+    console.log("Firebase initialized successfully.");
+    
+    return app;
+  } catch (error) {
     console.error("Gagal menginisialisasi Firebase:", error);
-    // Biarkan app dan database tetap null jika gagal
-    // Anda bisa menambahkan logic fallback atau menampilkan pesan error di UI dari sini
+    return null;
+  }
+};
+
+// Fungsi untuk mendapatkan instance Database
+export const getDatabaseInstance = (): Database | null => {
+  if (database) return database;
+  
+  const firebaseApp = getFirebaseApp();
+  if (!firebaseApp) return null;
+  
+  try {
+    database = getDatabase(firebaseApp);
+    return database;
+  } catch (error) {
+    console.error("Gagal mendapatkan instance database:", error);
+    return null;
+  }
+};
+
+// Inisialisasi otomatis saat module dimuat
+try {
+  getFirebaseApp();
+  getDatabaseInstance();
+} catch (error) {
+  console.error("Automatic initialization failed:", error);
 }
 
-// Ekspor instance database (bisa jadi null jika inisialisasi gagal)
-export { database };
+// Ekspor instance untuk backward compatibility
+export { app, database };
+
+// Ekspor default untuk kemudahan penggunaan
+export default {
+  app,
+  database,
+  getFirebaseApp,
+  getDatabaseInstance
+};
