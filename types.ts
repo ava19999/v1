@@ -1,4 +1,5 @@
 // types.ts
+import type { CredentialResponse } from '@react-oauth/google'; // <-- TAMBAHKAN IMPOR INI
 
 // --- Basic Types ---
 export type Page = 'home' | 'rooms' | 'forum' | 'about';
@@ -117,21 +118,38 @@ export const isChatMessage = (item: ForumMessageItem | null | undefined): item i
 
 
 // --- Component Props Interfaces ---
+// Ensure definitions are complete
 export interface HeaderProps { userProfile: User | null; onLogout: () => void; activePage: Page; onNavigate: (page: Page) => void; currency: Currency; onCurrencyChange: (currency: Currency) => void; hotCoin: { name: string; logo: string; price: number; change: number; } | null; idrRate: number | null;}
 export interface HomePageProps { idrRate: number | null; isRateLoading: boolean; currency: Currency; onIncrementAnalysisCount: (coinId: string) => void; fullCoinList: CoinListItem[]; isCoinListLoading: boolean; coinListError: string | null; heroCoin: CryptoData | null; otherTrendingCoins: CryptoData[]; isTrendingLoading: boolean; trendingError: string | null; onSelectCoin: (coinId: string) => void; onReloadTrending: () => void;}
 export interface ForumPageProps {
   room: Room | null;
   messages: ForumMessageItem[];
   userProfile: User | null;
-  onSendMessage: (message: Partial<ChatMessage>) => void; // Ubah tipe parameter di sini
+  onSendMessage: (message: Partial<ChatMessage>) => void; // <-- PERBAIKI TIPE INI
   onLeaveRoom: () => void;
   onReact: (messageId: string, emoji: string) => void;
   onDeleteMessage: (roomId: string, messageId: string) => void;
 }
-// Definisikan tipe props baru jika berbeda dari BaseRoomsListPageProps
-export interface ExtendedRoomsListPageProps { rooms: Room[]; onJoinRoom: (room: Room) => void; onCreateRoom: (roomName: string) => void; totalUsers: number; hotCoin: { name: string; logo: string } | null; userProfile: User | null; currentRoomId: string | null; joinedRoomIds: Set<string>; onLeaveJoinedRoom: (roomId: string) => void; unreadCounts: { [key: string]: { count: number; lastUpdate: number } }; onDeleteRoom: (roomId: string) => void;}
+// Definisikan tipe dasar untuk RoomsListPage
+interface BaseRoomsListPageProps {
+    rooms: Room[];
+    onJoinRoom: (room: Room) => void;
+    onCreateRoom: (roomName: string) => void;
+    totalUsers: number;
+    hotCoin: { name: string; logo: string; price: number; change: number; } | null; // <-- PERBAIKI TIPE hotCoin
+    userProfile: User | null;
+    currentRoomId: string | null;
+    joinedRoomIds: Set<string>;
+    onLeaveJoinedRoom: (roomId: string) => void;
+    unreadCounts: { [key: string]: { count: number; lastUpdate: number } };
+}
+// Definisikan tipe props yang diperluas yang digunakan oleh komponen
+export interface ExtendedRoomsListPageProps extends BaseRoomsListPageProps {
+    onDeleteRoom: (roomId: string) => void; // Tambahkan prop onDeleteRoom
+}
+
 export interface HeroCoinProps { crypto: CryptoData; onAnalyze: (crypto: CryptoData) => void; idrRate: number | null; currency: Currency;}
 export interface CryptoCardProps { crypto: CryptoData; onAnalyze: (crypto: CryptoData) => void; idrRate: number | null; currency: Currency;}
 export interface AnalysisModalProps { isOpen: boolean; onClose: () => void; crypto: CryptoData; analysisResult: AnalysisResult | null; isLoading: boolean; error: string | null; exchangeTickers: ExchangeTicker[]; isTickersLoading: boolean; tickersError: string | null; idrRate: number | null; currency: Currency;}
-export interface LoginPageProps { onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void; onLogin: (usernameOrEmail: string, password: string) => Promise<string | void>;} // Hapus onRegister dan onVerify jika tidak dipakai lagi
+export interface LoginPageProps { onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void; onLogin: (usernameOrEmail: string, password: string) => Promise<string | void>;}
 export interface CreateIdPageProps { onProfileComplete: (username: string, password: string) => Promise<string | void>; googleProfile: GoogleProfile;}

@@ -1,12 +1,12 @@
-// ava19999/v1/v1-bd6bb89086392f465ed88da023587c34863020f2/components/RoomsListPage.tsx
 // components/RoomsListPage.tsx
 import React, { useState, useMemo } from 'react';
-// Perbaiki impor: gunakan kurung kurawal untuk named export
 import UserTag, { ADMIN_USERNAMES } from './UserTag';
-import type { Room, RoomsListPageProps as BaseRoomsListPageProps, User } from '../types';
+// Gunakan tipe yang sudah diperbaiki dari types.ts
+import type { Room, User, ExtendedRoomsListPageProps } from '../types'; // <-- GUNAKAN ExtendedRoomsListPageProps
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
+// RoomListItem component (diasumsikan sudah benar dan tidak ada error di sini)
 const RoomListItem: React.FC<{
     room: Room;
     currentUser: User | null;
@@ -16,58 +16,38 @@ const RoomListItem: React.FC<{
     isActive: boolean;
     isJoined: boolean;
     unreadData: { count: number; lastUpdate: number; } | undefined;
-}> = ({
-    room,
-    currentUser,
-    onJoinRoom,
-    onLeaveRoom,
-    onDeleteRoom,
-    isActive,
-    isJoined,
-    unreadData,
-}) => {
+}> = ({ /* ... props ... */ room, currentUser, onJoinRoom, onLeaveRoom, onDeleteRoom, isActive, isJoined, unreadData }) => {
     const unreadCount = unreadData?.count || 0;
     const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
-
-    // Pastikan currentUser ada sebelum mengakses username
     const isAdmin = currentUser?.username ? ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(currentUser.username.toLowerCase()) : false;
-    // Pastikan properti createdBy ada sebelum membandingkan
     const isCreator = room.createdBy === currentUser?.username;
-    // Logika Visibilitas Tombol
     const canDelete = (isAdmin || isCreator) && !isDefaultRoom;
-    const canLeave = isJoined && !isDefaultRoom; // Bisa keluar jika sudah join dan bukan default
+    const canLeave = isJoined && !isDefaultRoom;
 
     const handleActionClick = (e: React.MouseEvent, action: () => void) => {
-        e.stopPropagation(); // Mencegah event klik menyebar ke elemen induk (div room)
+        e.stopPropagation();
         action();
     };
 
     return (
         <div
-            onClick={() => onJoinRoom(room)} // Klik div utama akan join room
+            onClick={() => onJoinRoom(room)}
             className={`flex items-center justify-between gap-2 p-2.5 rounded-lg cursor-pointer transition-all duration-200 group relative ${isActive ? 'bg-electric/20 border-electric/50' : 'bg-gray-900/70 hover:bg-gray-800/50 border-transparent'} border`}
         >
-            {/* Informasi Room (Nama, dll.) */}
             <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <div className="flex-1 overflow-hidden">
                     <h3 className="font-bold text-gray-100 truncate text-sm">{room.name}</h3>
-                     {/* Tampilkan pembuat room jika ada */}
                      {room.createdBy && !isDefaultRoom && (
                         <p className="text-xs text-gray-500 truncate">Dibuat oleh: {room.createdBy}</p>
                      )}
                 </div>
             </div>
-
-            {/* Indikator & Tombol Aksi */}
             <div className="flex items-center gap-2 flex-shrink-0">
-                {/* Indikator Unread */}
                 {unreadCount > 0 && (
                      <div className="bg-magenta text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse-notification flex-shrink-0">
                         {unreadCount}
                     </div>
                 )}
-
-                {/* Indikator Jumlah User (untuk room non-default) */}
                 {!isDefaultRoom && (
                     <div className="text-right text-xs text-gray-400 flex items-center gap-1.5 flex-shrink-0">
                         <span className="relative flex h-2 w-2">
@@ -77,40 +57,15 @@ const RoomListItem: React.FC<{
                         <span>{room.userCount.toLocaleString('id-ID')}</span>
                     </div>
                  )}
-
-                 {/* Tombol Aksi (Keluar/Hapus) */}
-                 {/* Muncul saat hover atau jika item aktif */}
                  <div className={`flex items-center gap-1 transition-opacity duration-200 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
-                    {/* Tombol Keluar (Ditampilkan jika canLeave true) */}
-                    {/* Sekarang admin juga bisa keluar */}
                     {canLeave && (
-                        <button
-                            onClick={(e) => handleActionClick(e, () => onLeaveRoom(room.id))}
-                            title="Keluar Room"
-                            className="p-1 rounded-full text-gray-400 hover:bg-gray-600/50 hover:text-white transition-colors"
-                        >
-                            {/* Ikon Keluar */}
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                              <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
-                            </svg>
+                        <button onClick={(e) => handleActionClick(e, () => onLeaveRoom(room.id))} title="Keluar Room" className="p-1 rounded-full text-gray-400 hover:bg-gray-600/50 hover:text-white transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /> </svg>
                         </button>
                     )}
-                    {/* Tombol Hapus (Ditampilkan jika canDelete true) */}
                     {canDelete && (
-                         <button
-                            onClick={(e) => handleActionClick(e, () => {
-                                 // Tambahkan konfirmasi sebelum menghapus
-                                 if (window.confirm(`Yakin ingin menghapus room "${room.name}"? Tindakan ini tidak dapat diurungkan.`)) {
-                                     onDeleteRoom(room.id);
-                                 }
-                            })}
-                            title="Hapus Room"
-                            className="p-1 rounded-full text-red-500 hover:bg-red-500/20 hover:text-red-400 transition-colors"
-                        >
-                            {/* Ikon Hapus */}
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                               <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                            </svg>
+                         <button onClick={(e) => handleActionClick(e, () => { if (window.confirm(`Yakin ingin menghapus room "${room.name}"?`)) { onDeleteRoom(room.id); } })} title="Hapus Room" className="p-1 rounded-full text-red-500 hover:bg-red-500/20 hover:text-red-400 transition-colors">
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /> </svg>
                         </button>
                     )}
                  </div>
@@ -119,12 +74,9 @@ const RoomListItem: React.FC<{
     );
 };
 
-// Definisikan tipe props baru jika berbeda dari BaseRoomsListPageProps
-interface ExtendedRoomsListPageProps extends BaseRoomsListPageProps {
-    onDeleteRoom: (roomId: string) => void; // Tambahkan prop onDeleteRoom
-}
 
-const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
+const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({ // <-- GUNAKAN ExtendedRoomsListPageProps
+    // Akses props langsung dari parameter
     rooms, onJoinRoom, onCreateRoom, totalUsers, hotCoin, userProfile,
     currentRoomId, joinedRoomIds, onLeaveJoinedRoom, unreadCounts,
     onDeleteRoom // Terima prop onDeleteRoom
@@ -142,14 +94,13 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
     };
 
     const { myRooms, publicRooms } = useMemo(() => {
-        // ... (logika useMemo tetap sama)
         const lowercasedQuery = searchQuery.toLowerCase();
         const filtered = searchQuery
-            ? rooms.filter(room => room.name.toLowerCase().includes(lowercasedQuery))
+            ? rooms.filter((room: Room) => room.name.toLowerCase().includes(lowercasedQuery)) // <-- Tambah tipe Room
             : rooms;
         const myRoomsList = filtered
-            .filter(r => joinedRoomIds.has(r.id))
-            .sort((a, b) => {
+            .filter((r: Room) => joinedRoomIds.has(r.id)) // <-- Tambah tipe Room
+            .sort((a: Room, b: Room) => { // <-- Tambah tipe Room
                 const lastUpdateA = unreadCounts[a.id]?.lastUpdate || 0;
                 const lastUpdateB = unreadCounts[b.id]?.lastUpdate || 0;
                 if (lastUpdateB !== lastUpdateA) return lastUpdateB - lastUpdateA;
@@ -159,7 +110,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                 if (!isADefault && isBDefault) return 1;
                 return a.name.localeCompare(b.name);
             });
-        const publicRoomsList = filtered.filter(r => !joinedRoomIds.has(r.id));
+        const publicRoomsList = filtered.filter((r: Room) => !joinedRoomIds.has(r.id)); // <-- Tambah tipe Room
         return { myRooms: myRoomsList, publicRooms: publicRoomsList };
     }, [rooms, searchQuery, joinedRoomIds, unreadCounts]);
 
@@ -168,8 +119,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
 
             {/* Top Stats */}
             <div className="flex-shrink-0 grid grid-cols-2 gap-2 mb-2">
-                 {/* ... kode stats ... */}
-                   <div className="bg-gray-900 border border-white/10 rounded-lg p-2 flex items-center gap-2">
+                 <div className="bg-gray-900 border border-white/10 rounded-lg p-2 flex items-center gap-2">
                     <div className="bg-electric/20 text-electric p-2 rounded-md flex-shrink-0">
                         <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" /></svg>
                     </div>
@@ -188,7 +138,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                             </div>
                         </>
                     ) : (
-                         <div className="flex items-center gap-2 animate-pulse w-full">
+                         <div className="flex items-center gap-2 animate-pulse w-full"> {/* Skeleton */}
                             <div className="h-7 w-7 rounded-full bg-gray-700"></div>
                             <div className="flex-1 space-y-1.5">
                                 <div className="h-3 w-12 bg-gray-700 rounded"></div>
@@ -225,17 +175,16 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                     <div>
                         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-1">Tongkrongan Saya</h2>
                         <div className="space-y-1.5">
-                            {/* Berikan prop yang diperlukan ke RoomListItem */}
-                            {myRooms.map(room => (
+                            {myRooms.map((room: Room) => ( // <-- Tambah tipe Room
                                 <RoomListItem
                                     key={room.id}
                                     room={room}
-                                    currentUser={userProfile} // Kirim user profile
+                                    currentUser={userProfile}
                                     onJoinRoom={onJoinRoom}
-                                    onLeaveRoom={onLeaveJoinedRoom} // Kirim handler leave
-                                    onDeleteRoom={onDeleteRoom} // Kirim handler delete
+                                    onLeaveRoom={onLeaveJoinedRoom}
+                                    onDeleteRoom={onDeleteRoom}
                                     isActive={room.id === currentRoomId}
-                                    isJoined={true} // Room di 'My Rooms' pasti sudah dijoin
+                                    isJoined={true}
                                     unreadData={unreadCounts[room.id]}
                                 />
                             ))}
@@ -246,8 +195,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                     <div className={myRooms.length > 0 ? 'mt-4' : ''}>
                         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-1">Tongkrongan Publik</h2>
                         <div className="space-y-1.5">
-                             {/* Berikan prop yang diperlukan ke RoomListItem */}
-                             {publicRooms.map(room => (
+                             {publicRooms.map((room: Room) => ( // <-- Tambah tipe Room
                                 <RoomListItem
                                     key={room.id}
                                     room={room}
@@ -271,7 +219,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                  )}
             </div>
              <style>{`
-                /* ... (kode style tetap sama) ... */
+                 /* ... CSS styles ... */
                  @keyframes fade-in-scale { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
                  @keyframes pulse-notification {
                    0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 255, 0.7); }
