@@ -39,7 +39,7 @@ const Reactions = ({ message, username, onReact }: { message: NewsArticle | Chat
     if (!hasReactions) return null;
 
     return (
-        <div className="flex items-center gap-1 mt-1 flex-wrap"> {/* Reduced margin-top */}
+        <div className="flex items-center gap-1 mt-1 flex-wrap">
             {Object.entries(reactions).map(([emoji, users]) => {
                 const userList = users as string[];
                 if (!Array.isArray(userList) || userList.length === 0) return null;
@@ -53,7 +53,8 @@ const Reactions = ({ message, username, onReact }: { message: NewsArticle | Chat
                     <button
                         key={emoji}
                         onClick={(e) => { e.stopPropagation(); onReact(emoji); }}
-                        className={`flex items-center gap-0.5 text-[10px] px-1.5 py-0 rounded-full transition-all duration-200 ${ /* Smaller text, padding */
+                        // FIXED: Replaced text-[10px] with text-xs (safer for build system)
+                        className={`flex items-center gap-0.5 text-xs px-1.5 py-0 rounded-full transition-all duration-200 ${
                             currentUserReacted ? 'bg-electric/80 text-white' : 'bg-gray-600/50 hover:bg-gray-600/80 text-gray-300'
                         }`}
                         title={tooltipText}
@@ -118,7 +119,8 @@ const NewsMessage: React.FC<{
                      </a>
                  </div>
                  {/* Timestamp moved below */}
-                 <div className="text-[10px] text-gray-500 mt-1 text-center"> Pasar · {formatDate(article.published_on * 1000)} </div>
+                 {/* FIXED: Replaced text-[10px] with text-xs */}
+                 <div className="text-xs text-gray-500 mt-1 text-center"> Pasar · {formatDate(article.published_on * 1000)} </div>
 
                  <div className="relative mt-1 px-1 flex justify-between items-start">
                     <div className="flex-1 min-w-0">
@@ -192,7 +194,8 @@ const UserMessage: React.FC<{
                      {/* Timestamp removed from here */}
                 </div>
                 {/* Timestamp moved below */}
-                <div className={`text-[10px] text-gray-500 mt-0.5 ${isCurrentUser ? 'text-right' : 'text-left'}`}>{formatDate(message.timestamp)}</div>
+                {/* FIXED: Replaced text-[10px] with text-xs */}
+                <div className={`text-xs text-gray-500 mt-0.5 ${isCurrentUser ? 'text-right' : 'text-left'}`}>{formatDate(message.timestamp)}</div>
 
 
                  <div className="relative mt-1 px-1 flex justify-between items-start">
@@ -215,7 +218,8 @@ const UserMessage: React.FC<{
 };
 
 // --- Komponen Lainnya (SystemMessage, AnnouncementMessage tetap sama) ---
-const SystemMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => ( <div className="text-center text-[11px] text-gray-500 py-1.5 italic animate-fade-in-up"> {message.text} </div> ); // Smaller text/padding
+// FIXED: Replaced text-[11px] with text-xs
+const SystemMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => ( <div className="text-center text-xs text-gray-500 py-1.5 italic animate-fade-in-up"> {message.text} </div> );
 const AnnouncementMessage: React.FC<{ message: ChatMessage; }> = ({ message }) => {
     const text = message.text || ''; const parts = text.split(':'); const title = parts.length > 1 ? parts[0] : ''; const content = parts.length > 1 ? parts.slice(1).join(':').trim() : text;
     let icon = <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" /></svg>; // Smaller icon
@@ -410,7 +414,8 @@ const ForumPage: React.FC<ForumPageProps> = ({
                              {attachment && (
                                 <div className="relative inline-block">
                                      <img src={attachment.dataUrl} alt="Pratinjau" className="max-h-20 rounded-md" /> {/* Reduced max-height */}
-                                     <button onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold hover:bg-red-700 transition-colors" title="Hapus lampiran"> × </button> {/* FIXED: -top-1.5 -right-1.5 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-[10px] font-bold hover:bg-red-700 transition-colors" title="Hapus lampiran"> × </button> */}
+                                     {/* FIXED: Removed fractional position values (-top-1.5, -right-1.5) and used integer positioning (-top-2, -right-2) */}
+                                     <button onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold hover:bg-red-700 transition-colors" title="Hapus lampiran"> × </button>
                                 </div>
                              )}
                              <form onSubmit={handleSendMessageSubmit} className="flex items-center space-x-1.5"> {/* Reduced spacing */}
