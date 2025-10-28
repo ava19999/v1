@@ -450,41 +450,42 @@ const ForumPage: React.FC<ForumPageProps> = ({
 
   return (
     <div className="container mx-auto px-2 sm:px-4 py-3 animate-fade-in flex flex-col flex-grow h-[calc(100vh-56px)]">
-      {/* Header Room */}
-      <div className="mb-3 flex-shrink-0">
-        <div className="flex items-center justify-between gap-4 mb-3">
-          <button onClick={onLeaveRoom} className="flex items-center gap-2 text-gray-400 hover:text-electric transition-colors">
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-            </svg>
-            <span className="text-sm font-semibold">Semua Room</span>
-          </button>
-          <div className="flex items-center gap-2.5">
-            <div className="relative flex h-2.5 w-2.5">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
-              <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-lime"></span>
-            </div>
-            <p className="text-sm font-semibold">
-              <span className="text-white">{room.userCount.toLocaleString('id-ID')}</span>
-              <span className="text-gray-400 ml-1.5">Online</span>
-            </p>
-          </div>
-        </div>
-        <div className="flex items-center">
-          <div>
-            <h1 className="text-2xl md:text-3xl font-black tracking-tight bg-gradient-to-r from-electric to-magenta text-transparent bg-clip-text truncate font-heading">
-              {room.name}
-            </h1>
-            <p className="text-yellow-400 text-xs mt-1 break-words max-w-2xl">
-  ⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.</p>
-          </div>
-        </div>
-      </div>
-
       {/* Main Chat Area Container */}
       <div className="bg-gray-900 border border-white/10 rounded-xl flex flex-col flex-grow overflow-hidden">
-        {/* Message List Area */}
-        <div className="p-2 md:p-4 flex-grow overflow-y-auto space-y-1 custom-scrollbar" onClick={handleChatAreaClick}>
+        {/* Header Room yang Fixed */}
+        <div className="flex-shrink-0 p-4 border-b border-white/10 bg-gray-900">
+          <div className="flex items-center justify-between gap-4 mb-3">
+            <button onClick={onLeaveRoom} className="flex items-center gap-2 text-gray-400 hover:text-electric transition-colors">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+              </svg>
+              <span className="text-sm font-semibold">Semua Room</span>
+            </button>
+            <div className="flex items-center gap-2.5">
+              <div className="relative flex h-2.5 w-2.5">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
+                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-lime"></span>
+              </div>
+              <p className="text-sm font-semibold">
+                <span className="text-white">{room.userCount.toLocaleString('id-ID')}</span>
+                <span className="text-gray-400 ml-1.5">Online</span>
+              </p>
+            </div>
+          </div>
+          <div className="flex items-center">
+            <div>
+              <h1 className="text-2xl md:text-3xl font-black tracking-tight bg-gradient-to-r from-electric to-magenta text-transparent bg-clip-text truncate font-heading">
+                {room.name}
+              </h1>
+              <p className="text-yellow-400 text-xs mt-1 break-words max-w-2xl">
+                ⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {/* Message List Area - HANYA INI YANG SCROLL */}
+        <div className="flex-grow overflow-y-auto p-2 md:p-4 space-y-1 custom-scrollbar" onClick={handleChatAreaClick}>
           {sortedMessages.length === 0 ? (
             <div className="flex items-center justify-center h-full text-gray-500">
               <p>Belum ada pesan.</p>
