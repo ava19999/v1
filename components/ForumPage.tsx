@@ -1,6 +1,7 @@
+// ava19999/v1/v1-bd6bb89086392f465ed88da023587c34863020f2/components/ForumPage.tsx
 // components/ForumPage.tsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import UserTag, { ADMIN_USERNAMES } from './UserTag';
+import UserTag, { ADMIN_USERNAMES } from './UserTag'; // Import ADMIN_USERNAMES
 import type { NewsArticle, ChatMessage, ForumPageProps, ForumMessageItem, User } from '../types';
 import { isNewsArticle, isChatMessage } from '../types';
 
@@ -87,14 +88,15 @@ const NewsMessage: React.FC<{
 }> = ({ article, username, onReact, onDeleteClick, canDelete, isActive, showActions, showPicker, onMessageClick, onReactButtonClick, onClosePicker }) => {
 
     return (
-        <div className="my-2 animate-fade-in-up relative group/message">
+        // Remove group/message class
+        <div className="my-2 animate-fade-in-up relative">
             {/* Clickable wrapper for highlighting and activating */}
             <div
                 onClick={onMessageClick}
                 className={`relative cursor-pointer rounded-lg p-1 ${isActive ? 'bg-gray-800/30' : 'bg-transparent'} transition-colors duration-150`}
             >
-                 {/* Action Buttons Container - Shown when 'showActions' is true or on hover */}
-                 <div className={`absolute top-0 right-1 z-10 flex items-center bg-gray-900 border border-white/10 rounded-full px-1 shadow-lg transition-opacity duration-200 ${showActions ? 'opacity-100 animate-fade-in-fast' : 'opacity-0 pointer-events-none group-hover/message:opacity-100'}`}>
+                 {/* Action Buttons Container - Shown when 'showActions' is true */}
+                 <div className={`absolute top-0 right-1 z-10 flex items-center bg-gray-900 border border-white/10 rounded-full px-1 shadow-lg transition-opacity duration-200 ${showActions ? 'opacity-100 animate-fade-in-fast' : 'opacity-0 pointer-events-none'}`}>
                     <ReactButton onClick={onReactButtonClick} />
                     {canDelete && <DeleteButton onClick={(e) => { e.stopPropagation(); onDeleteClick(); }} />}
                  </div>
@@ -112,7 +114,8 @@ const NewsMessage: React.FC<{
                 {/* Message Content */}
                 <div className="text-center text-xs text-gray-500 pt-1"> Pasar · {formatDate(article.published_on * 1000)} </div>
                 <div className="w-full sm:w-4/5 md:w-3/5 mx-auto">
-                    <div className="block p-3 bg-gray-800/50 rounded-lg group-hover/message:bg-gray-800/60 transition-colors">
+                    {/* Remove group-hover/message class */}
+                    <div className={`block p-3 bg-gray-800/50 rounded-lg transition-colors ${isActive ? 'bg-gray-800/60' : ''}`}>
                         <a href={article.url} target="_blank" rel="noopener noreferrer" onClick={(e)=> e.stopPropagation()}>
                             {/* News content layout */}
                             <div className="flex items-start space-x-3">
@@ -138,7 +141,7 @@ const NewsMessage: React.FC<{
 // User Message Component
 const UserMessage: React.FC<{
     message: ChatMessage;
-    userProfile: User | null; // Can be null if message is not from current user
+    userProfile: User | null; // Pass the full profile of the logged-in user
     onReact: (messageId: string, emoji: string) => void;
     onDeleteClick: () => void;
     canDelete: boolean;
@@ -152,19 +155,21 @@ const UserMessage: React.FC<{
 
     const currentUsername = userProfile?.username || ''; // Get username safely
     // Check if the message sender matches the *current logged-in user's username*
-    const isCurrentUser = message.sender === username && !!username; // Use the username from props
-    // Determine creation date only if it's the current user sending
+    const isCurrentUser = message.sender === currentUsername && !!currentUsername;
+    // Determine creation date only if it's the current user sending the message
     const creationDate = isCurrentUser ? (userProfile?.createdAt ?? null) : null;
 
 
     return (
         // Main container for alignment (start/end)
-        <div className={`my-1 py-1 flex group/message relative ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
+        // Remove group/message class
+        <div className={`my-1 py-1 flex relative ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
             {/* Inner container for flex ordering */}
             <div className={`flex items-start gap-2 ${isCurrentUser ? 'flex-row-reverse' : 'flex-row'}`}>
 
                  {/* Action Buttons Container */}
-                 <div className={`relative flex-shrink-0 self-start mt-1 z-10 flex items-center bg-gray-900 border border-white/10 rounded-full px-1 shadow-lg transition-opacity duration-200 ${showActions ? 'opacity-100 animate-fade-in-fast' : 'opacity-0 pointer-events-none group-hover/message:opacity-100'}`}>
+                 {/* Position adjusted slightly based on isCurrentUser */}
+                 <div className={`relative flex-shrink-0 self-start mt-1 z-10 flex items-center bg-gray-900 border border-white/10 rounded-full px-1 shadow-lg transition-opacity duration-200 ${showActions ? 'opacity-100 animate-fade-in-fast' : 'opacity-0 pointer-events-none'} ${isCurrentUser ? '-ml-2' : '-mr-2'}`}>
                     <ReactButton onClick={onReactButtonClick} />
                     {canDelete && <DeleteButton onClick={(e) => { e.stopPropagation(); onDeleteClick(); }} />}
 
@@ -193,7 +198,7 @@ const UserMessage: React.FC<{
                          </div>
                         {/* Reactions below the bubble */}
                         <div className="relative mt-1">
-                            <Reactions message={message} username={username} onReact={(emoji) => onReact(message.id, emoji)} />
+                            <Reactions message={message} username={currentUsername} onReact={(emoji) => onReact(message.id, emoji)} />
                         </div>
                     </div>
                 </div>
@@ -337,7 +342,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
                          sortedMessages.map((item, index) => {
                            const isActive = activeMessageId === item.id;
                            const showPicker = showPickerForMsgId === item.id;
-                           const messageKey = item.id || `fallback-${item.type}-${index}`;
+                           const messageKey = item.id || `fallback-${item.type}-${index}`; // Use a fallback key
 
                            if (isChatMessage(item)) {
                                if (item.type === 'system') {
@@ -347,6 +352,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                }
                                const isOwnMessage = item.sender === username && !!username;
                                const canDelete = isAdmin || (isOwnMessage && item.type === 'user');
+                               // Pass the FULL userProfile only if it's the current user's message
                                const senderProfile = isOwnMessage ? userProfile : null;
                                return <UserMessage
                                           key={messageKey}
@@ -402,7 +408,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
                                      <button onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold hover:bg-red-700 transition-colors" title="Hapus lampiran"> × </button>
                                 </div>
                              )}
-                             {/* FIX: Use the correct submit handler */}
+                             {/* Use the correct submit handler */}
                              <form onSubmit={handleSendMessageSubmit} className="flex items-center space-x-2">
                                  <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                                  <button type="button" onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-electric p-2 rounded-full transition-colors flex-shrink-0" title="Lampirkan gambar">
@@ -422,9 +428,8 @@ const ForumPage: React.FC<ForumPageProps> = ({
              {/* Styles */}
              <style>{`
                 /* Action buttons positioning */
-                .group\\/message .opacity-0 { opacity: 0; pointer-events: none; }
-                .group\\/message:hover .group-hover\\/message\\:opacity-100,
-                .group\\/message .opacity-100 { opacity: 1; pointer-events: auto; }
+                .opacity-0 { opacity: 0; pointer-events: none; }
+                .opacity-100 { opacity: 1; pointer-events: auto; }
 
                 .z-10 { z-index: 10; }
                 .z-20 { z-index: 20; }

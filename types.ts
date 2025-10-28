@@ -1,3 +1,4 @@
+// ava19999/v1/v1-bd6bb89086392f465ed88da023587c34863020f2/types.ts
 // ava19999/v1/v1-1340aa22ce1177029d39fe3f8689ee2fb3a9c123/types.ts
 
 // --- Basic Types ---
@@ -70,7 +71,7 @@ export interface Room {
   id: string;
   name: string;
   userCount: number;
-  createdBy?: string;
+  createdBy?: string; // Add createdBy field
 }
 
 export interface NewsArticle {
@@ -103,6 +104,7 @@ export type ForumMessageItem = NewsArticle | ChatMessage;
 // --- Type Guards ---
 // PERBAIKAN: Tambahkan return false eksplisit
 export const isNewsArticle = (item: ForumMessageItem | null | undefined): item is NewsArticle => {
+    // Check for type discriminator and a property specific to NewsArticle
     if (!!item && item.type === 'news' && typeof (item as NewsArticle).published_on === 'number') {
         return true;
     }
@@ -110,7 +112,8 @@ export const isNewsArticle = (item: ForumMessageItem | null | undefined): item i
 };
 // PERBAIKAN: Tambahkan return false eksplisit
 export const isChatMessage = (item: ForumMessageItem | null | undefined): item is ChatMessage => {
-    if (!!item && (item.type === 'user' || item.type === 'system') && typeof (item as ChatMessage).timestamp === 'number') {
+     // Check for type discriminator and a property specific to ChatMessage
+     if (!!item && (item.type === 'user' || item.type === 'system') && typeof (item as ChatMessage).timestamp === 'number') {
         return true;
     }
     return false; // Return false eksplisit
@@ -118,9 +121,9 @@ export const isChatMessage = (item: ForumMessageItem | null | undefined): item i
 
 
 // --- Component Props Interfaces ---
-export interface HeaderProps { /* ... */ }
-export interface HomePageProps { /* ... */ }
-
+// Ensure definitions are complete
+export interface HeaderProps { userProfile: User | null; onLogout: () => void; activePage: Page; onNavigate: (page: Page) => void; currency: Currency; onCurrencyChange: (currency: Currency) => void; hotCoin: { name: string; logo: string; price: number; change: number; } | null; idrRate: number | null;}
+export interface HomePageProps { idrRate: number | null; isRateLoading: boolean; currency: Currency; onIncrementAnalysisCount: (coinId: string) => void; fullCoinList: CoinListItem[]; isCoinListLoading: boolean; coinListError: string | null; heroCoin: CryptoData | null; otherTrendingCoins: CryptoData[]; isTrendingLoading: boolean; trendingError: string | null; onSelectCoin: (coinId: string) => void; onReloadTrending: () => void;}
 export interface ForumPageProps {
   room: Room | null;
   messages: ForumMessageItem[];
@@ -128,20 +131,9 @@ export interface ForumPageProps {
   onSendMessage: (message: ChatMessage) => void;
   onLeaveRoom: () => void;
   onReact: (messageId: string, emoji: string) => void;
-  onDeleteMessage: (roomId: string, messageId: string) => void; // Prop untuk hapus pesan
+  onDeleteMessage: (roomId: string, messageId: string) => void; // Add prop for deleting messages
 }
-
-export interface RoomsListPageProps { /* ... */ }
-export interface HeroCoinProps { /* ... */ }
-export interface CryptoCardProps { /* ... */ }
-export interface AnalysisModalProps { /* ... */ }
-export interface LoginPageProps { /* ... */ }
-export interface CreateIdPageProps { /* ... */ }
-
-// Pastikan definisi tipe props lengkap jika belum
-export interface HeaderProps { userProfile: User | null; onLogout: () => void; activePage: Page; onNavigate: (page: Page) => void; currency: Currency; onCurrencyChange: (currency: Currency) => void; hotCoin: { name: string; logo: string; price: number; change: number; } | null; idrRate: number | null;}
-export interface HomePageProps { idrRate: number | null; isRateLoading: boolean; currency: Currency; onIncrementAnalysisCount: (coinId: string) => void; fullCoinList: CoinListItem[]; isCoinListLoading: boolean; coinListError: string | null; heroCoin: CryptoData | null; otherTrendingCoins: CryptoData[]; isTrendingLoading: boolean; trendingError: string | null; onSelectCoin: (coinId: string) => void; onReloadTrending: () => void;}
-export interface RoomsListPageProps { rooms: Room[]; onJoinRoom: (room: Room) => void; onCreateRoom: (roomName: string) => void; totalUsers: number; hotCoin: { name: string; logo: string } | null; userProfile: User | null; currentRoomId: string | null; joinedRoomIds: Set<string>; onLeaveJoinedRoom: (roomId: string) => void; unreadCounts: { [key: string]: { count: number; lastUpdate: number } }; onDeleteRoom: (roomId: string) => void;}
+export interface RoomsListPageProps { rooms: Room[]; onJoinRoom: (room: Room) => void; onCreateRoom: (roomName: string) => void; totalUsers: number; hotCoin: { name: string; logo: string } | null; userProfile: User | null; currentRoomId: string | null; joinedRoomIds: Set<string>; onLeaveJoinedRoom: (roomId: string) => void; unreadCounts: { [key: string]: { count: number; lastUpdate: number } };} // Removed onDeleteRoom here as it's added in the extended interface
 export interface HeroCoinProps { crypto: CryptoData; onAnalyze: (crypto: CryptoData) => void; idrRate: number | null; currency: Currency;}
 export interface CryptoCardProps { crypto: CryptoData; onAnalyze: (crypto: CryptoData) => void; idrRate: number | null; currency: Currency;}
 export interface AnalysisModalProps { isOpen: boolean; onClose: () => void; crypto: CryptoData; analysisResult: AnalysisResult | null; isLoading: boolean; error: string | null; exchangeTickers: ExchangeTicker[]; isTickersLoading: boolean; tickersError: string | null; idrRate: number | null; currency: Currency;}
