@@ -1,15 +1,9 @@
-// ava19999/v1/v1-bd6bb89086392f465ed88da023587c34863020f2/components/UserTag.tsx
 // components/UserTag.tsx
 import React from 'react';
 
-// --- ATUR ID ADMIN ANDA DI SINI ---
-// Ganti 'Admin_RTC' atau tambahkan nama pengguna admin baru di sini.
-// Pastikan 'export' ditambahkan di sini
 export const ADMIN_USERNAMES = [
     'Admin_RTC',
     'ava',
-    // 'TraderMaster', // Contoh admin lain
-    // 'CryptoQueen', // Contoh admin lain
 ];
 
 interface UserTagProps {
@@ -21,13 +15,10 @@ const UserTag: React.FC<UserTagProps> = ({ sender, userCreationDate }) => {
     let tagName = '';
     let tagColor = 'text-gray-400';
 
-    // Prioritaskan pemeriksaan admin (case-insensitive)
-    // Perbaiki map untuk menggunakan tipe string eksplisit
     if (sender && ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(sender.toLowerCase())) {
         tagName = 'atmin';
         tagColor = 'text-yellow-400';
     } else if (userCreationDate) {
-        // Logika tag berbasis usia akun
         const now = Date.now();
         const ageInMillis = now - userCreationDate;
         const ageInDays = ageInMillis / (1000 * 60 * 60 * 24);
@@ -46,12 +37,7 @@ const UserTag: React.FC<UserTagProps> = ({ sender, userCreationDate }) => {
             tagColor = 'text-lime';
         }
     } else {
-        // Jika userCreationDate tidak ada (misalnya untuk admin default sebelum login system)
-        // Atau jika sender tidak cocok admin dan tidak ada creation date
-        // Anda bisa memilih untuk tidak merender tag atau memberi tag default
-         return null; // Jangan render tag jika tidak ada info yang cukup
-        // tagName = 'guest'; // Atau beri tag default
-        // tagColor = 'text-gray-500';
+        return null;
     }
 
     return (

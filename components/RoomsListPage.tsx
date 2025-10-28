@@ -1,12 +1,10 @@
 // components/RoomsListPage.tsx
 import React, { useState, useMemo } from 'react';
 import UserTag, { ADMIN_USERNAMES } from './UserTag';
-// Impor tipe yang sudah diperbaiki
-import type { Room, User, ExtendedRoomsListPageProps } from '../types'; // <-- GUNAKAN ExtendedRoomsListPageProps
+import type { Room, User, RoomsListPageProps } from '../types';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
-// Komponen RoomListItem (Tetap sama)
 const RoomListItem: React.FC<{
     room: Room;
     currentUser: User | null;
@@ -74,13 +72,9 @@ const RoomListItem: React.FC<{
     );
 };
 
-
-// Komponen Utama RoomsListPage
-const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({ // <-- GUNAKAN ExtendedRoomsListPageProps
-    // Destructure props yang didefinisikan di ExtendedRoomsListPageProps
+const RoomsListPage: React.FC<RoomsListPageProps> = ({
     rooms, onJoinRoom, onCreateRoom, totalUsers, hotCoin, userProfile,
-    currentRoomId, joinedRoomIds, onLeaveJoinedRoom, unreadCounts,
-    onDeleteRoom
+    currentRoomId, joinedRoomIds, onLeaveJoinedRoom, unreadCounts, onDeleteRoom
 }) => {
     const [newRoomName, setNewRoomName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
@@ -97,11 +91,11 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({ // <-- GUNAKAN Ex
     const { myRooms, publicRooms } = useMemo(() => {
         const lowercasedQuery = searchQuery.toLowerCase();
         const filtered = searchQuery
-            ? rooms.filter((room: Room) => room.name.toLowerCase().includes(lowercasedQuery)) // <-- Tambah tipe Room
+            ? rooms.filter((room) => room.name.toLowerCase().includes(lowercasedQuery))
             : rooms;
         const myRoomsList = filtered
-            .filter((r: Room) => joinedRoomIds.has(r.id)) // <-- Tambah tipe Room
-            .sort((a: Room, b: Room) => { // <-- Tambah tipe Room
+            .filter((r) => joinedRoomIds.has(r.id))
+            .sort((a, b) => {
                 const lastUpdateA = unreadCounts[a.id]?.lastUpdate || 0;
                 const lastUpdateB = unreadCounts[b.id]?.lastUpdate || 0;
                 if (lastUpdateB !== lastUpdateA) return lastUpdateB - lastUpdateA;
@@ -111,7 +105,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({ // <-- GUNAKAN Ex
                 if (!isADefault && isBDefault) return 1;
                 return a.name.localeCompare(b.name);
             });
-        const publicRoomsList = filtered.filter((r: Room) => !joinedRoomIds.has(r.id)); // <-- Tambah tipe Room
+        const publicRoomsList = filtered.filter((r) => !joinedRoomIds.has(r.id));
         return { myRooms: myRoomsList, publicRooms: publicRoomsList };
     }, [rooms, searchQuery, joinedRoomIds, unreadCounts]);
 
@@ -139,7 +133,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({ // <-- GUNAKAN Ex
                             </div>
                         </>
                     ) : (
-                         <div className="flex items-center gap-2 animate-pulse w-full"> {/* Skeleton */}
+                         <div className="flex items-center gap-2 animate-pulse w-full">
                             <div className="h-7 w-7 rounded-full bg-gray-700"></div>
                             <div className="flex-1 space-y-1.5">
                                 <div className="h-3 w-12 bg-gray-700 rounded"></div>
@@ -176,7 +170,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({ // <-- GUNAKAN Ex
                     <div>
                         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-1">Tongkrongan Saya</h2>
                         <div className="space-y-1.5">
-                            {myRooms.map((room: Room) => ( // <-- Tambah tipe Room
+                            {myRooms.map((room) => (
                                 <RoomListItem
                                     key={room.id}
                                     room={room}
@@ -196,13 +190,12 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({ // <-- GUNAKAN Ex
                     <div className={myRooms.length > 0 ? 'mt-4' : ''}>
                         <h2 className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1.5 px-1">Tongkrongan Publik</h2>
                         <div className="space-y-1.5">
-                             {publicRooms.map((room: Room) => ( // <-- Tambah tipe Room
+                             {publicRooms.map((room) => (
                                 <RoomListItem
                                     key={room.id}
                                     room={room}
                                     currentUser={userProfile}
                                     onJoinRoom={onJoinRoom}
-                                    // Props ini diperlukan oleh RoomListItem, meskipun tidak relevan di list publik
                                     onLeaveRoom={onLeaveJoinedRoom}
                                     onDeleteRoom={onDeleteRoom}
                                     isActive={false}

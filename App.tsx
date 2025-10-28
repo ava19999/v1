@@ -98,12 +98,12 @@ const AppContent: React.FC = () => {
   const [trendingError, setTrendingError] = useState<string | null>(null);
   const [searchedCoin, setSearchedCoin] = useState<CryptoData | null>(null);
   const [rooms, setRooms] = useState<Room[]>([
-    { id: 'berita-kripto', name: 'Berita Kripto', userCount: 150 + Math.floor(Math.random() * 20) },
-    { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 150 + Math.floor(Math.random() * 20) },
-    { id: 'umum', name: 'Kripto Naik/Turun Hari Ini', userCount: 134 + Math.floor(Math.random() * 20), createdBy: 'Admin_RTC' },
-    { id: 'meme', name: 'Meme Coin Mania', userCount: 88 + Math.floor(Math.random() * 20) },
-    { id: 'xrp-army', name: 'Xrp Army', userCount: 73 + Math.floor(Math.random() * 20) },
-    { id: 'roblox-tuker-kripto', name: 'Roblox Tuker Kripto', userCount: 42 + Math.floor(Math.random() * 20) },
+    { id: 'berita-kripto', name: 'Berita Kripto', userCount: 150 },
+    { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 150 },
+    { id: 'umum', name: 'Kripto Naik/Turun Hari Ini', userCount: 134, createdBy: 'Admin_RTC' },
+    { id: 'meme', name: 'Meme Coin Mania', userCount: 88 },
+    { id: 'xrp-army', name: 'Xrp Army', userCount: 73 },
+    { id: 'roblox-tuker-kripto', name: 'Roblox Tuker Kripto', userCount: 42 },
   ]);
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
   const [joinedRoomIds, setJoinedRoomIds] = useState<Set<string>>(() => {
@@ -115,6 +115,7 @@ const AppContent: React.FC = () => {
   });
   const [unreadCounts, setUnreadCounts] = useState<{ [key: string]: { count: number; lastUpdate: number } }>({});
   const [firebaseMessages, setFirebaseMessages] = useState<{ [roomId: string]: ForumMessageItem[] }>({});
+  const [roomFirstVisit, setRoomFirstVisit] = useState<{ [key: string]: boolean }>({});
 
   const fetchTrendingData = useCallback(async (showSkeleton = true) => {
     if (showSkeleton) { setIsTrendingLoading(true); setTrendingError(null); }
@@ -183,8 +184,17 @@ const AppContent: React.FC = () => {
     try { localStorage.setItem('joinedRoomIds', JSON.stringify(Array.from(joinedRoomIds))); } catch (e) { console.error('Gagal simpan joined rooms', e); }
   }, [joinedRoomIds]);
 
-  useEffect(() => { const saved = localStorage.getItem('unreadCounts'); if (saved) try { setUnreadCounts(JSON.parse(saved)); } catch (e) { console.error('Gagal parse unreadCounts', e); } }, []);
-  useEffect(() => { localStorage.setItem('unreadCounts', JSON.stringify(unreadCounts)); }, [unreadCounts]);
+  useEffect(() => { 
+    const saved = localStorage.getItem('unreadCounts'); 
+    if (saved) try { 
+      setUnreadCounts(JSON.parse(saved)); 
+    } catch (e) { console.error('Gagal parse unreadCounts', e); } 
+  }, []);
+  
+  useEffect(() => { 
+    localStorage.setItem('unreadCounts', JSON.stringify(unreadCounts)); 
+  }, [unreadCounts]);
+  
   useEffect(() => {
     const lastReset = localStorage.getItem('lastAnalysisResetDate');
     const today = new Date().toISOString().split('T')[0];
@@ -197,6 +207,7 @@ const AppContent: React.FC = () => {
       if (saved) try { setAnalysisCounts(JSON.parse(saved)); } catch (e) { console.error('Gagal parse analysis counts', e); }
     }
   }, []);
+  
   useEffect(() => {
     const getRate = async () => {
       setIsRateLoading(true);
@@ -206,6 +217,7 @@ const AppContent: React.FC = () => {
     };
     getRate();
   }, []);
+  
   useEffect(() => {
     const fetchList = async () => {
       setIsCoinListLoading(true);
@@ -216,6 +228,7 @@ const AppContent: React.FC = () => {
     };
     fetchList();
   }, []);
+  
   useEffect(() => { fetchTrendingData(); }, [fetchTrendingData]);
 
   useEffect(() => {
@@ -268,6 +281,22 @@ const AppContent: React.FC = () => {
       }
 
       setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: finalMessages }));
+
+      // Update unread counts untuk room lain
+      if (currentRoom.id) {
+        setUnreadCounts(prev => {
+          const newCounts = { ...prev };
+          Object.keys(prev).forEach(roomId => {
+            if (roomId !== currentRoom.id && newCounts[roomId]) {
+              newCounts[roomId] = {
+                ...newCounts[roomId],
+                count: Math.max(0, newCounts[roomId].count)
+              };
+            }
+          });
+          return newCounts;
+        });
+      }
     }, (error) => {
       console.error(`Firebase listener error room ${currentRoom?.id}:`, error);
       if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] }));
@@ -415,6 +444,7 @@ const AppContent: React.FC = () => {
       .then(() => {
         setActivePage('home');
         setCurrentRoom(null);
+        setRoomFirstVisit({});
       })
       .catch((error) => {
         console.error('Firebase signOut error:', error);
@@ -422,6 +452,7 @@ const AppContent: React.FC = () => {
         setFirebaseUser(null);
         setActivePage('home');
         setCurrentRoom(null);
+        setRoomFirstVisit({});
       });
   }, []);
 
@@ -450,11 +481,27 @@ const AppContent: React.FC = () => {
   const handleJoinRoom = useCallback((room: Room) => {
     setCurrentRoom(room);
     setJoinedRoomIds(prev => new Set(prev).add(room.id));
-    setUnreadCounts(prev => ({ ...prev, [room.id]: { count: 0, lastUpdate: Date.now() } }));
+    
+    // Reset unread count saat join room
+    setUnreadCounts(prev => ({ 
+      ...prev, 
+      [room.id]: { count: 0, lastUpdate: Date.now() } 
+    }));
+    
+    // Tandai sebagai kunjungan pertama
+    setRoomFirstVisit(prev => ({
+      ...prev,
+      [room.id]: true
+    }));
+    
     setActivePage('forum');
   }, []);
 
-  const handleLeaveRoom = useCallback(() => { setCurrentRoom(null); setActivePage('rooms'); }, []);
+  const handleLeaveRoom = useCallback(() => { 
+    setCurrentRoom(null); 
+    setActivePage('rooms'); 
+  }, []);
+  
   const handleLeaveJoinedRoom = useCallback((roomId: string) => {
     if (DEFAULT_ROOM_IDS.includes(roomId)) return;
     setJoinedRoomIds(prev => { const newIds = new Set(prev); newIds.delete(roomId); return newIds; });
@@ -466,10 +513,33 @@ const AppContent: React.FC = () => {
     if (!currentUser?.username) { alert('Anda harus login untuk membuat room.'); return; }
     const trimmedName = roomName.trim();
     if (rooms.some(r => r.name.toLowerCase() === trimmedName.toLowerCase())) { alert('Nama room sudah ada. Silakan pilih nama lain.'); return; }
-    const newRoom: Room = { id: trimmedName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), name: trimmedName, userCount: 1, createdBy: currentUser.username };
+    const newRoom: Room = { 
+      id: trimmedName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), 
+      name: trimmedName, 
+      userCount: 1, 
+      createdBy: currentUser.username 
+    };
     setRooms(prev => [newRoom, ...prev]);
+    
+    // Tambahkan disclaimer ke room baru
+    const disclaimerMsg: ChatMessage = {
+      id: `${newRoom.id}-disclaimer`,
+      type: 'system',
+      text: DISCLAIMER_MESSAGE_TEXT,
+      sender: 'system',
+      timestamp: Date.now(),
+      reactions: {}
+    };
+    
+    if (database) {
+      const messageRef = ref(database, `messages/${newRoom.id}/${disclaimerMsg.id}`);
+      set(messageRef, disclaimerMsg).catch(error => {
+        console.error('Gagal menambahkan disclaimer ke room baru:', error);
+      });
+    }
+    
     handleJoinRoom(newRoom);
-  }, [handleJoinRoom, rooms, currentUser]);
+  }, [handleJoinRoom, rooms, currentUser, database]);
 
   const handleDeleteRoom = useCallback((roomId: string) => {
     if (!currentUser?.username || !firebaseUser) { console.warn('Delete room prerequisites failed (user).'); alert('Gagal menghapus: Anda belum login.'); return; }
@@ -523,6 +593,21 @@ const AppContent: React.FC = () => {
     set(newMessageRef, messageToSend).catch((error) => {
       console.error('Firebase send message error:', error);
       alert(`Gagal mengirim pesan.${(error as any).code === 'PERMISSION_DENIED' ? ' Akses ditolak. Periksa aturan database.' : ''}`);
+    });
+
+    // Update unread counts untuk user lain di room yang sama
+    setUnreadCounts(prev => {
+      const newCounts = { ...prev };
+      Object.keys(newCounts).forEach(roomId => {
+        if (roomId !== currentRoom.id && newCounts[roomId]) {
+          newCounts[roomId] = {
+            ...newCounts[roomId],
+            count: newCounts[roomId].count + 1,
+            lastUpdate: Date.now()
+          };
+        }
+      });
+      return newCounts;
     });
   }, [currentRoom, currentUser, database, firebaseUser]);
 
@@ -580,23 +665,40 @@ const AppContent: React.FC = () => {
       case 'forum': {
         let displayMessages = currentRoom ? (firebaseMessages[currentRoom.id] || []) : [];
 
-        if (displayMessages.length === 0 && currentRoom && defaultMessages[currentRoom.id]) {
-          displayMessages = defaultMessages[currentRoom.id];
+        // Tampilkan hanya disclaimer untuk kunjungan pertama
+        const isFirstVisit = currentRoom && roomFirstVisit[currentRoom.id];
+        if (isFirstVisit && currentRoom) {
+          const disclaimerMsg: ChatMessage = {
+            id: `${currentRoom.id}-disclaimer-first`,
+            type: 'system',
+            text: DISCLAIMER_MESSAGE_TEXT,
+            sender: 'system',
+            timestamp: Date.now(),
+            reactions: {}
+          };
+          displayMessages = [disclaimerMsg];
+          
+          // Hapus status first visit setelah beberapa detik
+          setTimeout(() => {
+            setRoomFirstVisit(prev => {
+              const newState = { ...prev };
+              delete newState[currentRoom.id];
+              return newState;
+            });
+          }, 3000);
         }
-
-        if (currentRoom && !DEFAULT_ROOM_IDS.includes(currentRoom.id) && displayMessages.length > 0) {
-          const hasDisclaimer = displayMessages.some(msg => isChatMessage(msg) && msg.type === 'system' && msg.text === DISCLAIMER_MESSAGE_TEXT);
+        // Untuk room yang sudah pernah dikunjungi, tambahkan disclaimer jika belum ada
+        else if (currentRoom && !DEFAULT_ROOM_IDS.includes(currentRoom.id) && displayMessages.length > 0) {
+          const hasDisclaimer = displayMessages.some(msg => 
+            isChatMessage(msg) && msg.type === 'system' && msg.text === DISCLAIMER_MESSAGE_TEXT
+          );
           if (!hasDisclaimer) {
-            const earliestTimestamp = displayMessages.reduce((minTs, msg) => {
-              const currentTs = isNewsArticle(msg) ? msg.published_on * 1000 : (isChatMessage(msg) ? msg.timestamp : Infinity);
-              return Math.min(minTs, currentTs);
-            }, Infinity);
             const disclaimerMsg: ChatMessage = {
               id: `${currentRoom.id}-disclaimer-${Date.now()}`,
               type: 'system',
               text: DISCLAIMER_MESSAGE_TEXT,
               sender: 'system',
-              timestamp: earliestTimestamp === Infinity ? Date.now() : earliestTimestamp - 1,
+              timestamp: Date.now() - 1,
               reactions: {}
             };
             displayMessages = [disclaimerMsg, ...displayMessages];

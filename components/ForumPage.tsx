@@ -12,7 +12,6 @@ const EMOJIS = ['👍', '❤️', '🚀', '🔥', '😂', '🤯'];
 
 /* ------------------------- Sub-komponen ------------------------- */
 
-// Reaction Picker (Emoji Selector) - Centralized Modal
 const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) => (
   <div
     className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in-fast"
@@ -39,7 +38,6 @@ const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => vo
   </div>
 );
 
-// Display Existing Reactions
 const Reactions = ({
   message,
   username,
@@ -87,7 +85,6 @@ const Reactions = ({
   );
 };
 
-// Delete Button Component
 const DeleteButton: React.FC<{ onClick: (e: React.MouseEvent) => void }> = ({ onClick }) => (
   <button
     onClick={onClick}
@@ -100,7 +97,7 @@ const DeleteButton: React.FC<{ onClick: (e: React.MouseEvent) => void }> = ({ on
     </svg>
   </button>
 );
-// React Button Component
+
 const ReactButton: React.FC<{ onClick: (e: React.MouseEvent) => void }> = ({ onClick }) => (
   <button
     onClick={onClick}
@@ -148,7 +145,6 @@ const NewsMessage: React.FC<{
           }`}
           data-message-interactive="true"
         >
-          {/* Konten Berita */}
           <div className="flex items-start space-x-3">
             <img
               src={article.imageurl}
@@ -177,7 +173,6 @@ const NewsMessage: React.FC<{
             <Reactions message={article} username={username} onReact={(emoji) => onReact(article.id, emoji)} />
           </div>
 
-          {/* Tombol Aksi */}
           <div className="relative flex-shrink-0">
             <div className={`flex items-center gap-1 transition-opacity duration-200 ${showActions ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
               <ReactButton onClick={onReactButtonClick} />
@@ -216,16 +211,19 @@ const UserMessage: React.FC<{
 }) => {
   const currentUsername = userProfile?.username || '';
   const isCurrentUser = message.sender === currentUsername && !!currentUsername;
-  const creationDate = isCurrentUser && userProfile ? userProfile.createdAt : null;
+  
+  // Gunakan userCreationDate dari pesan jika tersedia, atau dari userProfile
+  const creationDate = message.userCreationDate || userProfile?.createdAt || null;
 
   return (
     <div className={`my-0.5 flex relative ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-xs sm:max-w-sm md:max-w-md ${isCurrentUser ? 'ml-auto' : ''}`}>
-        {/* Username/Tag Info */}
+        {/* Username/Tag Info - TAMPILKAN UNTUK SEMUA USER */}
         <div className={`flex items-center gap-1 flex-wrap mb-0.5 ${isCurrentUser ? 'justify-end' : ''}`}>
           <span className={`font-bold text-[11px] break-all font-heading ${isCurrentUser ? 'text-electric' : 'text-magenta'}`}>
             {message.sender}
           </span>
+          {/* UserTag ditampilkan untuk semua pesan */}
           <UserTag sender={message.sender} userCreationDate={creationDate} />
         </div>
 
@@ -243,7 +241,6 @@ const UserMessage: React.FC<{
           } transition-colors`}
           data-message-interactive="true"
         >
-          {/* Konten Pesan */}
           {message.fileURL && (
             <img
               src={message.fileURL}
@@ -258,7 +255,6 @@ const UserMessage: React.FC<{
           {message.text}
         </div>
 
-        {/* Waktu di bawah bubble (di luar bubble) */}
         <div className={`text-[10px] text-gray-500 mt-0.5 ${isCurrentUser ? 'text-right' : 'text-left'}`}>
           {formatDate(message.timestamp)}
         </div>
@@ -268,7 +264,6 @@ const UserMessage: React.FC<{
             <Reactions message={message} username={currentUsername} onReact={(emoji) => onReact(message.id, emoji)} />
           </div>
 
-          {/* Tombol Aksi */}
           <div className={`relative flex-shrink-0 ${isCurrentUser ? 'ml-1' : 'mr-1'}`}>
             <div className={`flex items-center gap-1 transition-opacity duration-200 ${showActions ? 'opacity-100' : 'opacity-0 pointer-events-none'}`}>
               <ReactButton onClick={onReactButtonClick} />
@@ -282,9 +277,18 @@ const UserMessage: React.FC<{
 };
 
 /* ------------------------- System & Announcement ------------------------- */
-const SystemMessage: React.FC<{ message: ChatMessage }> = ({ message }) => (
-  <div className="text-center text-xs text-gray-500 py-2 italic animate-fade-in-up">{message.text}</div>
-);
+const SystemMessage: React.FC<{ message: ChatMessage }> = ({ message }) => {
+  const isDisclaimer = message.text?.includes('⚠️ Penting Gengs:');
+  
+  return (
+    <div className={`text-center py-3 animate-fade-in-up ${isDisclaimer ? 'bg-magenta/10 border border-magenta/20 rounded-lg mx-2 my-3' : ''}`}>
+      <div className={`text-xs ${isDisclaimer ? 'text-magenta font-semibold px-4' : 'text-gray-500 italic'}`}>
+        {message.text}
+      </div>
+    </div>
+  );
+};
+
 const AnnouncementMessage: React.FC<{ message: ChatMessage }> = ({ message }) => {
   const text = message.text || '';
   const parts = text.split(':');
@@ -343,15 +347,12 @@ const ForumPage: React.FC<ForumPageProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
   const username = userProfile?.username ?? '';
 
-  // State untuk interaksi pesan
   const [activeMessageId, setActiveMessageId] = useState<string | null>(null);
   const [showPickerForMsgId, setShowPickerForMsgId] = useState<string | null>(null);
 
-  // Image preview modal
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const onImageClick = (url: string) => setPreviewImage(url);
 
-  // Handler klik pesan: toggle state aktif
   const handleMessageClick = (messageId: string) => {
     setActiveMessageId((currentId) => {
       const isCurrentlyActive = currentId === messageId;
@@ -361,14 +362,12 @@ const ForumPage: React.FC<ForumPageProps> = ({
     });
   };
 
-  // Handler klik tombol React: tampilkan picker terpusat
   const handleReactButtonClick = (e: React.MouseEvent, messageId: string) => {
     e.stopPropagation();
     setShowPickerForMsgId(messageId);
     if (activeMessageId !== messageId) setActiveMessageId(messageId);
   };
 
-  // Handler untuk menutup picker/actions saat klik di area chat
   const handleChatAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
     const targetElement = e.target as Element;
     if (!targetElement.closest('[data-message-interactive="true"]')) {
@@ -377,7 +376,6 @@ const ForumPage: React.FC<ForumPageProps> = ({
     }
   };
 
-  // Sorting & scroll
   const safeMessages = Array.isArray(messages) ? messages : [];
   const sortedMessages = useMemo(() => {
     return [...safeMessages].sort((a, b) => {
@@ -401,14 +399,17 @@ const ForumPage: React.FC<ForumPageProps> = ({
     const currentMessageText = newMessage.trim();
     const currentAttachment = attachment;
     if ((!currentMessageText && !currentAttachment) || !username) return;
-    const messageData: Partial<ChatMessage> & { type: 'user'; sender: string; timestamp: number } = {
+    
+    const messageData: Partial<ChatMessage> & { type: 'user'; sender: string; timestamp: number; userCreationDate?: number } = {
       type: 'user',
       sender: username,
       timestamp: Date.now(),
       reactions: {},
+      userCreationDate: userProfile?.createdAt,
       ...(currentMessageText && { text: currentMessageText }),
       ...(currentAttachment && { fileURL: currentAttachment.dataUrl, fileName: currentAttachment.name }),
     };
+    
     onSendMessage(messageData as ChatMessage);
     setNewMessage('');
     setAttachment(null);
@@ -538,7 +539,6 @@ const ForumPage: React.FC<ForumPageProps> = ({
               return null;
             })
           )}
-          {/* Element to scroll to */}
           <div ref={chatEndRef} />
         </div>
 
@@ -606,7 +606,6 @@ const ForumPage: React.FC<ForumPageProps> = ({
         </div>
       </div>
 
-      {/* Render Picker Emoji Terpusat jika showPickerForMsgId tidak null */}
       {showPickerForMsgId && (
         <ReactionPicker
           onSelect={(emoji) => {
@@ -617,7 +616,6 @@ const ForumPage: React.FC<ForumPageProps> = ({
         />
       )}
 
-      {/* Image Preview Modal */}
       {previewImage && (
         <div
           className="fixed inset-0 bg-black/80 flex items-center justify-center z-50"
@@ -628,25 +626,20 @@ const ForumPage: React.FC<ForumPageProps> = ({
         </div>
       )}
 
-      {/* Styles */}
       <style>{`
-        /* Z-index classes */
         .z-10 { z-index: 10; }
         .z-20 { z-index: 20; }
-        .z-50 { z-index: 50; } /* Untuk picker & modal */
+        .z-50 { z-index: 50; }
 
-        /* Animation for picker */
         @keyframes fade-in-fast { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
         .animate-fade-in-fast { animation: fade-in-fast 0.15s ease-out forwards; }
 
-        /* Custom Scrollbar */
         .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
         .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
         .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0, 191, 255, 0.5); }
         .custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; }
 
-        /* General Animations */
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         @keyframes fade-in-up { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
         .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
