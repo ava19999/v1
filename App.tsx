@@ -44,7 +44,7 @@ import {
 } from './services/mockData';
 import { ADMIN_USERNAMES } from './components/UserTag';
 import { database } from './services/firebaseService';
-import { ref, set, push, onValue, off, update, get, Database, query, orderByChild } from 'firebase/database';
+import { ref, set, push, onValue, off, update, get, Database } from 'firebase/database';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
@@ -67,7 +67,7 @@ const safeRef = (path: string) => {
   return ref(database, path);
 };
 
-// Sound notification yang lebih reliable - VOLUME DITINGKATKAN LAGI
+// Sound notification - VOLUME DITINGKATKAN
 const playNotificationSound = () => {
   try {
     const audioSources = [
@@ -184,7 +184,7 @@ const AppContent: React.FC = () => {
   const prevTotalUnreadRef = useRef<number>(0);
   const lastSoundPlayTimeRef = useRef<number>(0);
   const roomListenersRef = useRef<{ [roomId: string]: () => void }>({});
-  const processedMessagesRef = useRef<{ [roomId: string]: Set<string> }>({});
+  const lastProcessedTimestampsRef = useRef<{ [roomId: string]: number }>({});
 
   // Load disclaimer status dari localStorage
   useEffect(() => {
@@ -203,10 +203,10 @@ const AppContent: React.FC = () => {
     localStorage.setItem('disclaimerShown', JSON.stringify(disclaimerShown));
   }, [disclaimerShown]);
 
-  // Initialize processedMessagesRef
+  // Initialize lastProcessedTimestampsRef
   useEffect(() => {
-    if (!processedMessagesRef.current) {
-      processedMessagesRef.current = {};
+    if (!lastProcessedTimestampsRef.current) {
+      lastProcessedTimestampsRef.current = {};
     }
   }, []);
 
@@ -254,17 +254,11 @@ const AppContent: React.FC = () => {
     }
   }, [currentRoom]);
 
-  // Fungsi untuk menambahkan disclaimer ke room - DIPERBAIKI TOTAL
+  // Fungsi untuk menambahkan disclaimer ke room - DIPERBAIKI SEDERHANA
   const addDisclaimerToRoom = useCallback((roomId: string) => {
     if (!database || roomId === 'berita-kripto') return;
 
-    console.log(`🔄 Memeriksa disclaimer untuk room: ${roomId}`);
-
-    // Cek apakah disclaimer sudah ditampilkan untuk room ini
-    if (disclaimerShown[roomId]) {
-      console.log(`ℹ️ Disclaimer sudah ada di room: ${roomId}`);
-      return;
-    }
+    console.log(`🔄 Menambahkan disclaimer ke room: ${roomId}`);
 
     const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
       type: 'system',
@@ -276,51 +270,23 @@ const AppContent: React.FC = () => {
 
     try {
       const messageListRef = safeRef(`messages/${roomId}`);
-      
-      // Cek dulu apakah sudah ada disclaimer di room ini
-      get(messageListRef).then((snapshot) => {
-        const existingMessages = snapshot.val();
-        let disclaimerExists = false;
-        
-        if (existingMessages) {
-          // Cek semua pesan apakah sudah ada disclaimer
-          Object.values(existingMessages).forEach((msg: any) => {
-            if (msg.text === DISCLAIMER_MESSAGE_TEXT && msg.type === 'system') {
-              disclaimerExists = true;
-            }
-          });
-        }
-        
-        if (disclaimerExists) {
-          console.log(`ℹ️ Disclaimer sudah ada di database untuk room: ${roomId}`);
+      const newMessageRef = push(messageListRef);
+      set(newMessageRef, disclaimerMsg)
+        .then(() => {
+          console.log(`✅ Disclaimer berhasil ditambahkan ke room: ${roomId}`);
+          // Tandai disclaimer sudah ditampilkan untuk room ini
           setDisclaimerShown(prev => ({
             ...prev,
             [roomId]: true
           }));
-          return;
-        }
-        
-        // Jika belum ada, tambahkan disclaimer
-        const newMessageRef = push(messageListRef);
-        set(newMessageRef, disclaimerMsg)
-          .then(() => {
-            console.log(`✅ Disclaimer berhasil ditambahkan ke room: ${roomId}`);
-            // Tandai disclaimer sudah ditampilkan untuk room ini
-            setDisclaimerShown(prev => ({
-              ...prev,
-              [roomId]: true
-            }));
-          })
-          .catch(error => {
-            console.error('❌ Gagal menambahkan disclaimer:', error);
-          });
-      }).catch(error => {
-        console.error('❌ Gagal memeriksa pesan existing:', error);
-      });
+        })
+        .catch(error => {
+          console.error('❌ Gagal menambahkan disclaimer:', error);
+        });
     } catch (error) {
       console.error('❌ Error adding disclaimer:', error);
     }
-  }, [database, disclaimerShown]);
+  }, [database]);
 
   useEffect(() => {
     try {
@@ -584,7 +550,7 @@ const AppContent: React.FC = () => {
     };
   }, [currentRoom, database, lastMessageTimestamps]);
 
-  // Listener untuk semua room untuk unread counts - DIPERBAIKI TOTAL UNTUK COUNT YANG AKURAT
+  // Listener untuk semua room untuk unread counts - DIPERBAIKI TOTAL
   useEffect(() => {
     if (!database) return;
 
@@ -598,9 +564,6 @@ const AppContent: React.FC = () => {
     });
     roomListenersRef.current = {};
 
-    // Reset processed messages
-    processedMessagesRef.current = {};
-
     joinedRoomIds.forEach(roomId => {
       // Skip room berita kripto karena menggunakan sistem berbeda
       if (roomId === 'berita-kripto') return;
@@ -609,11 +572,6 @@ const AppContent: React.FC = () => {
       if (roomId === currentRoom?.id) return;
 
       const messagesRef = safeRef(`messages/${roomId}`);
-      
-      // Inisialisasi processed messages untuk room ini
-      if (!processedMessagesRef.current[roomId]) {
-        processedMessagesRef.current[roomId] = new Set();
-      }
       
       const listener = onValue(messagesRef, (snapshot) => {
         const data = snapshot.val();
@@ -630,30 +588,25 @@ const AppContent: React.FC = () => {
         const lastVisit = userLastVisit[roomId] || 0;
         let newMessagesCount = 0;
 
-        Object.entries(data).forEach(([messageId, msgData]: [string, any]) => {
+        Object.values(data).forEach((msgData: any) => {
           if (!msgData) return;
           
           const timestamp = msgData.published_on ? msgData.published_on * 1000 : msgData.timestamp;
           
-          // Pesan dianggap baru jika:
-          // 1. Timestamp lebih baru dari last visit
-          // 2. Belum pernah diproses sebelumnya
-          // 3. User tidak sedang berada di room tersebut
-          if (timestamp > lastVisit && 
-              !processedMessagesRef.current[roomId].has(messageId) &&
-              roomId !== currentRoom?.id) {
+          // Pesan dianggap baru jika timestamp lebih baru dari last visit
+          // DAN user tidak sedang berada di room tersebut
+          if (timestamp > lastVisit && roomId !== currentRoom?.id) {
             newMessagesCount++;
-            processedMessagesRef.current[roomId].add(messageId);
           }
         });
 
-        // Update unread count hanya jika ada pesan baru
+        // Update unread count dengan jumlah pesan baru
         if (newMessagesCount > 0) {
           setUnreadCounts(prev => ({
             ...prev,
-            [roomId]: (prev[roomId] || 0) + newMessagesCount
+            [roomId]: newMessagesCount
           }));
-          console.log(`📨 ${newMessagesCount} pesan baru di ${roomId}, total unread: ${(unreadCounts[roomId] || 0) + newMessagesCount}`);
+          console.log(`📨 ${newMessagesCount} pesan baru di ${roomId} (last visit: ${new Date(lastVisit).toLocaleTimeString()})`);
         }
       }, (error) => {
         console.error(`Listener error untuk room ${roomId}:`, error);
@@ -787,11 +740,6 @@ const AppContent: React.FC = () => {
       [room.id]: 0
     }));
 
-    // Reset processed messages untuk room ini
-    if (processedMessagesRef.current[room.id]) {
-      processedMessagesRef.current[room.id].clear();
-    }
-
     // TAMBAHKAN DISCLAIMER KE SEMUA ROOM (kecuali berita-kripto) SAAT USER MASUK
     // PASTIKAN DISCLAIMER SELALU DITAMBAHKAN
     if (database && room.id !== 'berita-kripto') {
@@ -813,14 +761,10 @@ const AppContent: React.FC = () => {
     setUnreadCounts(prev => { const newCounts = { ...prev }; delete newCounts[roomId]; return newCounts; });
     setUserLastVisit(prev => { const newVisits = { ...prev }; delete newVisits[roomId]; return newVisits; });
     
-    // Hapus listener dan processed messages untuk room yang ditinggalkan
+    // Hapus listener untuk room yang ditinggalkan
     if (roomListenersRef.current[roomId]) {
       roomListenersRef.current[roomId]();
       delete roomListenersRef.current[roomId];
-    }
-    
-    if (processedMessagesRef.current[roomId]) {
-      delete processedMessagesRef.current[roomId];
     }
     
     if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
