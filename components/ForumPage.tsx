@@ -662,4 +662,3 @@ const ForumPage: React.FC<ForumPageProps> = ({
 };
 
 export default ForumPage;
-```
