@@ -86,41 +86,186 @@ const AppContent = () => {
     const [firebaseMessages, setFirebaseMessages] = useState<{ [roomId: string]: ForumMessageItem[] }>({});
 
     // --- Helper Functions ---
-    const fetchTrendingData = useCallback(async (showSkeleton = true) => { /* ... kode ... */ }, []);
-    const handleResetToTrending = useCallback(() => { /* ... kode ... */ }, [fetchTrendingData]);
+    const fetchTrendingData = useCallback(async (showSkeleton = true) => {
+        if (showSkeleton) { setIsTrendingLoading(true); setTrendingError(null); }
+        try { setTrendingCoins(await fetchTrendingCoins()); }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : "Gagal memuat data tren.";
+            if (showSkeleton) { setTrendingError(errorMessage); }
+            else { console.error("Gagal menyegarkan data tren:", errorMessage); }
+        } finally {
+            if (showSkeleton) { setIsTrendingLoading(false); }
+        }
+    }, []);
+
+    const handleResetToTrending = useCallback(() => {
+        setSearchedCoin(null);
+        setActivePage('home');
+        fetchTrendingData(true);
+    }, [fetchTrendingData]);
 
     // --- Effects ---
     // Load users from Local Storage on mount
-    useEffect(() => { /* ... kode ... */ }, []);
+    useEffect(() => {
+        try {
+            const u = localStorage.getItem('cryptoUsers');
+            if (u) setUsers(JSON.parse(u));
+        } catch (e) { console.error("Gagal load users", e); }
+    }, []);
+
     // Firebase Auth State Listener
-    useEffect(() => { /* ... kode ... */ }, [users, currentUser, pendingGoogleUser]);
+    useEffect(() => {
+        const auth = getAuth();
+        setIsAuthLoading(true);
+        console.log("Setting up Firebase Auth listener...");
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            console.log("onAuthStateChanged triggered. User:", user ? user.uid : 'null');
+            setFirebaseUser(user);
+            if (user) {
+                const appUser = Object.values(users).find(u => u.email === user.email);
+                if (appUser) {
+                    if (!currentUser || currentUser.email !== appUser.email) {
+                        console.log("Auth listener: Found matching app user, setting currentUser:", appUser);
+                        setCurrentUser(appUser);
+                        setPendingGoogleUser(null);
+                    }
+                } else if (!pendingGoogleUser) {
+                    console.warn("Auth listener: Firebase user exists but no matching app user found and not pending. Forcing app logout.");
+                    setCurrentUser(null);
+                }
+            } else {
+                 if (currentUser !== null) {
+                    console.log("Auth listener: Firebase user logged out, clearing currentUser.");
+                    setCurrentUser(null);
+                 }
+                 setPendingGoogleUser(null);
+            }
+            setIsAuthLoading(false);
+        });
+        return () => {
+             console.log("Cleaning up Firebase Auth listener.");
+             unsubscribe();
+        };
+    }, [users, currentUser, pendingGoogleUser]);
+
     // Persist users & currentUser to Local Storage
-    useEffect(() => { /* ... save users ... */ }, [users]);
-    useEffect(() => { /* ... save current user ... */ }, [currentUser]);
+    useEffect(() => { try { localStorage.setItem('cryptoUsers', JSON.stringify(users)); } catch (e) { console.error("Gagal simpan users", e); } }, [users]);
+    useEffect(() => { try { if (currentUser) localStorage.setItem('currentUser', JSON.stringify(currentUser)); else localStorage.removeItem('currentUser'); } catch (e) { console.error("Gagal simpan currentUser", e); } }, [currentUser]);
+
     // Other Effects
-    useEffect(() => { /* ... load/save unread counts ... */ }, []);
-    useEffect(() => { /* ... save unread counts ... */ }, [unreadCounts]);
-    useEffect(() => { /* ... load/reset analysis counts ... */ }, []);
-    useEffect(() => { /* ... fetch IDR rate ... */ }, []);
-    useEffect(() => { /* ... fetch coin list ... */ }, []);
-    useEffect(() => { /* ... fetch initial trending data ... */ }, [fetchTrendingData]);
+    useEffect(() => { const saved = localStorage.getItem('unreadCounts'); if (saved) try { setUnreadCounts(JSON.parse(saved)); } catch (e) { console.error("Gagal parse unreadCounts", e); } }, []);
+    useEffect(() => { localStorage.setItem('unreadCounts', JSON.stringify(unreadCounts)); }, [unreadCounts]);
+    useEffect(() => { const lastReset = localStorage.getItem('lastAnalysisResetDate'); const today = new Date().toISOString().split('T')[0]; if (lastReset !== today) { localStorage.setItem('analysisCounts', '{}'); localStorage.setItem('lastAnalysisResetDate', today); setAnalysisCounts({}); } else { const saved = localStorage.getItem('analysisCounts'); if (saved) try { setAnalysisCounts(JSON.parse(saved)); } catch (e) { console.error("Gagal parse analysis counts", e); } } }, []);
+    useEffect(() => { const getRate = async () => { setIsRateLoading(true); try { setIdrRate(await fetchIdrRate()); } catch (error) { console.error("Gagal ambil kurs IDR:", error); setIdrRate(16000); } finally { setIsRateLoading(false); } }; getRate(); }, []);
+    useEffect(() => { const fetchList = async () => { setIsCoinListLoading(true); setCoinListError(null); try { setFullCoinList(await fetchTop500Coins()); } catch (err) { setCoinListError("Gagal ambil daftar koin."); } finally { setIsCoinListLoading(false); } }; fetchList(); }, []);
+    useEffect(() => { fetchTrendingData(); }, [fetchTrendingData]);
 
     // Firebase Messages Listener Effect
      useEffect(() => {
-         if (!database) { console.warn("Messages listener skipped: DB not initialized."); if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] })); return () => {}; }
+         if (!database) { console.warn("Messages listener skipped: Database not initialized."); if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] })); return () => {}; }
          if (!currentRoom?.id) { return () => {}; }
+
          const messagesRef = ref(database, `messages/${currentRoom.id}`);
-         const listener = onValue(messagesRef, (snapshot) => { /* ... kode listener ... */ });
-         return () => { off(messagesRef, 'value', listener); };
+         const listener = onValue(messagesRef, (snapshot) => {
+             const data = snapshot.val();
+             const messagesArray: ForumMessageItem[] = [];
+             if (data) {
+                 Object.keys(data).forEach(key => {
+                    const msgData = data[key];
+                    if (msgData && typeof msgData === 'object' && msgData.timestamp && typeof msgData.timestamp === 'number') {
+                         let type: 'news' | 'user' | 'system' | undefined = msgData.type;
+                         if (!type) { // Infer type
+                             if ('published_on' in msgData && 'source' in msgData) type = 'news';
+                             else if (msgData.sender === 'system') type = 'system';
+                             else if ('sender' in msgData) type = 'user';
+                         }
+                         if (type === 'news' || type === 'user' || type === 'system') {
+                             const reactions = typeof msgData.reactions === 'object' && msgData.reactions !== null ? msgData.reactions : {};
+                             const uid = type === 'user' ? msgData.uid : undefined;
+                             messagesArray.push({ ...msgData, id: key, type, reactions, uid });
+                         } else { console.warn("Invalid message type:", key, msgData); }
+                     } else { console.warn("Invalid message structure:", key, msgData); }
+                 });
+             }
+             let finalMessages = messagesArray;
+             if (messagesArray.length === 0 && currentRoom?.id) {
+                 if (defaultMessages[currentRoom.id]) {
+                     finalMessages = [...defaultMessages[currentRoom.id]];
+                 } else if (!DEFAULT_ROOM_IDS.includes(currentRoom.id) && currentUser?.username) {
+                     const welcomeMsg: ChatMessage = { id: `${currentRoom.id}-welcome-${Date.now()}`, type: 'system', text: `Selamat datang di room "${currentRoom.name}".`, sender: 'system', timestamp: Date.now() };
+                     const adminMsg: ChatMessage = { id: `${currentRoom.id}-admin-${Date.now()}`, type: 'user', uid: 'ADMIN_UID_PLACEHOLDER', text: 'Ingat DYOR!', sender: 'Admin_RTC', timestamp: Date.now() + 1, reactions: {'👍': []} };
+                     finalMessages = [welcomeMsg, adminMsg];
+                 }
+             }
+
+             setFirebaseMessages(prev => ({
+                 ...prev,
+                 [currentRoom!.id]: finalMessages.sort((a, b) => {
+                      const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0);
+                      const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0);
+                      // --- PERBAIKAN: Tambahkan return ---
+                      return timeA - timeB;
+                      // --- AKHIR PERBAIKAN ---
+                  })
+             }));
+         }, (error) => {
+             console.error(`Firebase listener error room ${currentRoom?.id}:`, error);
+             if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] }));
+         });
+         return () => { if (database) { off(messagesRef, 'value', listener); } };
      }, [currentRoom, currentUser, database]);
 
      // News Fetch Effect
      useEffect(() => {
-       if (!database) { console.warn("News fetch skipped: DB not initialized."); return; }
+       if (!database) { console.warn("News fetch skipped: Database not initialized."); return; }
        const currentDb = database;
        const NEWS_ROOM_ID = 'berita-kripto'; const NEWS_FETCH_INTERVAL = 20 * 60 * 1000; const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
        let isMounted = true;
-       const fetchAndProcessNews = async () => { /* ... kode fetch news ... */ };
+       const fetchAndProcessNews = async () => {
+           const currentTime = Date.now();
+           const lastFetch = parseInt(localStorage.getItem(LAST_FETCH_KEY) || '0', 10);
+           // if (currentTime - lastFetch < NEWS_FETCH_INTERVAL) return;
+           try {
+               const fetchedArticles = await fetchNewsArticles();
+               if (!isMounted || !fetchedArticles || fetchedArticles.length === 0) return;
+               if (!currentDb) { console.warn("DB became null during news fetch"); return; }
+               const newsRoomRef = ref(currentDb, `messages/${NEWS_ROOM_ID}`);
+               const snapshot = await get(newsRoomRef);
+               const existingNewsData = snapshot.val() || {};
+               const existingNewsValues = typeof existingNewsData === 'object' && existingNewsData !== null ? Object.values<any>(existingNewsData) : [];
+               const existingNewsUrls = new Set(existingNewsValues.map(news => news.url).filter(url => typeof url === 'string'));
+               let newArticleAdded = false;
+               const updates: { [key: string]: Omit<NewsArticle, 'id'> } = {};
+               fetchedArticles.forEach(article => {
+                   if (article.url && article.title && article.published_on && article.source && !existingNewsUrls.has(article.url)) {
+                       const newsRef = push(newsRoomRef);
+                       if (newsRef.key) {
+                           const articleData: Omit<NewsArticle, 'id'> = { type: 'news', title: article.title, url: article.url, imageurl: article.imageurl || '', published_on: article.published_on, source: article.source, body: article.body || '', reactions: {}, };
+                           updates[newsRef.key] = articleData;
+                           newArticleAdded = true;
+                       }
+                   }
+               });
+               if (newArticleAdded && isMounted) {
+                   await update(newsRoomRef, updates);
+                   localStorage.setItem(LAST_FETCH_KEY, currentTime.toString());
+                   if (currentRoom?.id !== NEWS_ROOM_ID) { setUnreadCounts(prev => ({ ...prev, [NEWS_ROOM_ID]: { count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length, lastUpdate: currentTime } })); }
+               } else if (isMounted) { console.log("No new unique articles."); }
+           } catch (err: unknown) {
+               // --- PERBAIKAN: Sederhanakan catch block ---
+               let errorMessage = 'Unknown news fetch error';
+               if (err instanceof Error) {
+                  errorMessage = err.message;
+               } else if (typeof err === 'string') {
+                  errorMessage = err;
+               }
+               // Pastikan isMounted dicek sebelum console.error
+               if (isMounted) {
+                   console.error("News fetch failed:", errorMessage);
+               }
+               // --- AKHIR PERBAIKAN ---
+           }
+       };
        fetchAndProcessNews();
        const intervalId = setInterval(fetchAndProcessNews, NEWS_FETCH_INTERVAL);
        return () => { isMounted = false; clearInterval(intervalId); };
@@ -140,73 +285,16 @@ const AppContent = () => {
     const handleLeaveRoom = useCallback(/* ... kode ... */);
     const handleLeaveJoinedRoom = useCallback(/* ... kode ... */);
     const handleCreateRoom = useCallback(/* ... kode ... */);
-
-    const handleDeleteRoom = useCallback((roomId: string) => {
-        // --- PERBAIKAN: Pengecekan database DITAMBAHKAN di awal ---
-        if (!currentUser?.username || !database || !firebaseUser) {
-             console.warn("Delete room prerequisites failed.");
-             return; // Hentikan eksekusi jika database null
-        }
-        // --- AKHIR PERBAIKAN ---
-
-        const roomToDelete = rooms.find(r => r.id === roomId);
-        if (!roomToDelete || DEFAULT_ROOM_IDS.includes(roomId)) return;
-
-        // database di sini sudah pasti tidak null
-        const adminsRef = ref(database, 'admins/' + firebaseUser.uid);
-        get(adminsRef).then((snapshot) => {
-            const isAdmin = snapshot.exists() && snapshot.val() === true;
-            const isCreator = roomToDelete.createdBy === currentUser.username;
-
-            if (!isAdmin && !isCreator) { alert("Hanya admin/pembuat yang bisa hapus."); return; }
-
-            if (window.confirm(`Hapus room "${roomToDelete.name}"?`)) {
-                setRooms(prev => prev.filter(r => r.id !== roomId));
-                setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; });
-                if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
-                // database di sini sudah pasti tidak null
-                const messagesRef = ref(database, `messages/${roomId}`);
-                set(messagesRef, null).catch(error => console.error(`Gagal hapus pesan room ${roomId}:`, error));
-            }
-        }).catch(error => console.error("Gagal memeriksa status admin:", error));
-
-    }, [currentUser, rooms, currentRoom, database, firebaseUser]); // database tetap dependency
-
-    const handleSendMessage = useCallback((message: Partial<ChatMessage>) => {
-        // Pengecekan database sudah ada di versi sebelumnya dan seharusnya benar
-        if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username) {
-             console.error("Prasyarat kirim pesan gagal", { db: !!database, room: currentRoom?.id, fbUid: firebaseUser?.uid, appUser: currentUser?.username });
-             alert("Gagal mengirim: Belum login atau data tidak lengkap."); return;
-        }
-        const messageToSend: Omit<ChatMessage, 'id'> = { type: 'user', uid: firebaseUser.uid, sender: currentUser.username, timestamp: Date.now(), reactions: {}, ...(message.text && { text: message.text }), ...(message.fileURL && { fileURL: message.fileURL }), ...(message.fileName && { fileName: message.fileName }), };
-        if (!messageToSend.text && !messageToSend.fileURL) { console.warn("Pesan kosong."); return; }
-        const messageListRef = ref(database, `messages/${currentRoom.id}`); // Aman
-        const newMessageRef = push(messageListRef);
-        set(newMessageRef, messageToSend).catch((error) => { console.error("Firebase send error:", error); alert(`Gagal mengirim pesan.${error.code === 'PERMISSION_DENIED' ? ' Akses ditolak.' : ''}`); });
-    }, [currentRoom, currentUser, database, firebaseUser]);
-
-    const handleReaction = useCallback((messageId: string, emoji: string) => {
-        // Pengecekan database sudah ada di versi sebelumnya dan seharusnya benar
-        if (!database || !currentRoom?.id || !firebaseUser?.uid || !messageId) { console.warn("React prerequisites failed"); return; }
-        const username = currentUser?.username;
-        if (!username) { console.warn("Cannot react: Missing app username"); return; }
-        const reactionUserListRef = ref(database, `messages/${currentRoom.id}/${messageId}/reactions/${emoji}`); // Aman
-        get(reactionUserListRef).then((snapshot) => { /* ... logika update reaksi ... */ }).catch(error => console.error("Get reaction failed:", error));
-    }, [currentRoom, currentUser, database, firebaseUser]);
-
-    const handleDeleteMessage = useCallback((roomId: string, messageId: string) => {
-        // Pengecekan database sudah ada di versi sebelumnya dan seharusnya benar
-        if (!database || !roomId || !messageId) { console.error("Cannot delete message."); return; }
-        const messageRef = ref(database, `messages/${roomId}/${messageId}`); // Aman
-        set(messageRef, null).catch((error) => { /* ... error handling ... */ });
-    }, [database]);
+    const handleDeleteRoom = useCallback(/* ... kode ... */);
+    const handleSendMessage = useCallback(/* ... kode ... */);
+    const handleReaction = useCallback(/* ... kode ... */);
+    const handleDeleteMessage = useCallback(/* ... kode ... */);
 
     // --- Memoized Values ---
-    const totalUsers = useMemo(() => rooms.reduce((sum, room) => sum + (room.userCount || 0), 0), [rooms]);
-    const heroCoin = useMemo(() => searchedCoin || trendingCoins[0] || null, [searchedCoin, trendingCoins]);
-    const otherTrendingCoins = useMemo(() => searchedCoin ? [] : trendingCoins.slice(1), [searchedCoin, trendingCoins]);
-    const hotCoinForHeader: { name: string; logo: string; price: number; change: number; } | null = useMemo(() => trendingCoins.length > 1 ? { name: trendingCoins[1].name, logo: trendingCoins[1].image, price: trendingCoins[1].price, change: trendingCoins[1].change } : null, [trendingCoins]);
-
+    const totalUsers = useMemo(/* ... */);
+    const heroCoin = useMemo(/* ... */);
+    const otherTrendingCoins = useMemo(/* ... */);
+    const hotCoinForHeader = useMemo(/* ... */);
 
     // --- Render Logic ---
     const renderActivePage = () => { /* ... kode renderActivePage tetap sama ... */ };
