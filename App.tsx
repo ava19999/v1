@@ -203,7 +203,7 @@ const AppContent = () => {
                  [currentRoom!.id]: finalMessages.sort((a, b) => {
                       const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0);
                       const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0);
-                      return timeA - timeB;
+                      return timeA - timeB; // Pastikan return ada
                   })
              }));
          }, (error) => {
@@ -347,18 +347,26 @@ const AppContent = () => {
 
     const handleDeleteRoom = useCallback((roomId: string) => {
         // --- PERBAIKAN DI SINI (Error TS2345 baris ~371) ---
-        // Pastikan database tidak null SEBELUM memanggil ref
-        if (!currentUser?.username || !database || !firebaseUser) {
-             console.warn("Delete room prerequisites failed.");
-             return; // Hentikan eksekusi jika database null
+        // Pindahkan pengecekan database ke *dalam* scope Promise
+        if (!currentUser?.username || !firebaseUser) { // Cek user dulu
+             console.warn("Delete room prerequisites failed (user).");
+             return;
         }
-        // --- AKHIR PERBAIKAN ---
 
         const roomToDelete = rooms.find(r => r.id === roomId);
         if (!roomToDelete || DEFAULT_ROOM_IDS.includes(roomId)) return;
 
-        // database di sini sudah pasti tidak null
-        const adminsRef = ref(database, 'admins/' + firebaseUser.uid);
+        // Cek database *sebelum* memanggil ref
+        if (!database) {
+            console.error("Cannot delete room: Database not initialized.");
+            alert("Gagal menghapus room: Koneksi database bermasalah.");
+            return;
+        }
+        // Sekarang database pasti tidak null
+        const currentDb = database; // Capture instance
+        const adminsRef = ref(currentDb, 'admins/' + firebaseUser.uid);
+        // --- AKHIR PERBAIKAN ---
+
         get(adminsRef).then((snapshot) => {
             const isAdmin = snapshot.exists() && snapshot.val() === true;
             const isCreator = roomToDelete.createdBy === currentUser.username;
@@ -369,13 +377,13 @@ const AppContent = () => {
                 setRooms(prev => prev.filter(r => r.id !== roomId));
                 setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; });
                 if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
-                // database di sini sudah pasti tidak null
-                const messagesRef = ref(database, `messages/${roomId}`);
+                // Gunakan currentDb yang sudah pasti tidak null
+                const messagesRef = ref(currentDb, `messages/${roomId}`);
                 set(messagesRef, null).catch(error => console.error(`Gagal hapus pesan room ${roomId}:`, error));
             }
         }).catch(error => console.error("Gagal memeriksa status admin:", error));
 
-    }, [currentUser, rooms, currentRoom, database, firebaseUser]);
+    }, [currentUser, rooms, currentRoom, database, firebaseUser]); // database tetap dependency
 
     const handleSendMessage = useCallback((message: Partial<ChatMessage>) => {
         if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username) { console.error("Prasyarat kirim pesan gagal", { db: !!database, room: currentRoom?.id, fbUid: firebaseUser?.uid, appUser: currentUser?.username }); alert("Gagal mengirim: Belum login atau data tidak lengkap."); return; }
