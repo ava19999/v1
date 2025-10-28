@@ -657,7 +657,8 @@ const AppContent: React.FC = () => {
       return; 
     }
 
-    const adminsRef = ref(database, 'admins/' + firebaseUser.uid);
+    // PERBAIKAN: Gunakan non-null assertion operator (!) setelah pengecekan database
+    const adminsRef = ref(database!, 'admins/' + firebaseUser.uid);
     get(adminsRef).then((snapshot) => {
       const isAdmin = snapshot.exists() && snapshot.val() === true;
       const isCreator = roomToDelete.createdBy === currentUser.username;
@@ -669,7 +670,8 @@ const AppContent: React.FC = () => {
       if (window.confirm(`Anda yakin ingin menghapus room "${roomToDelete.name}" secara permanen? Semua pesan di dalamnya akan hilang.`)) {
         setRooms(prev => prev.filter(r => r.id !== roomId));
         handleLeaveJoinedRoom(roomId);
-        const messagesRef = ref(database, `messages/${roomId}`);
+        // PERBAIKAN: Gunakan non-null assertion operator (!) di sini juga
+        const messagesRef = ref(database!, `messages/${roomId}`);
         set(messagesRef, null)
           .then(() => console.log(`Messages for room ${roomId} deleted.`))
           .catch(error => console.error(`Gagal menghapus pesan untuk room ${roomId}:`, error));
@@ -703,7 +705,8 @@ const AppContent: React.FC = () => {
       ...(message.fileName && { fileName: message.fileName }),
     };
 
-    const messageListRef = ref(database, `messages/${currentRoom.id}`);
+    // PERBAIKAN: Gunakan non-null assertion operator (!) setelah pengecekan database
+    const messageListRef = ref(database!, `messages/${currentRoom.id}`);
     const newMessageRef = push(messageListRef);
     set(newMessageRef, messageToSend).catch((error) => {
       console.error('Firebase send message error:', error);
@@ -730,7 +733,8 @@ const AppContent: React.FC = () => {
     const username = currentUser?.username;
     if (!username) { console.warn('Cannot react: Missing app username'); return; }
 
-    const reactionUserListRef = ref(database, `messages/${currentRoom.id}/${messageId}/reactions/${emoji}`);
+    // PERBAIKAN: Gunakan non-null assertion operator (!) setelah pengecekan database
+    const reactionUserListRef = ref(database!, `messages/${currentRoom.id}/${messageId}/reactions/${emoji}`);
     get(reactionUserListRef).then((snapshot) => {
       const usersForEmoji: string[] = snapshot.val() || [];
       let updatedUsers: string[] | null;
@@ -753,7 +757,8 @@ const AppContent: React.FC = () => {
       alert('Gagal menghapus pesan: Informasi tidak lengkap.');
       return;
     }
-    const messageRef = ref(database, `messages/${roomId}/${messageId}`);
+    // PERBAIKAN: Gunakan non-null assertion operator (!) setelah pengecekan database
+    const messageRef = ref(database!, `messages/${roomId}/${messageId}`);
     set(messageRef, null).then(() => {
       console.log(`Message ${messageId} in room ${roomId} deleted successfully.`);
     }).catch(error => {
