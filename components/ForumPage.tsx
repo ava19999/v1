@@ -376,20 +376,20 @@ const ForumPage: React.FC<ForumPageProps> = ({
     }
   };
 
-  // Filter untuk menghindari duplikasi disclaimer
+  // Filter untuk menghindari duplikasi disclaimer - DIPERBAIKI
   const filteredMessages = useMemo(() => {
     if (!messages || !Array.isArray(messages)) return [];
     
-    const seenDisclaimerIds = new Set();
+    const seenDisclaimerTexts = new Set();
     return messages.filter(message => {
       if (isChatMessage(message) && 
           message.type === 'system' && 
           message.text === DISCLAIMER_MESSAGE_TEXT) {
         
-        if (seenDisclaimerIds.has(message.id)) {
-          return false; // Hapus duplikat
+        if (seenDisclaimerTexts.has(message.text)) {
+          return false; // Hapus duplikat berdasarkan teks
         }
-        seenDisclaimerIds.add(message.id);
+        seenDisclaimerTexts.add(message.text);
       }
       return true;
     });

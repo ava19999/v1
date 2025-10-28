@@ -184,6 +184,7 @@ const AppContent: React.FC = () => {
   // Ref untuk melacak total unread count sebelumnya dan mencegah suara berulang
   const prevTotalUnreadRef = useRef<number>(0);
   const lastSoundPlayTimeRef = useRef<number>(0);
+  const lastProcessedMessagesRef = useRef<{ [roomId: string]: Set<string> }>({});
 
   // Load disclaimer status dari localStorage
   useEffect(() => {
@@ -201,6 +202,13 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('disclaimerShown', JSON.stringify(disclaimerShown));
   }, [disclaimerShown]);
+
+  // Inisialisasi lastProcessedMessagesRef
+  useEffect(() => {
+    if (!lastProcessedMessagesRef.current) {
+      lastProcessedMessagesRef.current = {};
+    }
+  }, []);
 
   const fetchTrendingData = useCallback(async (showSkeleton = true) => {
     if (showSkeleton) { setIsTrendingLoading(true); setTrendingError(null); }
@@ -246,12 +254,15 @@ const AppContent: React.FC = () => {
     }
   }, [currentRoom]);
 
-  // Fungsi untuk menambahkan disclaimer ke room
+  // Fungsi untuk menambahkan disclaimer ke room - DIPERBAIKI
   const addDisclaimerToRoom = useCallback((roomId: string) => {
     if (!database || roomId === 'berita-kripto') return;
 
     // Cek apakah disclaimer sudah ditampilkan untuk room ini
-    if (disclaimerShown[roomId]) return;
+    if (disclaimerShown[roomId]) {
+      console.log(`⚠️ Disclaimer sudah ada di room: ${roomId}`);
+      return;
+    }
 
     const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
       type: 'system',
@@ -545,7 +556,7 @@ const AppContent: React.FC = () => {
     };
   }, [currentRoom, database, lastMessageTimestamps]);
 
-  // Listener untuk semua room untuk unread counts (kecuali berita kripto) - DIPERBAIKI
+  // Listener untuk semua room untuk unread counts (kecuali berita-kripto) - DIPERBAIKI TOTAL
   useEffect(() => {
     if (!database) return;
 
@@ -560,27 +571,37 @@ const AppContent: React.FC = () => {
         const data = snapshot.val();
         if (!data) return;
 
-        // Hitung pesan baru berdasarkan timestamp
-        let newMessagesCount = 0;
+        // Inisialisasi set untuk room ini jika belum ada
+        if (!lastProcessedMessagesRef.current[roomId]) {
+          lastProcessedMessagesRef.current[roomId] = new Set();
+        }
+
+        const processedMessages = lastProcessedMessagesRef.current[roomId];
         const lastVisit = userLastVisit[roomId] || 0;
-        
-        Object.values(data).forEach((msgData: any) => {
+        let newMessagesCount = 0;
+
+        // Hitung hanya pesan yang benar-benar baru
+        Object.entries(data).forEach(([messageId, msgData]: [string, any]) => {
           if (!msgData) return;
           
           const timestamp = msgData.published_on ? msgData.published_on * 1000 : msgData.timestamp;
-          // Hanya hitung pesan yang lebih baru dari kunjungan terakhir
-          if (timestamp > lastVisit) {
+          
+          // Pesan dianggap baru jika:
+          // 1. Timestamp lebih baru dari last visit
+          // 2. Belum pernah diproses sebelumnya
+          if (timestamp > lastVisit && !processedMessages.has(messageId)) {
             newMessagesCount++;
+            processedMessages.add(messageId); // Tandai sudah diproses
           }
         });
 
-        // Update unread count hanya jika ada pesan baru DAN user tidak sedang di room tersebut
-        if (newMessagesCount > 0 && roomId !== currentRoom?.id) {
+        // Update unread count hanya jika ada pesan baru
+        if (newMessagesCount > 0) {
           setUnreadCounts(prev => ({
             ...prev,
             [roomId]: (prev[roomId] || 0) + newMessagesCount
           }));
-          console.log(`📨 Pesan baru di ${roomId}: ${newMessagesCount} pesan`);
+          console.log(`📨 ${newMessagesCount} pesan baru di ${roomId}`);
         }
       });
 
@@ -591,6 +612,16 @@ const AppContent: React.FC = () => {
       roomUnsubscribes.forEach(unsubscribe => unsubscribe());
     };
   }, [joinedRoomIds, currentRoom, database, userLastVisit]);
+
+  // Reset processed messages ketika user visit room berubah
+  useEffect(() => {
+    // Reset processed messages untuk semua room ketika userLastVisit berubah
+    Object.keys(userLastVisit).forEach(roomId => {
+      if (lastProcessedMessagesRef.current[roomId]) {
+        lastProcessedMessagesRef.current[roomId].clear();
+      }
+    });
+  }, [userLastVisit]);
 
   const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => {
     setAuthError(null);
@@ -706,7 +737,9 @@ const AppContent: React.FC = () => {
     }));
 
     // TAMBAHKAN DISCLAIMER KE SEMUA ROOM (kecuali berita-kripto) SAAT USER MASUK
+    // TIDAK PERLU CEK APAKAH ROOM KOSONG ATAU TIDAK
     if (database && room.id !== 'berita-kripto') {
+      console.log(`🔄 Memeriksa disclaimer untuk room: ${room.id}`);
       addDisclaimerToRoom(room.id);
     }
     
@@ -723,6 +756,12 @@ const AppContent: React.FC = () => {
     setJoinedRoomIds(prev => { const newIds = new Set(prev); newIds.delete(roomId); return newIds; });
     setUnreadCounts(prev => { const newCounts = { ...prev }; delete newCounts[roomId]; return newCounts; });
     setUserLastVisit(prev => { const newVisits = { ...prev }; delete newVisits[roomId]; return newVisits; });
+    
+    // Hapus juga dari processed messages
+    if (lastProcessedMessagesRef.current[roomId]) {
+      delete lastProcessedMessagesRef.current[roomId];
+    }
+    
     if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
   }, [currentRoom]);
 
@@ -749,6 +788,7 @@ const AppContent: React.FC = () => {
     
     // TAMBAHKAN DISCLAIMER KE ROOM BARU
     if (database) {
+      console.log(`🔄 Menambahkan disclaimer ke room baru: ${newRoom.id}`);
       addDisclaimerToRoom(newRoom.id);
     }
     
@@ -830,9 +870,6 @@ const AppContent: React.FC = () => {
         console.error('Firebase send message error:', error);
         alert(`Gagal mengirim pesan.${(error as any).code === 'PERMISSION_DENIED' ? ' Akses ditolak. Periksa aturan database.' : ''}`);
       });
-
-      // HAPUS KODE YANG MENAMBAH UNREAD COUNT UNTUK ROOM LAIN
-      // Ini menyebabkan notifikasi count tidak real-time
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Gagal mengirim pesan.');
