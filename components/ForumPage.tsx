@@ -210,22 +210,18 @@ const UserMessage: React.FC<{
   const currentUsername = userProfile?.username || '';
   const isCurrentUser = message.sender === currentUsername && !!currentUsername;
   
-  // Gunakan userCreationDate dari pesan untuk menentukan tag
   const creationDate = message.userCreationDate ?? null;
 
   return (
     <div className={`my-0.5 flex relative ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-xs sm:max-w-sm md:max-w-md ${isCurrentUser ? 'ml-auto' : ''}`}>
-        {/* Username/Tag Info - TAMPILKAN UNTUK SEMUA USER */}
         <div className={`flex items-center gap-1 flex-wrap mb-0.5 ${isCurrentUser ? 'justify-end' : ''}`}>
           <span className={`font-bold text-[10px] break-all font-heading ${isCurrentUser ? 'text-electric' : 'text-magenta'}`}>
             {message.sender}
           </span>
-          {/* UserTag ditampilkan untuk semua pesan dengan creationDate dari pesan */}
           <UserTag sender={message.sender} userCreationDate={creationDate} />
         </div>
 
-        {/* Message Bubble */}
         <div
           onClick={onMessageClick}
           className={`relative text-xs text-gray-200 break-words px-2 py-1.5 rounded-lg cursor-pointer ${
@@ -372,7 +368,6 @@ const ForumPage: React.FC<ForumPageProps> = ({
     }
   };
 
-  // Filter untuk menghindari duplikasi pesan
   const filteredMessages = useMemo(() => {
     if (!messages || !Array.isArray(messages)) return [];
     
@@ -449,17 +444,9 @@ const ForumPage: React.FC<ForumPageProps> = ({
 
   return (
     <div className="flex flex-col flex-grow h-full">
-      {/* Main Chat Area Container */}
       <div className="bg-gray-900 border border-white/10 rounded-xl flex flex-col flex-grow overflow-hidden h-full">
-        {/* Header Room yang Fixed */}
         <div className="flex-shrink-0 p-2 border-b border-white/10 bg-gray-900">
           <div className="flex items-center justify-between gap-2 mb-1">
-            <button onClick={onLeaveRoom} className="flex items-center gap-1 text-gray-400 hover:text-electric transition-colors">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-              </svg>
-              <span className="text-xs font-semibold">Semua Room</span>
-            </button>
             <div className="flex items-center gap-1">
               <div className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
@@ -481,7 +468,6 @@ const ForumPage: React.FC<ForumPageProps> = ({
           </div>
         </div>
 
-        {/* Message List Area - HANYA INI YANG SCROLL */}
         <div className="flex-grow overflow-y-auto p-1 custom-scrollbar" onClick={handleChatAreaClick}>
           {sortedMessages.length === 0 ? (
             <div className="flex items-center justify-center h-full text-gray-500">
@@ -551,8 +537,19 @@ const ForumPage: React.FC<ForumPageProps> = ({
           <div ref={chatEndRef} />
         </div>
 
-        {/* Input Area */}
         <div className="p-1.5 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
+          <div className="flex justify-between items-center mb-1">
+            <button 
+              onClick={onLeaveRoom}
+              className="flex items-center gap-1 text-gray-400 hover:text-electric transition-colors text-xs"
+            >
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+              </svg>
+              Kembali
+            </button>
+          </div>
+
           {isDefaultRoom ? (
             <div className="text-center text-xs text-gray-500 py-1 flex items-center justify-center gap-1">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>

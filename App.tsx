@@ -73,8 +73,6 @@ const playNotificationSound = () => {
     oscillator.start();
     gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
     oscillator.stop(audioContext.currentTime + 0.3);
-    
-    console.log('🔊 Suara notifikasi diputar (fallback)');
   } catch (error) {
     console.log('Error memutar suara notifikasi:', error);
   }
@@ -197,8 +195,8 @@ const AppContent: React.FC = () => {
     }
   }, [currentRoom]);
 
-  // Fungsi untuk update userLastVisit saat berpindah halaman
-  const updateUserLastVisit = useCallback(() => {
+  // Update userLastVisit dan reset unread count ketika activePage berubah
+  useEffect(() => {
     if (currentRoom?.id) {
       const currentTime = Date.now();
       setUserLastVisit(prev => ({
@@ -211,15 +209,25 @@ const AppContent: React.FC = () => {
         ...prev,
         [currentRoom.id]: 0
       }));
+    }
+  }, [activePage, currentRoom]);
+
+  // Update userLastVisit ketika currentRoom berubah
+  useEffect(() => {
+    if (currentRoom?.id) {
+      const currentTime = Date.now();
+      setUserLastVisit(prev => ({
+        ...prev,
+        [currentRoom.id]: currentTime
+      }));
       
-      console.log(`✅ UserLastVisit diupdate untuk room: ${currentRoom.id} (pindah halaman)`);
+      // Reset unread count untuk room yang sedang aktif
+      setUnreadCounts(prev => ({
+        ...prev,
+        [currentRoom.id]: 0
+      }));
     }
   }, [currentRoom]);
-
-  // Update userLastVisit saat activePage berubah
-  useEffect(() => {
-    updateUserLastVisit();
-  }, [activePage, updateUserLastVisit]);
 
   useEffect(() => {
     try {
@@ -374,7 +382,6 @@ const AppContent: React.FC = () => {
         previousTotal > 0 && 
         (now - lastSoundPlayTimeRef.current) > 1000) {
       
-      console.log(`🎯 Unread count meningkat: ${previousTotal} → ${currentTotal}`);
       playNotificationSound();
       lastSoundPlayTimeRef.current = now;
     }
@@ -467,8 +474,6 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (!database) return;
 
-    console.log('🔄 Setup unread count listeners untuk rooms:', Array.from(joinedRoomIds));
-
     // Cleanup previous listeners
     Object.values(roomListenersRef.current).forEach(unsubscribe => {
       if (typeof unsubscribe === 'function') {
@@ -518,7 +523,6 @@ const AppContent: React.FC = () => {
             ...prev,
             [roomId]: newMessagesCount
           }));
-          console.log(`📨 ${newMessagesCount} pesan baru di ${roomId} (last visit: ${new Date(lastVisit).toLocaleTimeString()})`);
         } else {
           // Jika tidak ada pesan baru, reset ke 0
           setUnreadCounts(prev => ({
@@ -605,7 +609,18 @@ const AppContent: React.FC = () => {
 
   const handleLogout = useCallback(() => {
     // Update userLastVisit sebelum logout
-    updateUserLastVisit();
+    if (currentRoom?.id) {
+      const currentTime = Date.now();
+      setUserLastVisit(prev => ({
+        ...prev,
+        [currentRoom.id]: currentTime
+      }));
+      
+      setUnreadCounts(prev => ({
+        ...prev,
+        [currentRoom.id]: 0
+      }));
+    }
     
     const auth = getAuth();
     signOut(auth)
@@ -620,7 +635,7 @@ const AppContent: React.FC = () => {
         setActivePage('home');
         setCurrentRoom(null);
       });
-  }, [updateUserLastVisit]);
+  }, [currentRoom]);
 
   const handleIncrementAnalysisCount = useCallback((coinId: string) => {
     setAnalysisCounts(prev => {
@@ -633,12 +648,23 @@ const AppContent: React.FC = () => {
 
   const handleNavigate = useCallback((page: Page) => {
     // Update userLastVisit sebelum navigasi
-    updateUserLastVisit();
+    if (currentRoom?.id) {
+      const currentTime = Date.now();
+      setUserLastVisit(prev => ({
+        ...prev,
+        [currentRoom.id]: currentTime
+      }));
+      
+      setUnreadCounts(prev => ({
+        ...prev,
+        [currentRoom.id]: 0
+      }));
+    }
     
     if (page === 'home' && activePage === 'home') handleResetToTrending();
     else if (page === 'forum') setActivePage('rooms');
     else setActivePage(page);
-  }, [activePage, handleResetToTrending, updateUserLastVisit]);
+  }, [activePage, handleResetToTrending, currentRoom]);
 
   const handleSelectCoin = useCallback(async (coinId: string) => {
     setIsTrendingLoading(true); setTrendingError(null); setSearchedCoin(null);
@@ -655,11 +681,22 @@ const AppContent: React.FC = () => {
 
   const handleLeaveRoom = useCallback(() => { 
     // Update userLastVisit saat meninggalkan room
-    updateUserLastVisit();
+    if (currentRoom?.id) {
+      const currentTime = Date.now();
+      setUserLastVisit(prev => ({
+        ...prev,
+        [currentRoom.id]: currentTime
+      }));
+      
+      setUnreadCounts(prev => ({
+        ...prev,
+        [currentRoom.id]: 0
+      }));
+    }
     
     setCurrentRoom(null); 
     setActivePage('rooms'); 
-  }, [updateUserLastVisit]);
+  }, [currentRoom]);
   
   const handleLeaveJoinedRoom = useCallback((roomId: string) => {
     if (DEFAULT_ROOM_IDS.includes(roomId)) return;
