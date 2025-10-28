@@ -129,6 +129,11 @@ const AppContent = () => {
 
     // Firebase Auth State Listener
     useEffect(() => {
+        if (!database) { // Check if database is initialized before setting up auth listener
+             console.warn("Firebase Auth listener skipped: Database not initialized.");
+             setIsAuthLoading(false); // Set loading to false as auth state won't change
+             return;
+         }
         const auth = getAuth();
         setIsAuthLoading(true);
         const unsubscribe = onAuthStateChanged(auth, (user) => {
@@ -142,7 +147,8 @@ const AppContent = () => {
                     }
                 } else if (!pendingGoogleUser) {
                     console.warn("Auth listener: Firebase user exists but no matching app user found and not pending. Forcing app logout.");
-                    setCurrentUser(null); // Force logout if user data mismatch
+                    // Don't force logout immediately, wait for CreateIdPage or other flows
+                    // setCurrentUser(null); // Force logout if user data mismatch - REVERTED this line
                 }
             } else {
                  if (currentUser !== null) {
@@ -155,7 +161,7 @@ const AppContent = () => {
         return () => {
              unsubscribe();
         };
-    }, [users, currentUser, pendingGoogleUser]); // Added users dependency
+    }, [users, currentUser, pendingGoogleUser, database]); // Added database dependency
 
     // Persist users & currentUser to Local Storage
     useEffect(() => { try { localStorage.setItem('cryptoUsers', JSON.stringify(users)); } catch (e) { console.error("Gagal simpan users", e); } }, [users]);
@@ -176,7 +182,7 @@ const AppContent = () => {
     useEffect(() => { const fetchList = async () => { setIsCoinListLoading(true); setCoinListError(null); try { setFullCoinList(await fetchTop500Coins()); } catch (err) { setCoinListError("Gagal ambil daftar koin."); } finally { setIsCoinListLoading(false); } }; fetchList(); }, []);
     useEffect(() => { fetchTrendingData(); }, [fetchTrendingData]);
 
-    // Firebase Messages Listener Effect (DIMODIFIKASI)
+    // Firebase Messages Listener Effect (FIXED)
      useEffect(() => {
          if (!database) { console.warn("Messages listener skipped: DB not initialized."); if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] })); return () => {}; }
          if (!currentRoom?.id) { return () => {}; }
@@ -190,7 +196,7 @@ const AppContent = () => {
                  Object.keys(data).forEach(key => {
                     const msgData = data[key];
                     // Validasi struktur dasar pesan
-                    if (msgData && typeof msgData === 'object' && msgData.timestamp && typeof msgData.timestamp === 'number') {
+                    if (msgData && typeof msgData === 'object' && ((msgData.timestamp && typeof msgData.timestamp === 'number') || (msgData.published_on && typeof msgData.published_on === 'number'))) { // Check both timestamp types
                          let type: 'news' | 'user' | 'system' | undefined = msgData.type;
                          // Coba infer type jika tidak ada
                          if (!type) {
@@ -204,14 +210,17 @@ const AppContent = () => {
                              const reactions = typeof msgData.reactions === 'object' && msgData.reactions !== null ? msgData.reactions : {};
                              // Ambil uid hanya jika tipe user
                              const uid = type === 'user' ? msgData.uid : undefined;
-                             messagesArray.push({ ...msgData, id: key, type, reactions, uid });
+                             // Assign correct timestamp based on type
+                             const timestamp = type === 'news' ? msgData.published_on * 1000 : msgData.timestamp;
+                             messagesArray.push({ ...msgData, id: key, type, reactions, uid, timestamp }); // Ensure timestamp is added
                          } else { console.warn("Invalid or missing message type:", key, msgData); }
-                     } else { console.warn("Invalid message structure or timestamp:", key, msgData); }
+                     } else { console.warn("Invalid message structure or missing timestamp/published_on:", key, msgData); }
                  });
              }
 
-             // Sort messages by timestamp
+             // Sort messages by timestamp (FIXED)
              let finalMessages = messagesArray.sort((a, b) => {
+                  // Use type guards to access correct property
                   const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0);
                   const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0);
                   // Handle potential null/undefined timestamps defensively
@@ -229,15 +238,30 @@ const AppContent = () => {
              else if (finalMessages.length > 0 && currentRoom?.id && !DEFAULT_ROOM_IDS.includes(currentRoom.id)) {
                   const hasDisclaimer = finalMessages.some(msg => isChatMessage(msg) && msg.type === 'system' && msg.text === DISCLAIMER_MESSAGE_TEXT);
                   if (!hasDisclaimer) {
+                       // Find the earliest timestamp among existing messages
+                       const earliestTimestamp = finalMessages.reduce((minTs, msg) => {
+                           const currentTs = isNewsArticle(msg) ? msg.published_on * 1000 : (isChatMessage(msg) ? msg.timestamp : Infinity);
+                           return Math.min(minTs, currentTs);
+                       }, Infinity);
+
                       const disclaimerMsg: ChatMessage = {
                            id: `${currentRoom.id}-disclaimer-${Date.now()}`, // ID unik
                            type: 'system',
                            text: DISCLAIMER_MESSAGE_TEXT,
                            sender: 'system',
-                           timestamp: finalMessages[0]?.timestamp ? finalMessages[0].timestamp - 1 : Date.now() - 10000, // Before first message or early
+                           timestamp: earliestTimestamp === Infinity ? Date.now() : earliestTimestamp - 1, // Place it just before the earliest message or now
                            reactions: {}
                       };
                       finalMessages = [disclaimerMsg, ...finalMessages]; // Add to the beginning
+                      // Re-sort after adding disclaimer to ensure correct placement
+                      finalMessages.sort((a, b) => {
+                           const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0);
+                           const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0);
+                           if (!timeA && !timeB) return 0;
+                           if (!timeA) return 1;
+                           if (!timeB) return -1;
+                           return timeA - timeB;
+                       });
                   }
              }
 
@@ -646,7 +670,7 @@ const AppContent = () => {
                 // If the displayMessages array only contains our temporary client-side disclaimer,
                 // and there are default messages defined for this room, show the defaults instead.
                 // This handles the case for default rooms which should show rules immediately.
-                 if (displayMessages.length === 1 && displayMessages[0].text === DISCLAIMER_MESSAGE_TEXT && currentRoom && defaultMessages[currentRoom.id]) {
+                 if (displayMessages.length === 1 && isChatMessage(displayMessages[0]) && displayMessages[0].text === DISCLAIMER_MESSAGE_TEXT && currentRoom && defaultMessages[currentRoom.id]) { // FIX: Use type guard here
                      displayMessages = defaultMessages[currentRoom.id];
                  }
 
@@ -720,6 +744,20 @@ const AppContent = () => {
 const App = () => {
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
 
+    // Tambahkan pengecekan database sebelum render GoogleOAuthProvider
+     if (!database && googleClientId) { // Hanya tampilkan error DB jika Client ID *ada*
+         return (
+             <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}>
+                 <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}>
+                     <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Koneksi Database</h1>
+                     <p style={{ marginTop: '10px', lineHeight: '1.6' }}>
+                         Gagal terhubung ke Firebase Realtime Database. Periksa konfigurasi Firebase Anda (terutama `FIREBASE_DATABASE_URL`) dan koneksi internet.
+                     </p>
+                 </div>
+             </div>
+         );
+     }
+
     if (!googleClientId) {
          return (
              <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}>
@@ -732,6 +770,7 @@ const App = () => {
              </div>
          );
     }
+
 
     return (
         <GoogleOAuthProvider clientId={googleClientId}>
