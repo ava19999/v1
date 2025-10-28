@@ -475,7 +475,8 @@ const ForumPage: React.FC<ForumPageProps> = ({
             <h1 className="text-2xl md:text-3xl font-black tracking-tight bg-gradient-to-r from-electric to-magenta text-transparent bg-clip-text truncate font-heading">
               {room.name}
             </h1>
-            <p className="text-gray-400 text-xs mt-1">Diskusikan pasar. Berita terbaru muncul otomatis.</p>
+            <p className="text-yellow-400 text-xs mt-1 break-words max-w-2xl">
+  ⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.</p>
           </div>
         </div>
       </div>
