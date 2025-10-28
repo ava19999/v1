@@ -154,8 +154,15 @@ const AppContent: React.FC = () => {
     try {
       const fetchedArticles = await fetchNewsArticles();
       if (fetchedArticles && fetchedArticles.length > 0) {
-        setNewsArticles(fetchedArticles);
-        localStorage.setItem('cryptoNews', JSON.stringify(fetchedArticles));
+        const articlesWithIds: NewsArticle[] = fetchedArticles.map((article, index) => ({
+          ...article,
+          id: `news-${Date.now()}-${index}`,
+          type: 'news' as const
+        }));
+        
+        setNewsArticles(articlesWithIds);
+        localStorage.setItem('cryptoNews', JSON.stringify(articlesWithIds));
+        localStorage.setItem('lastNewsFetch', Date.now().toString());
         
         // Update unread counts untuk room berita kripto jika tidak sedang aktif
         if (currentRoom?.id !== 'berita-kripto') {
@@ -282,6 +289,10 @@ const AppContent: React.FC = () => {
   // Load berita dari localStorage saat pertama kali
   useEffect(() => {
     const savedNews = localStorage.getItem('cryptoNews');
+    const lastFetch = localStorage.getItem('lastNewsFetch');
+    const now = Date.now();
+    const twentyMinutes = 20 * 60 * 1000;
+
     if (savedNews) {
       try {
         setNewsArticles(JSON.parse(savedNews));
@@ -289,12 +300,14 @@ const AppContent: React.FC = () => {
         console.error('Gagal load berita dari localStorage:', e);
       }
     }
-    
-    // Fetch berita pertama kali
-    fetchAndStoreNews();
+
+    // Fetch berita jika belum pernah atau sudah lebih dari 20 menit
+    if (!lastFetch || (now - parseInt(lastFetch)) > twentyMinutes) {
+      fetchAndStoreNews();
+    }
     
     // Set interval untuk update berita setiap 20 menit
-    const newsInterval = setInterval(fetchAndStoreNews, 20 * 60 * 1000);
+    const newsInterval = setInterval(fetchAndStoreNews, twentyMinutes);
     return () => clearInterval(newsInterval);
   }, [fetchAndStoreNews]);
 
@@ -628,29 +641,44 @@ const AppContent: React.FC = () => {
   }, [handleJoinRoom, rooms, currentUser, database]);
 
   const handleDeleteRoom = useCallback((roomId: string) => {
-    if (!currentUser?.username || !firebaseUser) { console.warn('Delete room prerequisites failed (user).'); alert('Gagal menghapus: Anda belum login.'); return; }
+    if (!currentUser?.username || !firebaseUser) { 
+      console.warn('Delete room prerequisites failed (user).'); 
+      alert('Gagal menghapus: Anda belum login.'); 
+      return; 
+    }
     const roomToDelete = rooms.find(r => r.id === roomId);
-    if (!roomToDelete || DEFAULT_ROOM_IDS.includes(roomId)) { console.warn('Cannot delete default or non-existent room.'); return; }
-    if (!database) { console.error('Cannot delete room: Database not initialized.'); alert('Gagal menghapus room: Koneksi database bermasalah.'); return; }
+    if (!roomToDelete || DEFAULT_ROOM_IDS.includes(roomId)) { 
+      console.warn('Cannot delete default or non-existent room.'); 
+      return; 
+    }
+    if (!database) { 
+      console.error('Cannot delete room: Database not initialized.'); 
+      alert('Gagal menghapus room: Koneksi database bermasalah.'); 
+      return; 
+    }
 
-    const currentDb = database;
-    const adminsRef = ref(currentDb, 'admins/' + firebaseUser.uid);
+    const adminsRef = ref(database, 'admins/' + firebaseUser.uid);
     get(adminsRef).then((snapshot) => {
       const isAdmin = snapshot.exists() && snapshot.val() === true;
       const isCreator = roomToDelete.createdBy === currentUser.username;
-      if (!isAdmin && !isCreator) { alert('Hanya admin atau pembuat room yang dapat menghapus room ini.'); return; }
+      if (!isAdmin && !isCreator) { 
+        alert('Hanya admin atau pembuat room yang dapat menghapus room ini.'); 
+        return; 
+      }
 
       if (window.confirm(`Anda yakin ingin menghapus room "${roomToDelete.name}" secara permanen? Semua pesan di dalamnya akan hilang.`)) {
         setRooms(prev => prev.filter(r => r.id !== roomId));
         handleLeaveJoinedRoom(roomId);
-        const messagesRef = ref(currentDb, `messages/${roomId}`);
-        set(messagesRef, null).then(() => console.log(`Messages for room ${roomId} deleted.`)).catch(error => console.error(`Gagal menghapus pesan untuk room ${roomId}:`, error));
+        const messagesRef = ref(database, `messages/${roomId}`);
+        set(messagesRef, null)
+          .then(() => console.log(`Messages for room ${roomId} deleted.`))
+          .catch(error => console.error(`Gagal menghapus pesan untuk room ${roomId}:`, error));
       }
     }).catch(error => {
       console.error('Gagal memeriksa status admin:', error);
       alert('Gagal memverifikasi izin penghapusan.');
     });
-  }, [currentUser, rooms, currentRoom, database, firebaseUser, handleLeaveJoinedRoom]);
+  }, [currentUser, rooms, database, firebaseUser, handleLeaveJoinedRoom]);
 
   const handleSendMessage = useCallback((message: Partial<ChatMessage>) => {
     if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username) {
