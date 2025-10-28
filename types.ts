@@ -1,5 +1,4 @@
-// ava19999/v1/v1-bd6bb89086392f465ed88da023587c34863020f2/types.ts
-// ava19999/v1/v1-1340aa22ce1177029d39fe3f8689ee2fb3a9c123/types.ts
+// types.ts
 
 // --- Basic Types ---
 export type Page = 'home' | 'rooms' | 'forum' | 'about';
@@ -88,10 +87,11 @@ export interface NewsArticle {
 
 
 export interface ChatMessage {
-  id: string; // Firebase key or generated unique ID
+  id: string; // Firebase key atau generated unique ID
   type: 'user' | 'system'; // Add type discriminator
+  uid?: string; // JADIKAN OPSIONAL: Firebase Auth User ID
   text?: string;
-  sender: string; // 'system', username
+  sender: string; // 'system', username aplikasi
   timestamp: number;
   fileURL?: string;
   fileName?: string;
@@ -102,40 +102,36 @@ export interface ChatMessage {
 export type ForumMessageItem = NewsArticle | ChatMessage;
 
 // --- Type Guards ---
-// PERBAIKAN: Tambahkan return false eksplisit
 export const isNewsArticle = (item: ForumMessageItem | null | undefined): item is NewsArticle => {
-    // Check for type discriminator and a property specific to NewsArticle
     if (!!item && item.type === 'news' && typeof (item as NewsArticle).published_on === 'number') {
         return true;
     }
-    return false; // Return false eksplisit
+    return false;
 };
-// PERBAIKAN: Tambahkan return false eksplisit
 export const isChatMessage = (item: ForumMessageItem | null | undefined): item is ChatMessage => {
-     // Check for type discriminator and a property specific to ChatMessage
      if (!!item && (item.type === 'user' || item.type === 'system') && typeof (item as ChatMessage).timestamp === 'number') {
         return true;
     }
-    return false; // Return false eksplisit
+    return false;
 };
 
 
 // --- Component Props Interfaces ---
-// Ensure definitions are complete
 export interface HeaderProps { userProfile: User | null; onLogout: () => void; activePage: Page; onNavigate: (page: Page) => void; currency: Currency; onCurrencyChange: (currency: Currency) => void; hotCoin: { name: string; logo: string; price: number; change: number; } | null; idrRate: number | null;}
 export interface HomePageProps { idrRate: number | null; isRateLoading: boolean; currency: Currency; onIncrementAnalysisCount: (coinId: string) => void; fullCoinList: CoinListItem[]; isCoinListLoading: boolean; coinListError: string | null; heroCoin: CryptoData | null; otherTrendingCoins: CryptoData[]; isTrendingLoading: boolean; trendingError: string | null; onSelectCoin: (coinId: string) => void; onReloadTrending: () => void;}
 export interface ForumPageProps {
   room: Room | null;
   messages: ForumMessageItem[];
   userProfile: User | null;
-  onSendMessage: (message: ChatMessage) => void;
+  onSendMessage: (message: Partial<ChatMessage>) => void; // Ubah tipe parameter di sini
   onLeaveRoom: () => void;
   onReact: (messageId: string, emoji: string) => void;
-  onDeleteMessage: (roomId: string, messageId: string) => void; // Add prop for deleting messages
+  onDeleteMessage: (roomId: string, messageId: string) => void;
 }
-export interface RoomsListPageProps { rooms: Room[]; onJoinRoom: (room: Room) => void; onCreateRoom: (roomName: string) => void; totalUsers: number; hotCoin: { name: string; logo: string } | null; userProfile: User | null; currentRoomId: string | null; joinedRoomIds: Set<string>; onLeaveJoinedRoom: (roomId: string) => void; unreadCounts: { [key: string]: { count: number; lastUpdate: number } };} // Removed onDeleteRoom here as it's added in the extended interface
+// Definisikan tipe props baru jika berbeda dari BaseRoomsListPageProps
+export interface ExtendedRoomsListPageProps { rooms: Room[]; onJoinRoom: (room: Room) => void; onCreateRoom: (roomName: string) => void; totalUsers: number; hotCoin: { name: string; logo: string } | null; userProfile: User | null; currentRoomId: string | null; joinedRoomIds: Set<string>; onLeaveJoinedRoom: (roomId: string) => void; unreadCounts: { [key: string]: { count: number; lastUpdate: number } }; onDeleteRoom: (roomId: string) => void;}
 export interface HeroCoinProps { crypto: CryptoData; onAnalyze: (crypto: CryptoData) => void; idrRate: number | null; currency: Currency;}
 export interface CryptoCardProps { crypto: CryptoData; onAnalyze: (crypto: CryptoData) => void; idrRate: number | null; currency: Currency;}
 export interface AnalysisModalProps { isOpen: boolean; onClose: () => void; crypto: CryptoData; analysisResult: AnalysisResult | null; isLoading: boolean; error: string | null; exchangeTickers: ExchangeTicker[]; isTickersLoading: boolean; tickersError: string | null; idrRate: number | null; currency: Currency;}
-export interface LoginPageProps { onGoogleRegisterSuccess: (credentialResponse: any) => void; onLogin: (usernameOrEmail: string, password: string) => Promise<string | void>;}
+export interface LoginPageProps { onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void; onLogin: (usernameOrEmail: string, password: string) => Promise<string | void>;} // Hapus onRegister dan onVerify jika tidak dipakai lagi
 export interface CreateIdPageProps { onProfileComplete: (username: string, password: string) => Promise<string | void>; googleProfile: GoogleProfile;}

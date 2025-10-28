@@ -1,350 +1,478 @@
-// App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
-
-// --- Impor Firebase Auth ---
 import {
   getAuth,
   onAuthStateChanged,
-  signOut, // Tambahkan signOut
-  GoogleAuthProvider, // Tambahkan provider Google
-  signInWithCredential, // Tambahkan signInWithCredential
-  User as FirebaseUser // Ganti nama agar tidak konflik
+  signOut,
+  GoogleAuthProvider,
+  signInWithCredential,
+  User as FirebaseUser
 } from "firebase/auth";
-// --- Akhir Impor Firebase Auth ---
 
+// Impor Komponen
 import Header from './components/Header';
 import Footer from './components/Footer';
+import LoginPage from './components/LoginPage';
+import CreateIdPage from './components/CreateIdPage';
+import HomePage from './components/HomePage';
+import ForumPage from './components/ForumPage';
+import AboutPage from './components/AboutPage';
+import RoomsListPage from './components/RoomsListPage'; // Pastikan nama file dan ekspornya benar
+
+// Impor Tipe dan Fungsi Helper
 import type { ForumMessageItem, Room, CoinListItem, CryptoData, ChatMessage, Page, Currency, NewsArticle, User, GoogleProfile } from './types';
 import { isNewsArticle, isChatMessage } from './types';
-// ... (impor komponen lainnya) ...
 import { fetchIdrRate, fetchNewsArticles, fetchTop500Coins, fetchTrendingCoins, fetchCoinDetails } from './services/mockData';
-import { ADMIN_USERNAMES } from './components/UserTag';
+import { ADMIN_USERNAMES } from './components/UserTag'; // Pastikan UserTag.tsx mengekspor ini
 import { database } from './services/firebaseService';
 import { ref, set, push, onValue, off, update, get } from "firebase/database";
 
-// ... (Konstanta DEFAULT_ROOM_IDS, defaultMessages, Particles) ...
+const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
-const AppContent = () => {
-  // ... (state lainnya tetap sama) ...
-  const [users, setUsers] = useState<{ [email: string]: User }>({});
-  const [currentUser, setCurrentUser] = useState<User | null>(null); // State user aplikasi
-  const [pendingGoogleUser, setPendingGoogleUser] = useState<GoogleProfile | null>(null);
-  // --- State Baru untuk Firebase Auth ---
-  const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null); // State user Firebase Auth
-  const [authError, setAuthError] = useState<string | null>(null); // State untuk error auth Firebase
-  const [isAuthLoading, setIsAuthLoading] = useState(true); // State loading untuk auth awal
-  // --- Akhir State Baru ---
-
-  // ... (handler fetchTrendingData, handleResetToTrending) ...
-
-  // --- Effect untuk Firebase Auth Listener ---
-  useEffect(() => {
-    const auth = getAuth(); // Dapatkan instance Auth
-    setIsAuthLoading(true); // Mulai loading
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log("Firebase Auth State Changed:", user ? `Logged in as ${user.uid}` : "Logged out"); // Logging
-      setFirebaseUser(user); // Set state firebaseUser
-
-      if (user) {
-        // Jika user Firebase login, coba cari/set currentUser aplikasi
-        const appUser = Object.values(users).find(u => u.email === user.email);
-        if (appUser) {
-          if (!currentUser || currentUser.email !== appUser.email) {
-            console.log("Setting currentUser from Firebase Auth:", appUser);
-            setCurrentUser(appUser); // Set currentUser jika belum atau berbeda
-          }
-        } else {
-          // Kasus: User login di Firebase tapi belum ada di state 'users' aplikasi
-          // Ini bisa terjadi jika data local storage hilang atau saat pertama kali login
-          // Kita bisa mengarahkan ke halaman pembuatan profil jika username belum ada
-          // Atau membuat user baru di state 'users' jika data dari Firebase cukup
-          console.warn(`Firebase user ${user.email} not found in local 'users' state.`);
-          // Jika perlu, tambahkan logika untuk menangani kasus ini,
-          // misalnya, membuat user baru di 'users' atau mengarahkan ke create profile
-          // Contoh sederhana: Jika punya display name, coba buat user sementara
-          if (user.displayName && user.email) {
-             const potentialNewUser: User = { email: user.email, username: user.displayName, createdAt: Date.now() /* mungkin perlu data lain */ };
-             // Cek lagi apakah user baru ini ada di state 'users' setelah potensi update state sebelumnya
-             if (!users[user.email]) {
-                  console.log("Creating temporary user entry in 'users' state from Firebase Auth.");
-                  setUsers(prev => ({ ...prev, [potentialNewUser.email]: potentialNewUser }));
-             }
-             if (!currentUser) {
-                  setCurrentUser(potentialNewUser);
-             }
-
-          } else if (!pendingGoogleUser) {
-            // Jika tidak ada data yg cukup dan tidak sedang menunggu profil Google
-            setCurrentUser(null); // Pastikan logout jika data tidak lengkap
-          }
-        }
-      } else {
-        // Jika user Firebase logout
-        if (currentUser !== null) {
-          console.log("Clearing currentUser due to Firebase Auth logout.");
-          setCurrentUser(null); // Logout state aplikasi
-        }
-        setPendingGoogleUser(null); // Hapus juga user google yg pending
-      }
-      setIsAuthLoading(false); // Selesai loading
-    });
-
-    return () => unsubscribe(); // Cleanup listener
-  }, [users, currentUser, pendingGoogleUser]); // Tambahkan currentUser & pendingGoogleUser ke dependency
-
-  // ... (Effect lainnya untuk localStorage, IDR rate, coin list, trending, unread, analysis counts, news) ...
-
-  // --- Auth Handlers (Diperbarui) ---
-
-  // Handle Sukses Login Google dari @react-oauth/google
-  const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => {
-    setAuthError(null); // Reset error
-    if (!credentialResponse.credential) {
-        setAuthError("Credential Google tidak ditemukan.");
-        return;
-    }
-    try {
-        const decoded: { email: string; name: string; picture: string; } = jwtDecode(credentialResponse.credential);
-        const { email, name, picture } = decoded;
-
-        // ---- INTEGRASI FIREBASE AUTH ----
-        console.log("Google Sign-In Success, attempting Firebase link...");
-        const auth = getAuth();
-        // Buat kredensial Google untuk Firebase
-        const googleCredential = GoogleAuthProvider.credential(credentialResponse.credential);
-
-        // Coba sign in ke Firebase dengan kredensial Google
-        signInWithCredential(auth, googleCredential)
-          .then((userCredential) => {
-             // Pengguna BERHASIL login ke Firebase Auth
-             const firebaseAuthUser = userCredential.user;
-             console.log("Firebase signInWithCredential success:", firebaseAuthUser);
-             setFirebaseUser(firebaseAuthUser); // Update state firebaseUser
-
-             // Lanjutkan logika aplikasi Anda (cek user di state 'users', dll.)
-             const existingUser = Object.values(users).find(u => u.email === email); // Cari berdasarkan email
-             if (existingUser) {
-                  console.log("Existing user found in 'users' state, setting as currentUser.");
-                  setCurrentUser(existingUser); // Langsung login jika user aplikasi sudah ada
-                  setPendingGoogleUser(null); // Pastikan tidak ada pending user
-             } else {
-                  console.log("New user via Google, setting pendingGoogleUser for profile creation.");
-                  // User baru via Google, perlu buat username & password aplikasi
-                  setPendingGoogleUser({ email, name, picture });
-                  // currentUser akan null sampai profil selesai dibuat
-                  setCurrentUser(null);
-             }
-          })
-          .catch((error) => {
-             console.error("Firebase signInWithCredential error:", error);
-             // Tampilkan error spesifik jika memungkinkan
-             let errMsg = "Gagal menghubungkan login Google ke Firebase.";
-             if (error.code === 'auth/account-exists-with-different-credential') {
-                errMsg = "Akun dengan email ini sudah ada, login dengan metode sebelumnya.";
-             } else if (error.message) {
-                 errMsg += ` (${error.message})`;
-             }
-             setAuthError(errMsg);
-             setFirebaseUser(null); // Pastikan firebaseUser null jika gagal
-             setCurrentUser(null); // Pastikan currentUser null jika gagal
-          });
-        // ---- AKHIR INTEGRASI ----
-
-    } catch (error) {
-        console.error("Google login decode/Firebase error:", error);
-        setAuthError("Terjadi kesalahan saat memproses login Google.");
-        setFirebaseUser(null);
-        setCurrentUser(null);
-    }
-  }, [users]); // 'users' adalah dependency
-
-  // Handle Login Manual (Tetap Sama)
-  const handleLogin = useCallback(async (usernameOrEmail: string, password: string): Promise<string | void> => {
-    setAuthError(null);
-    const user = Object.values(users).find(u =>
-        u.username.toLowerCase() === usernameOrEmail.toLowerCase() ||
-        u.email.toLowerCase() === usernameOrEmail.toLowerCase()
-    );
-
-    if (user && user.password === password) {
-        // --- TODO: Implementasikan login manual ke Firebase Auth jika diperlukan ---
-        // Jika Anda ingin user login manual juga terautentikasi di Firebase (misal pakai email/password auth),
-        // Anda perlu memanggil `signInWithEmailAndPassword(auth, user.email, password)` di sini.
-        // Untuk saat ini, kita anggap login manual hanya mengubah state aplikasi.
-        console.log("Manual login successful, setting currentUser:", user);
-        setCurrentUser(user);
-        // Jika login manual ke Firebase Auth diimplementasikan, firebaseUser akan diupdate oleh onAuthStateChanged
-    } else {
-        const errorMsg = 'Username/email atau kata sandi salah.';
-        setAuthError(errorMsg);
-        return errorMsg;
-    }
-  }, [users]);
-
-  // Handle Penyelesaian Profil (setelah login Google untuk user baru)
-  const handleProfileComplete = useCallback(async (username: string, password: string): Promise<string | void> => {
-    setAuthError(null);
-    if (!pendingGoogleUser) return 'Data Google tidak ditemukan.';
-    // Pastikan user Firebase sudah login (seharusnya sudah dari handleGoogleRegisterSuccess)
-    if (!firebaseUser) return 'Sesi login Firebase tidak aktif. Coba login ulang.';
-
-    if (Object.values(users).some(u => u.username.toLowerCase() === username.toLowerCase())) {
-        const errorMsg = 'Username sudah digunakan. Pilih nama lain.';
-        setAuthError(errorMsg);
-        return errorMsg;
-    }
-    const newUser: User = {
-        email: pendingGoogleUser.email,
-        username: username,
-        password: password, // Simpan password (pertimbangkan keamanan di produksi)
-        googleProfilePicture: pendingGoogleUser.picture,
-        createdAt: Date.now()
-    };
-    console.log("Profile complete, creating new user in 'users' state:", newUser);
-    setUsers(prev => ({ ...prev, [newUser.email]: newUser }));
-    setCurrentUser(newUser); // Set user aplikasi yang baru dibuat
-    setPendingGoogleUser(null); // Hapus pending user
-    // firebaseUser sudah ter-set dari langkah login Google sebelumnya
-  }, [users, pendingGoogleUser, firebaseUser]);
-
-  // Handle Logout (Tambahkan Firebase Sign Out)
-  const handleLogout = useCallback(() => {
-    console.log("handleLogout called");
-    const auth = getAuth();
-    signOut(auth).then(() => {
-        console.log("Firebase signOut successful");
-        // onAuthStateChanged akan menangani setFirebaseUser(null) dan setCurrentUser(null)
-    }).catch((error) => {
-        console.error("Firebase signOut error:", error);
-        // Tetap coba logout state aplikasi meskipun Firebase gagal
-        setCurrentUser(null);
-        setFirebaseUser(null);
-    });
-    // Pindahkan ke halaman home setelah logout
-    setActivePage('home');
-  }, []);
-
-  // ... (handler app logic lainnya: increment, navigate, selectCoin, join/leave/create/delete room) ...
-
-  // --- Firebase Chat Logic (Diperbarui) ---
-
-  // Handle Send Message (Sertakan UID)
-  const handleSendMessage = useCallback((message: Omit<ChatMessage, 'id' | 'uid'>) => {
-    // Validasi Awal
-    if (!database) { console.error("DB null"); alert("Error: Database tidak terhubung."); return; }
-    if (!currentRoom?.id) { console.error("currentRoom null"); alert("Error: Room tidak valid."); return; }
-    // Gunakan firebaseUser dari state untuk UID dan validasi login Firebase
-    if (!firebaseUser?.uid) { console.error("firebaseUser null"); alert("Error: Anda belum login ke sistem."); return; }
-    // Gunakan currentUser dari state untuk username aplikasi
-    if (!currentUser?.username) { console.error("currentUser null"); alert("Error: Username aplikasi tidak ditemukan."); return; }
-
-    const messageToSend: Omit<ChatMessage, 'id'> = {
-         type: 'user',
-         uid: firebaseUser.uid, // Sertakan UID Firebase Auth
-         sender: currentUser.username, // Username aplikasi
-         timestamp: Date.now(),
-         reactions: {},
-         ...(message.text && { text: message.text }),
-         ...(message.fileURL && { fileURL: message.fileURL }),
-         ...(message.fileName && { fileName: message.fileName }),
-    };
-
-    if (!messageToSend.text && !messageToSend.fileURL) { console.warn("Pesan kosong dicegah."); return; }
-
-    const messageListRef = ref(database, `messages/${currentRoom.id}`);
-    const newMessageRef = push(messageListRef);
-
-    console.log(`Sending message to DB: messages/${currentRoom.id}/${newMessageRef.key}`, messageToSend);
-
-    set(newMessageRef, messageToSend)
-        .then(() => { console.log("Pesan berhasil dikirim."); })
-        .catch((error) => {
-            console.error("Firebase send message error:", error);
-            let alertMessage = "Gagal mengirim pesan.";
-            if (error.code === 'PERMISSION_DENIED') {
-                 alertMessage += " Akses ditolak oleh server. Pastikan Anda login dan aturan keamanan benar.";
-            } else if (error.message) {
-                alertMessage += ` (${error.message})`;
-            }
-            alert(alertMessage);
-        });
-
-  }, [currentRoom, currentUser, database, firebaseUser]); // Tambahkan firebaseUser dependency
-
-  // ... (useEffect untuk listener pesan Firebase, Fetch News) ...
-  // ... (handleReaction, handleDeleteMessage) ...
-  // ... (memoized values: totalUsers, heroCoin, etc.) ...
-  // ... (renderActivePage) ...
-
-  // --- Render Utama dengan Loading Auth ---
-  if (isAuthLoading) {
-     return (
-        <div className="min-h-screen bg-transparent text-white flex items-center justify-center">
-            Memverifikasi sesi login...
-        </div>
-     );
-  }
-
-  // --- Auth Flow Rendering ---
-  // Jika tidak ada user aplikasi DAN tidak ada user Google yang pending
-  if (!currentUser && !pendingGoogleUser) {
-    return (
-      <LoginPage
-        onGoogleRegisterSuccess={handleGoogleRegisterSuccess}
-        onLogin={handleLogin}
-      />
-    );
-  }
-  // Jika ada user Google yang pending (menunggu pembuatan profil)
-  if (pendingGoogleUser && (!currentUser || currentUser.email !== pendingGoogleUser.email)) {
-     // Pastikan juga currentUser belum di-set untuk user ini
-     return <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
-  }
-  // Jika ada user aplikasi tapi belum punya username (kasus edge, jika handleProfileComplete belum selesai)
-   if (currentUser && !currentUser.username && pendingGoogleUser) {
-      return <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
-   }
-   // Jika ada user aplikasi tapi belum punya username DAN tidak ada user google pending (harusnya tidak terjadi)
-   if (currentUser && !currentUser.username && !pendingGoogleUser) {
-       console.error("State aneh: currentUser ada tapi tanpa username, dan tidak ada pendingGoogleUser.");
-       // Mungkin fallback ke logout atau halaman error
-       handleLogout();
-       return <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} onLogin={handleLogin} />; // Kembali ke login
-   }
-
-
-  // --- Render Aplikasi Utama (setelah semua auth check selesai dan currentUser valid) ---
-  // Pastikan currentUser ada sebelum render utama
-  if (!currentUser || !currentUser.username) {
-     console.error("Render utama dicegah: currentUser tidak valid.", currentUser);
-     // Mungkin fallback ke halaman login jika state tidak konsisten
-     return <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} onLogin={handleLogin} />;
-  }
-
-   return (
-       <div className="min-h-screen bg-transparent text-white font-sans flex flex-col">
-           <Particles />
-           <Header userProfile={currentUser} onLogout={handleLogout} activePage={activePage} onNavigate={handleNavigate} currency={currency} onCurrencyChange={setCurrency} hotCoin={hotCoin} idrRate={idrRate} />
-           <main className="flex-grow">
-               {renderActivePage()}
-           </main>
-           <Footer />
-           {authError && ( // Tampilkan error auth jika ada
-              <div className="fixed bottom-4 right-4 bg-red-600 text-white p-3 rounded-lg shadow-lg z-50">
-                  <p>Error Auth: {authError}</p>
-                  <button onClick={() => setAuthError(null)} className="ml-2 text-sm underline">Tutup</button>
-              </div>
-           )}
-       </div>
-   );
+const defaultMessages: { [key: string]: ForumMessageItem[] } = {
+    'pengumuman-aturan': [
+        { id: 'rule1', type: 'system', text: 'Selamat datang di RT Crypto! Diskusi & analisis.', sender: 'system', timestamp: Date.now() - 2000 },
+        { id: 'rule2', type: 'system', text: 'Aturan: Dilarang share sinyal. DYOR. Risiko ditanggung sendiri.', sender: 'system', timestamp: Date.now() - 1000 },
+        { id: 'mission1', type: 'system', text: 'Misi: Jadi trader cerdas bareng, bukan ikut-ikutan. Ayo menang bareng!', sender: 'system', timestamp: Date.now() }
+    ],
 };
 
-// Wrap AppContent dengan GoogleOAuthProvider (Tetap sama)
+// Komponen Partikel
+const Particles = () => (
+    <div className="particles fixed top-0 left-0 w-full h-full -z-10 pointer-events-none">
+        <div className="particle absolute bg-electric/50 rounded-full opacity-0 animate-[drift_20s_infinite_linear]" style={{ width: '3px', height: '3px', left: '10%', animationDelay: '-1s' }}></div>
+        <div className="particle absolute bg-magenta/50 rounded-full opacity-0 animate-[drift_25s_infinite_linear_-5s]" style={{ width: '2px', height: '2px', left: '25%'}}></div>
+        <div className="particle absolute bg-lime/50 rounded-full opacity-0 animate-[drift_15s_infinite_linear_-10s]" style={{ width: '4px', height: '4px', left: '50%'}}></div>
+        <div className="particle absolute bg-electric/30 rounded-full opacity-0 animate-[drift_18s_infinite_linear_-7s]" style={{ width: '2px', height: '2px', left: '75%'}}></div>
+        <div className="particle absolute bg-lime/40 rounded-full opacity-0 animate-[drift_22s_infinite_linear_-3s]" style={{ width: '3px', height: '3px', left: '90%'}}></div>
+    </div>
+);
+
+// Komponen Utama Aplikasi
+const AppContent = () => {
+    // --- State Variables ---
+    const [activePage, setActivePage] = useState<Page>('home');
+    const [currency, setCurrency] = useState<Currency>('usd');
+    const [idrRate, setIdrRate] = useState<number | null>(null);
+    const [isRateLoading, setIsRateLoading] = useState(true);
+    const [users, setUsers] = useState<{ [email: string]: User }>({});
+    const [currentUser, setCurrentUser] = useState<User | null>(null);
+    const [pendingGoogleUser, setPendingGoogleUser] = useState<GoogleProfile | null>(null);
+    const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
+    const [authError, setAuthError] = useState<string | null>(null);
+    const [isAuthLoading, setIsAuthLoading] = useState(true);
+    const [analysisCounts, setAnalysisCounts] = useState<{ [key: string]: number }>({});
+    const baseAnalysisCount = 1904;
+    const [fullCoinList, setFullCoinList] = useState<CoinListItem[]>([]);
+    const [isCoinListLoading, setIsCoinListLoading] = useState(true);
+    const [coinListError, setCoinListError] = useState<string | null>(null);
+    const [trendingCoins, setTrendingCoins] = useState<CryptoData[]>([]);
+    const [isTrendingLoading, setIsTrendingLoading] = useState(true);
+    const [trendingError, setTrendingError] = useState<string | null>(null);
+    const [searchedCoin, setSearchedCoin] = useState<CryptoData | null>(null);
+    const [rooms, setRooms] = useState<Room[]>([
+      { id: 'berita-kripto', name: 'Berita Kripto', userCount: 150 + Math.floor(Math.random() * 20) },
+      { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 150 + Math.floor(Math.random() * 20) },
+      { id: 'umum', name: 'Kripto Naik/Turun Hari Ini', userCount: 134 + Math.floor(Math.random() * 20), createdBy: 'Admin_RTC'},
+      { id: 'meme', name: 'Meme Coin Mania', userCount: 88 + Math.floor(Math.random() * 20)},
+      { id: 'xrp-army', name: 'Xrp Army', userCount: 73 + Math.floor(Math.random() * 20)},
+      { id: 'roblox-tuker-kripto', name: 'Roblox Tuker Kripto', userCount: 42 + Math.floor(Math.random() * 20)},
+    ]);
+    const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
+    const [joinedRoomIds, setJoinedRoomIds] = useState<Set<string>>( () => new Set(DEFAULT_ROOM_IDS) );
+    const [unreadCounts, setUnreadCounts] = useState<{ [key: string]: { count: number; lastUpdate: number } }>({});
+    const [firebaseMessages, setFirebaseMessages] = useState<{ [roomId: string]: ForumMessageItem[] }>({});
+
+    // --- Helper Functions ---
+    const fetchTrendingData = useCallback(async (showSkeleton = true) => {
+        if (showSkeleton) { setIsTrendingLoading(true); setTrendingError(null); }
+        try { setTrendingCoins(await fetchTrendingCoins()); }
+        catch (err) {
+            const errorMessage = err instanceof Error ? err.message : "Gagal memuat data tren.";
+            if (showSkeleton) { setTrendingError(errorMessage); }
+            else { console.error("Gagal menyegarkan data tren:", errorMessage); }
+        } finally {
+            if (showSkeleton) { setIsTrendingLoading(false); }
+        }
+    }, []);
+
+    const handleResetToTrending = useCallback(() => {
+        setSearchedCoin(null);
+        setActivePage('home');
+        fetchTrendingData(true);
+    }, [fetchTrendingData]); // fetchTrendingData is stable due to its useCallback
+
+    // --- Effects ---
+    // Firebase Auth Listener
+    useEffect(() => {
+        const auth = getAuth();
+        setIsAuthLoading(true);
+        const unsubscribe = onAuthStateChanged(auth, (user) => {
+            console.log("Firebase Auth State Changed:", user ? `Logged in as ${user.uid}` : "Logged out");
+            setFirebaseUser(user);
+            if (user) {
+                const appUser = Object.values(users).find(u => u.email === user.email);
+                if (appUser) {
+                    if (!currentUser || currentUser.email !== appUser.email) {
+                        console.log("Setting currentUser from Firebase Auth:", appUser);
+                        setCurrentUser(appUser);
+                    }
+                } else {
+                    console.warn(`Firebase user ${user.email} not found in local 'users' state.`);
+                    if (user.displayName && user.email) {
+                        const potentialNewUser: User = { email: user.email, username: user.displayName, createdAt: Date.now() };
+                        if (!users[user.email]) {
+                            console.log("Creating temporary user entry in 'users' state from Firebase Auth.");
+                            setUsers(prev => ({ ...prev, [potentialNewUser.email]: potentialNewUser }));
+                        }
+                        if (!currentUser) setCurrentUser(potentialNewUser);
+                    } else if (!pendingGoogleUser) {
+                        if(currentUser) setCurrentUser(null);
+                    }
+                }
+            } else {
+                if (currentUser !== null) {
+                    console.log("Clearing currentUser due to Firebase Auth logout.");
+                    setCurrentUser(null);
+                }
+                setPendingGoogleUser(null);
+            }
+            setIsAuthLoading(false);
+        });
+        return () => unsubscribe();
+    }, [users, currentUser, pendingGoogleUser]); // Dependencies for sync logic
+
+    // Local Storage Effects
+    useEffect(() => { try { const u = localStorage.getItem('cryptoUsers'); if (u) setUsers(JSON.parse(u)); } catch (e) { console.error("Gagal load users", e); } }, []);
+    useEffect(() => { try { localStorage.setItem('cryptoUsers', JSON.stringify(users)); } catch (e) { console.error("Gagal simpan users", e); } }, [users]);
+    useEffect(() => { try { if (currentUser) localStorage.setItem('currentUser', JSON.stringify(currentUser)); else localStorage.removeItem('currentUser'); } catch (e) { console.error("Gagal simpan currentUser", e); } }, [currentUser]);
+    useEffect(() => { const saved = localStorage.getItem('unreadCounts'); if (saved) try { setUnreadCounts(JSON.parse(saved)); } catch (e) { console.error("Gagal parse unreadCounts", e); } }, []);
+    useEffect(() => { localStorage.setItem('unreadCounts', JSON.stringify(unreadCounts)); }, [unreadCounts]);
+    useEffect(() => { const lastReset = localStorage.getItem('lastAnalysisResetDate'); const today = new Date().toISOString().split('T')[0]; if (lastReset !== today) { localStorage.setItem('analysisCounts', '{}'); localStorage.setItem('lastAnalysisResetDate', today); setAnalysisCounts({}); } else { const saved = localStorage.getItem('analysisCounts'); if (saved) try { setAnalysisCounts(JSON.parse(saved)); } catch (e) { console.error("Gagal parse analysis counts", e); } } }, []);
+
+    // Initial Data Fetch Effects
+    useEffect(() => { const getRate = async () => { setIsRateLoading(true); try { setIdrRate(await fetchIdrRate()); } catch (error) { console.error("Gagal ambil kurs IDR:", error); setIdrRate(16000); } finally { setIsRateLoading(false); } }; getRate(); }, []);
+    useEffect(() => { const fetchList = async () => { setIsCoinListLoading(true); setCoinListError(null); try { setFullCoinList(await fetchTop500Coins()); } catch (err) { setCoinListError("Gagal ambil daftar koin."); } finally { setIsCoinListLoading(false); } }; fetchList(); }, []);
+    useEffect(() => { fetchTrendingData(); }, [fetchTrendingData]);
+
+    // Firebase Messages Listener Effect
+     useEffect(() => {
+         if (!database || !currentRoom?.id) {
+             if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] }));
+             return () => {};
+         }
+         const messagesRef = ref(database, `messages/${currentRoom.id}`);
+         const listener = onValue(messagesRef, (snapshot) => {
+             const data = snapshot.val();
+             const messagesArray: ForumMessageItem[] = [];
+             if (data) {
+                 Object.keys(data).forEach(key => {
+                     const msgData = data[key];
+                     if (msgData && typeof msgData === 'object' && msgData.timestamp && typeof msgData.timestamp === 'number') {
+                         let type: 'news' | 'user' | 'system' | undefined = msgData.type;
+                         if (!type) { // Infer type if missing
+                             if ('published_on' in msgData && 'source' in msgData) type = 'news';
+                             else if (msgData.sender === 'system') type = 'system';
+                             else if ('sender' in msgData) type = 'user';
+                         }
+                         if (type === 'news' || type === 'user' || type === 'system') {
+                             const reactions = typeof msgData.reactions === 'object' && msgData.reactions !== null ? msgData.reactions : {};
+                             // Pastikan 'uid' ada jika tipenya 'user', bisa null/undefined untuk tipe lain
+                             const uid = type === 'user' ? msgData.uid : undefined;
+                             messagesArray.push({ ...msgData, id: key, type, reactions, uid });
+                         } else { console.warn("Invalid message type:", key, msgData); }
+                     } else { console.warn("Invalid message structure:", key, msgData); }
+                 });
+             }
+             let finalMessages = messagesArray;
+             if (messagesArray.length === 0 && currentRoom?.id) {
+                 if (defaultMessages[currentRoom.id]) {
+                     finalMessages = [...defaultMessages[currentRoom.id]];
+                 } else if (!DEFAULT_ROOM_IDS.includes(currentRoom.id) && currentUser?.username) {
+                     const welcomeMsg: ChatMessage = { id: `${currentRoom.id}-welcome-${Date.now()}`, type: 'system', text: `Selamat datang di room "${currentRoom.name}".`, sender: 'system', timestamp: Date.now() };
+                     const adminMsg: ChatMessage = { id: `${currentRoom.id}-admin-${Date.now()}`, type: 'user', uid: 'ADMIN_UID_PLACEHOLDER', text: 'Ingat DYOR!', sender: 'Admin_RTC', timestamp: Date.now() + 1, reactions: {'👍': []} };
+                     finalMessages = [welcomeMsg, adminMsg];
+                 }
+             }
+             setFirebaseMessages(prev => ({
+                 ...prev,
+                 [currentRoom!.id]: finalMessages.sort((a, b) => {
+                      const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0);
+                      const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0);
+                      if (!timeA && !timeB) return 0;
+                      if (!timeA) return 1;
+                      if (!timeB) return -1;
+                      return timeA - timeB;
+                  })
+             }));
+         }, (error) => {
+             console.error(`Firebase listener error room ${currentRoom?.id}:`, error);
+             if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] }));
+         });
+         return () => { if (database) { off(messagesRef, 'value', listener); } };
+     }, [currentRoom, currentUser, database]); // Rerun when dependencies change
+
+     // News Fetch Effect (disederhanakan, logika sama)
+     useEffect(() => {
+       if (!database) { console.warn("DB null - news fetch skipped"); return; }
+       const currentDb = database;
+       const NEWS_ROOM_ID = 'berita-kripto';
+       const NEWS_FETCH_INTERVAL = 20 * 60 * 1000; // 20 menit
+       const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
+
+       let isMounted = true; // Flag untuk mencegah update state setelah unmount
+
+       const fetchAndProcessNews = async () => {
+           const currentTime = Date.now();
+           const lastFetch = parseInt(localStorage.getItem(LAST_FETCH_KEY) || '0', 10);
+           // Hapus komentar baris di bawah jika ingin mengaktifkan interval lagi
+           // if (currentTime - lastFetch < NEWS_FETCH_INTERVAL) return;
+
+           try {
+               const fetchedArticles = await fetchNewsArticles();
+               if (!isMounted || !fetchedArticles || fetchedArticles.length === 0) return;
+               if (!currentDb) { console.warn("DB became null during news fetch"); return; }
+
+               const newsRoomRef = ref(currentDb, `messages/${NEWS_ROOM_ID}`);
+               const snapshot = await get(newsRoomRef);
+               const existingNewsData = snapshot.val() || {};
+               const existingNewsValues = typeof existingNewsData === 'object' && existingNewsData !== null ? Object.values<any>(existingNewsData) : [];
+               const existingNewsUrls = new Set(existingNewsValues.map(news => news.url).filter(url => typeof url === 'string'));
+
+               let newArticleAdded = false;
+               const updates: { [key: string]: Omit<NewsArticle, 'id'> } = {};
+
+               fetchedArticles.forEach(article => {
+                   if (article.url && article.title && article.published_on && article.source && !existingNewsUrls.has(article.url)) {
+                       const newsRef = push(newsRoomRef);
+                       if (newsRef.key) {
+                           const articleData: Omit<NewsArticle, 'id'> = {
+                               type: 'news', title: article.title, url: article.url,
+                               imageurl: article.imageurl || '', published_on: article.published_on,
+                               source: article.source, body: article.body || '', reactions: {},
+                           };
+                           updates[newsRef.key] = articleData;
+                           newArticleAdded = true;
+                       }
+                   }
+               });
+
+               if (newArticleAdded && isMounted) {
+                   console.log(`Adding ${Object.keys(updates).length} new articles to Firebase.`);
+                   await update(newsRoomRef, updates);
+                   localStorage.setItem(LAST_FETCH_KEY, currentTime.toString());
+                   if (currentRoom?.id !== NEWS_ROOM_ID) {
+                       setUnreadCounts(prev => ({
+                           ...prev,
+                           [NEWS_ROOM_ID]: {
+                               count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length,
+                               lastUpdate: currentTime
+                           }
+                       }));
+                   }
+               } else if (isMounted) { console.log("No new unique articles to add."); }
+
+           } catch (err: unknown) {
+               let errorMessage = 'Unknown error during news fetch/process';
+               if (err instanceof Error) errorMessage = err.message;
+               else if (typeof err === 'string') errorMessage = err;
+               else try { errorMessage = JSON.stringify(err); } catch { /* ignore */ }
+               if (isMounted) console.error("News fetch/process failed:", errorMessage);
+           }
+       };
+
+       fetchAndProcessNews();
+       const intervalId = setInterval(fetchAndProcessNews, NEWS_FETCH_INTERVAL);
+
+       return () => {
+           isMounted = false; // Set flag saat unmount
+           clearInterval(intervalId);
+       };
+     }, [currentRoom, database]); // Dependencies
+
+    // --- Auth Handlers (Tetap di dalam AppContent) ---
+    // handleGoogleRegisterSuccess, handleLogin, handleProfileComplete, handleLogout
+
+    // --- App Logic Handlers (Tetap di dalam AppContent) ---
+    const handleIncrementAnalysisCount = useCallback((coinId: string) => { setAnalysisCounts(prev => { const current = prev[coinId] || baseAnalysisCount; const newCounts = { ...prev, [coinId]: current + 1 }; localStorage.setItem('analysisCounts', JSON.stringify(newCounts)); return newCounts; }); }, []);
+    const handleNavigate = useCallback((page: Page) => { if (page === 'home' && activePage === 'home') { handleResetToTrending(); } else if (page === 'forum') { setActivePage('rooms'); } else { setActivePage(page); } }, [activePage, handleResetToTrending]);
+    const handleSelectCoin = useCallback(async (coinId: string) => { setIsTrendingLoading(true); setTrendingError(null); setSearchedCoin(null); try { setSearchedCoin(await fetchCoinDetails(coinId)); } catch (err) { setTrendingError(err instanceof Error ? err.message : "Gagal muat detail koin."); } finally { setIsTrendingLoading(false); } }, []);
+    const handleJoinRoom = useCallback((room: Room) => {
+        setCurrentRoom(room);
+        setJoinedRoomIds(prev => new Set(prev).add(room.id));
+        setUnreadCounts(prev => ({ ...prev, [room.id]: { count: 0, lastUpdate: Date.now() } }));
+        setActivePage('forum');
+    }, []); // Removed message state dependency
+    const handleLeaveRoom = useCallback(() => { setCurrentRoom(null); setActivePage('rooms'); }, []);
+    const handleLeaveJoinedRoom = useCallback((roomId: string) => { if (DEFAULT_ROOM_IDS.includes(roomId)) return; setJoinedRoomIds(prev => { const newIds = new Set(prev); newIds.delete(roomId); return newIds; }); if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); } }, [currentRoom]);
+    const handleCreateRoom = useCallback((roomName: string) => { if (!currentUser?.username) { alert("Anda harus login untuk membuat room."); return; } const trimmedName = roomName.trim(); if (rooms.some(r => r.name.toLowerCase() === trimmedName.toLowerCase())) { alert('Nama room sudah ada.'); return; } const newRoom: Room = { id: trimmedName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), name: trimmedName, userCount: 1, createdBy: currentUser.username }; setRooms(prev => [newRoom, ...prev]); handleJoinRoom(newRoom); }, [handleJoinRoom, rooms, currentUser]);
+    const handleDeleteRoom = useCallback((roomId: string) => {
+        if (!currentUser?.username || !database) return;
+        const roomToDelete = rooms.find(r => r.id === roomId);
+        if (!roomToDelete || DEFAULT_ROOM_IDS.includes(roomId)) return;
+        const isAdmin = firebaseUser && root.child('admins').child(firebaseUser.uid).exists() === true; // Cek admin via UID
+        const isCreator = roomToDelete.createdBy === currentUser.username;
+        if (!isAdmin && !isCreator) { alert("Hanya admin atau pembuat room yang bisa menghapus."); return; }
+        if (window.confirm(`Yakin ingin menghapus room "${roomToDelete.name}"? Ini akan menghapus semua pesan.`)) {
+            setRooms(prev => prev.filter(r => r.id !== roomId));
+            setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; });
+            if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
+            const messagesRef = ref(database, `messages/${roomId}`);
+            set(messagesRef, null).catch(error => console.error(`Failed to delete messages for room ${roomId}:`, error));
+        }
+    }, [currentUser, rooms, currentRoom, database, firebaseUser]); // Tambah firebaseUser dependency
+
+    // Handle Send Message (Sudah diperbaiki dengan UID)
+    const handleSendMessage = useCallback((message: Partial<ChatMessage>) => { // Terima Partial<ChatMessage>
+        if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username) {
+             console.error("Send message prerequisites failed", { database: !!database, currentRoom: currentRoom?.id, firebaseUser: firebaseUser?.uid, currentUser: currentUser?.username });
+             alert("Gagal mengirim: Data tidak lengkap atau belum login.");
+             return;
+        }
+        const messageToSend: Omit<ChatMessage, 'id'> = {
+             type: 'user',
+             uid: firebaseUser.uid,
+             sender: currentUser.username,
+             timestamp: Date.now(),
+             reactions: {},
+             ...(message.text && { text: message.text }),
+             ...(message.fileURL && { fileURL: message.fileURL }),
+             ...(message.fileName && { fileName: message.fileName }),
+        };
+        if (!messageToSend.text && !messageToSend.fileURL) { console.warn("Pesan kosong dicegah."); return; }
+        const messageListRef = ref(database, `messages/${currentRoom.id}`);
+        const newMessageRef = push(messageListRef);
+        console.log(`Sending message to DB: messages/${currentRoom.id}/${newMessageRef.key}`, messageToSend);
+        set(newMessageRef, messageToSend)
+            .then(() => { console.log("Pesan berhasil dikirim."); })
+            .catch((error) => {
+                console.error("Firebase send message error:", error);
+                let alertMessage = "Gagal mengirim pesan.";
+                if (error.code === 'PERMISSION_DENIED') { alertMessage += " Akses ditolak server."; }
+                else if (error.message) { alertMessage += ` (${error.message})`; }
+                alert(alertMessage);
+            });
+    }, [currentRoom, currentUser, database, firebaseUser]);
+
+    // Handle Reaction (Tetap sama)
+    const handleReaction = useCallback((messageId: string, emoji: string) => {
+        if (!database || !currentRoom?.id || !firebaseUser?.uid || !messageId) { console.warn("Cannot react: Missing required info"); return; }
+        const username = currentUser?.username; // Ambil username dari currentUser aplikasi
+        if (!username) { console.warn("Cannot react: Missing application username"); return; }
+        const reactionUserListRef = ref(database, `messages/${currentRoom.id}/${messageId}/reactions/${emoji}`);
+        get(reactionUserListRef).then((snapshot) => {
+            const usersForEmoji: string[] = snapshot.val() || [];
+            let updatedUsers: string[] | null = null;
+            if (usersForEmoji.includes(username)) {
+                updatedUsers = usersForEmoji.filter(u => u !== username);
+                if (updatedUsers.length === 0) updatedUsers = null;
+            } else {
+                updatedUsers = [...usersForEmoji, username];
+            }
+            set(reactionUserListRef, updatedUsers).catch(error => console.error("Update reaction failed:", error));
+        }).catch(error => console.error("Get reaction failed:", error));
+    }, [currentRoom, currentUser, database, firebaseUser]); // Tambahkan firebaseUser
+
+    // Handle Delete Message (Tetap sama)
+    const handleDeleteMessage = useCallback((roomId: string, messageId: string) => {
+        if (!database || !roomId || !messageId) { console.error("Cannot delete message: Missing info."); return; }
+        const messageRef = ref(database, `messages/${roomId}/${messageId}`);
+        set(messageRef, null).catch((error) => { console.error(`Failed to delete message ${messageId}:`, error); alert("Gagal menghapus pesan."); });
+    }, [database]);
+
+    // --- Memoized Values ---
+    const totalUsers = useMemo(() => rooms.reduce((sum, room) => sum + (room.userCount || 0), 0), [rooms]);
+    const heroCoin = searchedCoin || trendingCoins[0] || null;
+    const otherTrendingCoins = searchedCoin ? [] : trendingCoins.slice(1);
+    const hotCoin = trendingCoins.length > 1 ? { name: trendingCoins[1].name, logo: trendingCoins[1].image, price: trendingCoins[1].price, change: trendingCoins[1].change } : null;
+
+    // --- Render Logic ---
+    const renderActivePage = () => {
+         switch (activePage) {
+          case 'home': return <HomePage idrRate={idrRate} isRateLoading={isRateLoading} currency={currency} onIncrementAnalysisCount={handleIncrementAnalysisCount} fullCoinList={fullCoinList} isCoinListLoading={isCoinListLoading} coinListError={coinListError} heroCoin={heroCoin} otherTrendingCoins={otherTrendingCoins} isTrendingLoading={isTrendingLoading} trendingError={trendingError} onSelectCoin={handleSelectCoin} onReloadTrending={handleResetToTrending} />;
+          case 'rooms': return <RoomsListPage rooms={rooms} onJoinRoom={handleJoinRoom} onCreateRoom={handleCreateRoom} totalUsers={totalUsers} hotCoin={hotCoin} userProfile={currentUser} currentRoomId={currentRoom?.id || null} joinedRoomIds={joinedRoomIds} onLeaveJoinedRoom={handleLeaveJoinedRoom} unreadCounts={unreadCounts} onDeleteRoom={handleDeleteRoom} />;
+          case 'forum':
+                const currentMessages = currentRoom ? (firebaseMessages[currentRoom.id] || []) : [];
+                const displayMessages = (currentMessages.length === 0 && currentRoom && defaultMessages[currentRoom.id]) ? defaultMessages[currentRoom.id] : currentMessages;
+                const messagesToPass = Array.isArray(displayMessages) ? displayMessages : [];
+                return <ForumPage room={currentRoom} messages={messagesToPass} userProfile={currentUser} onSendMessage={handleSendMessage} onLeaveRoom={handleLeaveRoom} onReact={handleReaction} onDeleteMessage={handleDeleteMessage} />;
+          case 'about': return <AboutPage />;
+          default: return <HomePage idrRate={idrRate} isRateLoading={isRateLoading} currency={currency} onIncrementAnalysisCount={handleIncrementAnalysisCount} fullCoinList={fullCoinList} isCoinListLoading={isCoinListLoading} coinListError={coinListError} heroCoin={heroCoin} otherTrendingCoins={otherTrendingCoins} isTrendingLoading={isTrendingLoading} trendingError={trendingError} onSelectCoin={handleSelectCoin} onReloadTrending={handleResetToTrending} />;
+        }
+    };
+
+    // --- Render Utama dengan Loading Auth ---
+    if (isAuthLoading) {
+        return ( <div className="min-h-screen bg-transparent text-white flex items-center justify-center"> Memverifikasi sesi... </div> );
+    }
+
+    // --- Auth Flow Rendering ---
+    if (!currentUser && !pendingGoogleUser) {
+        return ( <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} onLogin={handleLogin} /> );
+    }
+    if (pendingGoogleUser && (!currentUser || currentUser.email !== pendingGoogleUser.email)) {
+       return <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
+    }
+    // Handle case where Firebase user is logged in, but app user profile isn't complete (no username)
+    // and we are not in the pendingGoogleUser state (e.g., manual login user needs profile)
+    // Note: Current CreateIdPage requires googleProfile, adjust if needed for manual users
+    if (currentUser && !currentUser.username && pendingGoogleUser) {
+       return <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
+    }
+     // Fallback / sanity check: If currentUser exists but somehow lacks username, force logout/login
+    if (currentUser && !currentUser.username) {
+        console.error("State aneh: currentUser ada tapi tanpa username.");
+        handleLogout(); // Force logout to reset state
+        return <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} onLogin={handleLogin} />;
+    }
+    // Final check: If after all checks, currentUser is still somehow invalid, go to login
+    if (!currentUser) {
+        console.error("Render utama dicegah: currentUser tidak valid setelah semua cek.");
+        return <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} onLogin={handleLogin} />;
+    }
+
+    // --- Render Aplikasi Utama ---
+     return (
+         <div className="min-h-screen bg-transparent text-white font-sans flex flex-col">
+             <Particles />
+             <Header
+                 userProfile={currentUser} // Harus sudah valid di sini
+                 onLogout={handleLogout}
+                 activePage={activePage}
+                 onNavigate={handleNavigate}
+                 currency={currency}
+                 onCurrencyChange={setCurrency}
+                 hotCoin={hotCoin}
+                 idrRate={idrRate}
+            />
+             <main className="flex-grow">
+                 {renderActivePage()}
+             </main>
+             <Footer />
+             {authError && (
+                <div className="fixed bottom-4 right-4 bg-red-600 text-white p-3 rounded-lg shadow-lg z-50">
+                    <p>Error Auth: {authError}</p>
+                    <button onClick={() => setAuthError(null)} className="ml-2 text-sm underline">Tutup</button>
+                </div>
+             )}
+         </div>
+     );
+}; // Akhir dari AppContent
+
+// Komponen App Wrapper (Tetap sama)
 const App = () => {
     const googleClientId = process.env.GOOGLE_CLIENT_ID;
-    if (!googleClientId) { /* ... (render error jika client ID tidak ada) ... */ }
+    if (!googleClientId) {
+        return (
+             <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}>
+                 <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}>
+                     <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Konfigurasi</h1>
+                     <p style={{ marginTop: '10px', lineHeight: '1.6' }}> Variabel GOOGLE_CLIENT_ID tidak ditemukan. </p>
+                 </div>
+             </div>
+         );
+    }
     return (
         <GoogleOAuthProvider clientId={googleClientId}>
             <AppContent />
