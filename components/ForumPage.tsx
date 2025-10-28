@@ -380,16 +380,24 @@ const ForumPage: React.FC<ForumPageProps> = ({
   const filteredMessages = useMemo(() => {
     if (!messages || !Array.isArray(messages)) return [];
     
-    const seenDisclaimerTexts = new Set();
+    const seenMessageIds = new Set();
     return messages.filter(message => {
+      // Skip jika message id sudah dilihat
+      if (seenMessageIds.has(message.id)) {
+        return false;
+      }
+      seenMessageIds.add(message.id);
+      
+      // Untuk disclaimer, juga filter berdasarkan teks
       if (isChatMessage(message) && 
           message.type === 'system' && 
           message.text === DISCLAIMER_MESSAGE_TEXT) {
         
-        if (seenDisclaimerTexts.has(message.text)) {
-          return false; // Hapus duplikat berdasarkan teks
+        // Hanya izinkan satu disclaimer per room
+        if (seenMessageIds.has('disclaimer')) {
+          return false;
         }
-        seenDisclaimerTexts.add(message.text);
+        seenMessageIds.add('disclaimer');
       }
       return true;
     });
