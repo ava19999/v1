@@ -44,7 +44,7 @@ import {
 } from './services/mockData';
 import { ADMIN_USERNAMES } from './components/UserTag';
 import { database } from './services/firebaseService';
-import { ref, set, push, onValue, off, update, get } from 'firebase/database';
+import { ref, set, push, onValue, off, update, get, Database } from 'firebase/database';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
@@ -62,7 +62,7 @@ const DISCLAIMER_MESSAGE_TEXT =
 // Sound notification
 const playNotificationSound = () => {
   try {
-    const audio = new Audio('/notification.mp3'); // Pastikan file notification.mp3 ada di folder public
+    const audio = new Audio('/notification.mp3');
     audio.volume = 0.3;
     audio.play().catch(e => console.log('Gagal memutar suara notifikasi:', e));
   } catch (error) {
@@ -312,7 +312,7 @@ const AppContent: React.FC = () => {
               if (timestamp > (lastMessageTimestamps[currentRoom.id] || 0)) {
                 setLastMessageTimestamps(prev => ({
                   ...prev,
-                  [currentRoom.id]: timestamp
+                  [currentRoom.id!]: timestamp
                 }));
               }
             } else {
@@ -337,20 +337,20 @@ const AppContent: React.FC = () => {
         finalMessages = [...defaultMessages[currentRoom.id]];
       }
 
-      setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: finalMessages }));
+      setFirebaseMessages(prev => ({ ...prev, [currentRoom.id!]: finalMessages }));
 
       // Update unread counts untuk room lain
       if (currentRoom.id) {
         const currentTime = Date.now();
         setUserLastVisit(prev => ({
           ...prev,
-          [currentRoom.id]: currentTime
+          [currentRoom.id!]: currentTime
         }));
 
         // Reset unread count untuk room yang sedang aktif
         setUnreadCounts(prev => ({
           ...prev,
-          [currentRoom.id]: 0
+          [currentRoom.id!]: 0
         }));
       }
     }, (error) => {

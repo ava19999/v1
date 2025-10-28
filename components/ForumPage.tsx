@@ -213,7 +213,7 @@ const UserMessage: React.FC<{
   const isCurrentUser = message.sender === currentUsername && !!currentUsername;
   
   // Gunakan userCreationDate dari pesan untuk menentukan tag
-  const creationDate = message.userCreationDate;
+  const creationDate = message.userCreationDate ?? null;
 
   return (
     <div className={`my-0.5 flex relative ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
