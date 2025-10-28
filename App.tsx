@@ -407,7 +407,6 @@ const AppContent: React.FC = () => {
       console.warn('News fetch skipped: DB not initialized.');
       return;
     }
-    const currentDb = database;
     const NEWS_ROOM_ID = 'berita-kripto';
     const NEWS_FETCH_INTERVAL = 20 * 60 * 1000;
     const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
@@ -418,9 +417,8 @@ const AppContent: React.FC = () => {
       try {
         const fetchedArticles = await fetchNewsArticles();
         if (!isMounted || !fetchedArticles || fetchedArticles.length === 0) return;
-        if (!currentDb) return;
 
-        const newsRoomRef = ref(currentDb, `messages/${NEWS_ROOM_ID}`);
+        const newsRoomRef = ref(database!, `messages/${NEWS_ROOM_ID}`);
         const snapshot = await get(newsRoomRef);
         const existingNewsData = snapshot.val() || {};
         const existingNewsValues = (typeof existingNewsData === 'object' && existingNewsData !== null) ? Object.values<any>(existingNewsData) : [];
