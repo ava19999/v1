@@ -82,7 +82,7 @@ const playNotificationSound = () => {
     audioSources.forEach((src, index) => {
       if (!audioPlayed) {
         const audio = new Audio(src);
-        audio.volume = 0.7;
+        audio.volume = 0.3; // Volume lebih rendah
         
         audio.play().then(() => {
           console.log('🔊 Suara notifikasi diputar');
@@ -101,11 +101,11 @@ const playNotificationSound = () => {
               
               oscillator.frequency.value = 800;
               oscillator.type = 'sine';
-              gainNode.gain.value = 0.3;
+              gainNode.gain.value = 0.1; // Volume lebih rendah
               
               oscillator.start();
-              gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.5);
-              oscillator.stop(audioContext.currentTime + 0.5);
+              gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
+              oscillator.stop(audioContext.currentTime + 0.3);
               
               console.log('🔊 Suara fallback diputar');
             } catch (fallbackError) {
@@ -181,8 +181,9 @@ const AppContent: React.FC = () => {
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
   const [disclaimerShown, setDisclaimerShown] = useState<{ [roomId: string]: boolean }>({});
 
-  // Ref untuk melacak total unread count sebelumnya
+  // Ref untuk melacak total unread count sebelumnya dan mencegah suara berulang
   const prevTotalUnreadRef = useRef<number>(0);
+  const lastSoundPlayTimeRef = useRef<number>(0);
 
   // Load disclaimer status dari localStorage
   useEffect(() => {
@@ -423,14 +424,21 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     const currentTotal = totalUnreadCount;
     const previousTotal = prevTotalUnreadRef.current;
+    const now = Date.now();
     
     // Mainkan sound hanya jika:
     // 1. Ada peningkatan jumlah unread
     // 2. Bukan dari 0 (saat pertama kali load)
-    // 3. Peningkatan terjadi saat user tidak sedang di room tersebut
-    if (currentTotal > previousTotal && previousTotal > 0 && currentRoom) {
+    // 3. User tidak sedang berada di room yang sama dengan notifikasi
+    // 4. Minimal 2 detik sejak suara terakhir diputar
+    if (currentTotal > previousTotal && 
+        previousTotal > 0 && 
+        currentRoom && 
+        (now - lastSoundPlayTimeRef.current) > 2000) {
+      
       console.log(`🎯 Unread count meningkat: ${previousTotal} → ${currentTotal}`);
       playNotificationSound();
+      lastSoundPlayTimeRef.current = now;
     }
     
     prevTotalUnreadRef.current = currentTotal;
@@ -537,13 +545,14 @@ const AppContent: React.FC = () => {
     };
   }, [currentRoom, database, lastMessageTimestamps]);
 
-  // Listener untuk semua room untuk unread counts (kecuali berita kripto)
+  // Listener untuk semua room untuk unread counts (kecuali berita kripto) - DIPERBAIKI
   useEffect(() => {
     if (!database) return;
 
     const roomUnsubscribes: (() => void)[] = [];
 
     joinedRoomIds.forEach(roomId => {
+      // Skip room yang sedang aktif atau room berita kripto
       if (roomId === currentRoom?.id || roomId === 'berita-kripto') return;
 
       const messagesRef = safeRef(`messages/${roomId}`);
@@ -556,14 +565,17 @@ const AppContent: React.FC = () => {
         const lastVisit = userLastVisit[roomId] || 0;
         
         Object.values(data).forEach((msgData: any) => {
+          if (!msgData) return;
+          
           const timestamp = msgData.published_on ? msgData.published_on * 1000 : msgData.timestamp;
+          // Hanya hitung pesan yang lebih baru dari kunjungan terakhir
           if (timestamp > lastVisit) {
             newMessagesCount++;
           }
         });
 
-        // Update unread count hanya jika ada pesan baru
-        if (newMessagesCount > 0) {
+        // Update unread count hanya jika ada pesan baru DAN user tidak sedang di room tersebut
+        if (newMessagesCount > 0 && roomId !== currentRoom?.id) {
           setUnreadCounts(prev => ({
             ...prev,
             [roomId]: (prev[roomId] || 0) + newMessagesCount
@@ -694,7 +706,6 @@ const AppContent: React.FC = () => {
     }));
 
     // TAMBAHKAN DISCLAIMER KE SEMUA ROOM (kecuali berita-kripto) SAAT USER MASUK
-    // TIDAK PERLU CEK APAKAH ROOM KOSONG ATAU TIDAK
     if (database && room.id !== 'berita-kripto') {
       addDisclaimerToRoom(room.id);
     }
@@ -820,16 +831,8 @@ const AppContent: React.FC = () => {
         alert(`Gagal mengirim pesan.${(error as any).code === 'PERMISSION_DENIED' ? ' Akses ditolak. Periksa aturan database.' : ''}`);
       });
 
-      // Update unread counts untuk user lain
-      setUnreadCounts(prev => {
-        const newCounts = { ...prev };
-        Object.keys(newCounts).forEach(roomId => {
-          if (roomId !== currentRoom.id) {
-            newCounts[roomId] = (newCounts[roomId] || 0) + 1;
-          }
-        });
-        return newCounts;
-      });
+      // HAPUS KODE YANG MENAMBAH UNREAD COUNT UNTUK ROOM LAIN
+      // Ini menyebabkan notifikasi count tidak real-time
     } catch (error) {
       console.error('Error sending message:', error);
       alert('Gagal mengirim pesan.');

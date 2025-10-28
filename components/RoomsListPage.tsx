@@ -41,7 +41,7 @@ const RoomListItem: React.FC<{
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
                 {unreadCount > 0 && (
-                     <div className="bg-magenta text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center animate-pulse-notification flex-shrink-0">
+                     <div className="bg-magenta text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center flex-shrink-0">
                         {unreadCount > 99 ? '99+' : unreadCount}
                     </div>
                 )}
@@ -215,13 +215,8 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({
              <style>{`
                  @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
                  @keyframes fade-in-scale { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
-                 @keyframes pulse-notification {
-                   0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 255, 0.7); }
-                   50% { transform: scale(1.05); box-shadow: 0 0 0 5px rgba(255, 0, 255, 0); }
-                 }
                 .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
                 .animate-fade-in-scale { animation: fade-in-scale 0.2s ease-out forwards; }
-                .animate-pulse-notification { animation: pulse-notification 1.5s infinite; }
                 .custom-scrollbar::-webkit-scrollbar { width: 4px; }
                 .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
                 .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 2px; }
