@@ -462,7 +462,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
             <h1 className="text-lg font-black tracking-tight bg-gradient-to-r from-electric to-magenta text-transparent bg-clip-text truncate font-heading">
               {room.name}
             </h1>
-            <p className="text-yellow-400 text-xs mt-1 break-words leading-tight">
+            <p className="text-yellow-400 text-[9px] mt-0.5 break-words leading-tight">
               ⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.
             </p>
           </div>
@@ -538,16 +538,16 @@ const ForumPage: React.FC<ForumPageProps> = ({
         </div>
 
         {/* Input Area */}
-        <div className="p-2 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
+        <div className="p-1.5 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
           {isDefaultRoom ? (
-            <div className="text-center text-xs text-gray-500 py-2 flex items-center justify-center gap-1">
-              <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+            <div className="text-center text-xs text-gray-500 py-1 flex items-center justify-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
               Room ini hanya untuk membaca.
             </div>
           ) : (
-            <div className="space-y-2">
+            <div className="space-y-1">
               {attachment && (
                 <div className="relative inline-block">
                   <img src={attachment.dataUrl} alt="Pratinjau" className="max-h-16 rounded-lg" />
@@ -563,15 +563,15 @@ const ForumPage: React.FC<ForumPageProps> = ({
                   </button>
                 </div>
               )}
-              <form onSubmit={handleSendMessageSubmit} className="flex items-center space-x-2">
+              <form onSubmit={handleSendMessageSubmit} className="flex items-center space-x-1">
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                 <button
                   type="button"
                   onClick={() => fileInputRef.current?.click()}
-                  className="text-gray-400 hover:text-electric p-1.5 rounded-full transition-colors flex-shrink-0"
+                  className="text-gray-400 hover:text-electric p-1 rounded-full transition-colors flex-shrink-0"
                   title="Lampirkan gambar"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
                   </svg>
                 </button>
@@ -581,17 +581,17 @@ const ForumPage: React.FC<ForumPageProps> = ({
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
                     placeholder="Ketik pesan Anda..."
-                    className="w-full bg-gray-800 border border-gray-700 rounded-full py-2 pl-3 pr-10 text-sm text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-electric transition-all"
+                    className="w-full bg-gray-800 border border-gray-700 rounded-full py-1.5 pl-3 pr-8 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-electric transition-all"
                     disabled={!username}
                   />
                 </div>
                 <button
                   type="submit"
-                  className="bg-electric text-white rounded-full p-2 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0"
+                  className="bg-electric text-white rounded-full p-1.5 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0"
                   disabled={isSendDisabled}
                   title="Kirim"
                 >
-                  <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                  <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
                   </svg>
                 </button>
@@ -600,16 +600,16 @@ const ForumPage: React.FC<ForumPageProps> = ({
           )}
         </div>
 
-        {/* Tombol Kembali - Dipindah ke bawah terpisah */}
+        {/* Tombol Kembali - Ukuran seperti tombol Analisa AI */}
         <div className="p-2 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
           <button 
             onClick={onLeaveRoom}
-            className="flex items-center justify-center gap-2 text-gray-300 hover:text-electric transition-colors text-sm font-medium w-full py-2.5 rounded-lg bg-gray-800/50 hover:bg-gray-800/70 border border-gray-700/50"
+            className="flex items-center justify-center gap-2 text-gray-300 hover:text-electric transition-colors text-sm font-medium w-full py-2 rounded-lg bg-gray-800/50 hover:bg-gray-800/70"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-4.5 w-4.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
             </svg>
-            Kembali ke Semua Room
+            Kembali
           </button>
         </div>
       </div>
