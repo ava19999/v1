@@ -121,7 +121,6 @@ const AppContent = () => {
         const unsubscribe = onAuthStateChanged(auth, (user) => {
             console.log("onAuthStateChanged triggered. User:", user ? user.uid : 'null');
             setFirebaseUser(user);
-
             if (user) {
                 const appUser = Object.values(users).find(u => u.email === user.email);
                 if (appUser) {
@@ -147,7 +146,7 @@ const AppContent = () => {
              console.log("Cleaning up Firebase Auth listener.");
              unsubscribe();
         };
-    }, [users, currentUser, pendingGoogleUser]); // Dependencies
+    }, [users, currentUser, pendingGoogleUser]);
 
     // Persist users & currentUser to Local Storage
     useEffect(() => { try { localStorage.setItem('cryptoUsers', JSON.stringify(users)); } catch (e) { console.error("Gagal simpan users", e); } }, [users]);
@@ -163,10 +162,19 @@ const AppContent = () => {
 
     // Firebase Messages Listener Effect
      useEffect(() => {
-         if (!database) { console.warn("Messages listener skipped: Database not initialized."); if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] })); return () => {}; }
-         if (!currentRoom?.id) { return () => {}; } // Tidak perlu set state jika room null
+         // --- PERBAIKAN: Pengecekan database ---
+         if (!database) {
+             console.warn("Messages listener skipped: Database not initialized.");
+             if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] }));
+             return () => {};
+         }
+         // --- AKHIR PERBAIKAN ---
 
-         const messagesRef = ref(database, `messages/${currentRoom.id}`);
+         if (!currentRoom?.id) {
+             return () => {};
+         }
+
+         const messagesRef = ref(database, `messages/${currentRoom.id}`); // Aman
          const listener = onValue(messagesRef, (snapshot) => {
              const data = snapshot.val();
              const messagesArray: ForumMessageItem[] = [];
@@ -204,22 +212,23 @@ const AppContent = () => {
                  [currentRoom!.id]: finalMessages.sort((a, b) => {
                       const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0);
                       const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0);
-                      // --- PERBAIKAN DI SINI (Error TS1109) ---
                       return timeA - timeB;
-                      // --- AKHIR PERBAIKAN ---
                   })
              }));
          }, (error) => {
              console.error(`Firebase listener error room ${currentRoom?.id}:`, error);
              if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] }));
          });
-         return () => { if (database) { off(messagesRef, 'value', listener); } };
+         return () => { off(messagesRef, 'value', listener); }; // Pengecekan database tidak perlu di off()
      }, [currentRoom, currentUser, database]);
 
      // News Fetch Effect
      useEffect(() => {
+       // --- PERBAIKAN: Pengecekan database ---
        if (!database) { console.warn("News fetch skipped: Database not initialized."); return; }
-       const currentDb = database;
+       // --- AKHIR PERBAIKAN ---
+
+       const currentDb = database; // Aman
        const NEWS_ROOM_ID = 'berita-kripto'; const NEWS_FETCH_INTERVAL = 20 * 60 * 1000; const LAST_FETCH_KEY = 'lastNewsFetchTimestamp';
        let isMounted = true;
        const fetchAndProcessNews = async () => {
@@ -230,7 +239,7 @@ const AppContent = () => {
                const fetchedArticles = await fetchNewsArticles();
                if (!isMounted || !fetchedArticles || fetchedArticles.length === 0) return;
                if (!currentDb) { console.warn("DB became null during news fetch"); return; }
-               const newsRoomRef = ref(currentDb, `messages/${NEWS_ROOM_ID}`);
+               const newsRoomRef = ref(currentDb, `messages/${NEWS_ROOM_ID}`); // Aman
                const snapshot = await get(newsRoomRef);
                const existingNewsData = snapshot.val() || {};
                const existingNewsValues = typeof existingNewsData === 'object' && existingNewsData !== null ? Object.values<any>(existingNewsData) : [];
@@ -253,18 +262,10 @@ const AppContent = () => {
                    if (currentRoom?.id !== NEWS_ROOM_ID) { setUnreadCounts(prev => ({ ...prev, [NEWS_ROOM_ID]: { count: (prev[NEWS_ROOM_ID]?.count || 0) + Object.keys(updates).length, lastUpdate: currentTime } })); }
                } else if (isMounted) { console.log("No new unique articles."); }
            } catch (err: unknown) {
-               // --- PERBAIKAN DI SINI (Error TS1109) ---
                let errorMessage = 'Unknown news fetch error';
-               if (err instanceof Error) {
-                  errorMessage = err.message;
-               } else if (typeof err === 'string') {
-                  errorMessage = err;
-               }
-               // Pastikan isMounted dicek sebelum console.error
-               if (isMounted) {
-                   console.error("News fetch failed:", errorMessage);
-               }
-               // --- AKHIR PERBAIKAN ---
+               if (err instanceof Error) { errorMessage = err.message; }
+               else if (typeof err === 'string') { errorMessage = err; }
+               if (isMounted) console.error("News fetch failed:", errorMessage);
            }
        };
        fetchAndProcessNews();
@@ -355,11 +356,17 @@ const AppContent = () => {
     const handleLeaveRoom = useCallback(() => { setCurrentRoom(null); setActivePage('rooms'); }, []);
     const handleLeaveJoinedRoom = useCallback((roomId: string) => { if (DEFAULT_ROOM_IDS.includes(roomId)) return; setJoinedRoomIds(prev => { const newIds = new Set(prev); newIds.delete(roomId); return newIds; }); if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); } }, [currentRoom]);
     const handleCreateRoom = useCallback((roomName: string) => { if (!currentUser?.username) { alert("Login dulu."); return; } const trimmedName = roomName.trim(); if (rooms.some(r => r.name.toLowerCase() === trimmedName.toLowerCase())) { alert('Nama room sudah ada.'); return; } const newRoom: Room = { id: trimmedName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), name: trimmedName, userCount: 1, createdBy: currentUser.username }; setRooms(prev => [newRoom, ...prev]); handleJoinRoom(newRoom); }, [handleJoinRoom, rooms, currentUser]);
+
     const handleDeleteRoom = useCallback((roomId: string) => {
-        if (!currentUser?.username || !database || !firebaseUser) return;
+        // --- PERBAIKAN: Pengecekan database ---
+        if (!currentUser?.username || !database || !firebaseUser) {
+             console.warn("Delete room prerequisites failed."); return;
+        }
+        // --- AKHIR PERBAIKAN ---
         const roomToDelete = rooms.find(r => r.id === roomId);
         if (!roomToDelete || DEFAULT_ROOM_IDS.includes(roomId)) return;
-        const adminsRef = ref(database, 'admins/' + firebaseUser.uid);
+
+        const adminsRef = ref(database, 'admins/' + firebaseUser.uid); // Aman
         get(adminsRef).then((snapshot) => {
             const isAdmin = snapshot.exists() && snapshot.val() === true;
             const isCreator = roomToDelete.createdBy === currentUser.username;
@@ -368,24 +375,33 @@ const AppContent = () => {
                 setRooms(prev => prev.filter(r => r.id !== roomId));
                 setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; });
                 if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
-                const messagesRef = ref(database, `messages/${roomId}`);
+                const messagesRef = ref(database, `messages/${roomId}`); // Aman
                 set(messagesRef, null).catch(error => console.error(`Gagal hapus pesan room ${roomId}:`, error));
             }
         }).catch(error => console.error("Gagal memeriksa status admin:", error));
     }, [currentUser, rooms, currentRoom, database, firebaseUser]);
+
     const handleSendMessage = useCallback((message: Partial<ChatMessage>) => {
-        if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username) { console.error("Prasyarat kirim pesan gagal", { db: !!database, room: currentRoom?.id, fbUid: firebaseUser?.uid, appUser: currentUser?.username }); alert("Gagal mengirim: Belum login atau data tidak lengkap."); return; }
+        // --- PERBAIKAN: Pengecekan database ---
+        if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username) {
+             console.error("Prasyarat kirim pesan gagal", { db: !!database, room: currentRoom?.id, fbUid: firebaseUser?.uid, appUser: currentUser?.username });
+             alert("Gagal mengirim: Belum login atau data tidak lengkap."); return;
+        }
+        // --- AKHIR PERBAIKAN ---
         const messageToSend: Omit<ChatMessage, 'id'> = { type: 'user', uid: firebaseUser.uid, sender: currentUser.username, timestamp: Date.now(), reactions: {}, ...(message.text && { text: message.text }), ...(message.fileURL && { fileURL: message.fileURL }), ...(message.fileName && { fileName: message.fileName }), };
         if (!messageToSend.text && !messageToSend.fileURL) { console.warn("Pesan kosong."); return; }
-        const messageListRef = ref(database, `messages/${currentRoom.id}`);
+        const messageListRef = ref(database, `messages/${currentRoom.id}`); // Aman
         const newMessageRef = push(messageListRef);
         set(newMessageRef, messageToSend).catch((error) => { console.error("Firebase send error:", error); alert(`Gagal mengirim pesan.${error.code === 'PERMISSION_DENIED' ? ' Akses ditolak.' : ''}`); });
     }, [currentRoom, currentUser, database, firebaseUser]);
+
     const handleReaction = useCallback((messageId: string, emoji: string) => {
+        // --- PERBAIKAN: Pengecekan database ---
         if (!database || !currentRoom?.id || !firebaseUser?.uid || !messageId) { console.warn("React prerequisites failed"); return; }
+        // --- AKHIR PERBAIKAN ---
         const username = currentUser?.username;
         if (!username) { console.warn("Cannot react: Missing app username"); return; }
-        const reactionUserListRef = ref(database, `messages/${currentRoom.id}/${messageId}/reactions/${emoji}`);
+        const reactionUserListRef = ref(database, `messages/${currentRoom.id}/${messageId}/reactions/${emoji}`); // Aman
         get(reactionUserListRef).then((snapshot) => {
             const usersForEmoji: string[] = snapshot.val() || [];
             let updatedUsers: string[] | null = usersForEmoji.includes(username) ? usersForEmoji.filter(u => u !== username) : [...usersForEmoji, username];
@@ -393,17 +409,20 @@ const AppContent = () => {
             set(reactionUserListRef, updatedUsers).catch(error => console.error("Update reaction failed:", error));
         }).catch(error => console.error("Get reaction failed:", error));
     }, [currentRoom, currentUser, database, firebaseUser]);
+
     const handleDeleteMessage = useCallback((roomId: string, messageId: string) => {
+        // --- PERBAIKAN: Pengecekan database ---
         if (!database || !roomId || !messageId) { console.error("Cannot delete message."); return; }
-        const messageRef = ref(database, `messages/${roomId}/${messageId}`);
+        // --- AKHIR PERBAIKAN ---
+        const messageRef = ref(database, `messages/${roomId}/${messageId}`); // Aman
         set(messageRef, null).catch((error) => { console.error(`Failed to delete msg ${messageId}:`, error); alert("Gagal hapus pesan."); });
     }, [database]);
 
     // --- Memoized Values ---
     const totalUsers = useMemo(() => rooms.reduce((sum, room) => sum + (room.userCount || 0), 0), [rooms]);
-    const heroCoin = searchedCoin || trendingCoins[0] || null;
-    const otherTrendingCoins = searchedCoin ? [] : trendingCoins.slice(1);
-    const hotCoinForHeader: { name: string; logo: string; price: number; change: number; } | null = trendingCoins.length > 1 ? { name: trendingCoins[1].name, logo: trendingCoins[1].image, price: trendingCoins[1].price, change: trendingCoins[1].change } : null;
+    const heroCoin = useMemo(() => searchedCoin || trendingCoins[0] || null, [searchedCoin, trendingCoins]);
+    const otherTrendingCoins = useMemo(() => searchedCoin ? [] : trendingCoins.slice(1), [searchedCoin, trendingCoins]);
+    const hotCoinForHeader: { name: string; logo: string; price: number; change: number; } | null = useMemo(() => trendingCoins.length > 1 ? { name: trendingCoins[1].name, logo: trendingCoins[1].image, price: trendingCoins[1].price, change: trendingCoins[1].change } : null, [trendingCoins]);
 
     // --- Render Logic ---
     const renderActivePage = () => {
@@ -427,7 +446,7 @@ const AppContent = () => {
 
     // Alur Render Autentikasi
     let contentToRender;
-    if (firebaseUser) { // Pengguna sudah login ke Firebase
+    if (firebaseUser) {
         if (pendingGoogleUser && (!currentUser || currentUser.email !== pendingGoogleUser.email )) {
              console.log("Rendering CreateIdPage (pendingGoogleUser exists)");
              contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
@@ -457,10 +476,10 @@ const AppContent = () => {
         }
          else {
              console.error("Invalid state for logged in user:", { firebaseUser, currentUser, pendingGoogleUser });
-             handleLogout(); // Coba reset
+             handleLogout();
              contentToRender = <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} onLogin={handleLogin} />;
         }
-    } else { // Pengguna tidak login ke Firebase
+    } else {
         console.log("Rendering LoginPage (firebaseUser is null)");
         contentToRender = <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} onLogin={handleLogin} />;
     }
@@ -473,7 +492,7 @@ const AppContent = () => {
             {authError && ( <div className="fixed bottom-4 right-4 bg-red-600 text-white p-3 rounded-lg shadow-lg z-50"> Error: {authError} <button onClick={() => setAuthError(null)} className="ml-2 text-sm underline">X</button> </div> )}
         </div>
     );
-}; // Akhir dari AppContent
+};
 
 // Komponen App Wrapper
 const App = () => {
