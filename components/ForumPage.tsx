@@ -410,7 +410,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
                              {attachment && (
                                 <div className="relative inline-block">
                                      <img src={attachment.dataUrl} alt="Pratinjau" className="max-h-20 rounded-md" /> {/* Reduced max-height */}
-                                     <button onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="absolute -top-1.5 -right-1.5 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-[10px] font-bold hover:bg-red-700 transition-colors" title="Hapus lampiran"> × </button> {/* Adjusted size/pos - FIXED: h-4.5 w-4.5 to h-5 w-5 */}
+                                     <button onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-xs font-bold hover:bg-red-700 transition-colors" title="Hapus lampiran"> × </button> {/* FIXED: -top-1.5 -right-1.5 bg-red-500 text-white rounded-full h-5 w-5 flex items-center justify-center text-[10px] font-bold hover:bg-red-700 transition-colors" title="Hapus lampiran"> × </button> */}
                                 </div>
                              )}
                              <form onSubmit={handleSendMessageSubmit} className="flex items-center space-x-1.5"> {/* Reduced spacing */}
