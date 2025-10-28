@@ -1,5 +1,5 @@
 // types.ts
-import type { CredentialResponse } from '@react-oauth/google'; // <-- TAMBAHKAN IMPOR
+import type { CredentialResponse } from '@react-oauth/google';
 
 // --- Basic Types ---
 export type Page = 'home' | 'rooms' | 'forum' | 'about';
@@ -15,7 +15,7 @@ export interface GoogleProfile {
 export interface User {
   email: string;
   username: string;
-  password?: string;
+  password?: string; // Tetap ada jika CreateIdPage masih menggunakannya
   googleProfilePicture?: string;
   createdAt: number;
 }
@@ -128,7 +128,6 @@ interface BaseRoomsListPageProps {
     onJoinRoom: (room: Room) => void;
     onCreateRoom: (roomName: string) => void;
     totalUsers: number;
-    // Tipe hotCoin harus konsisten dengan yang ada di HeaderProps dan App.tsx
     hotCoin: { name: string; logo: string; price: number; change: number; } | null;
     userProfile: User | null;
     currentRoomId: string | null;
@@ -144,5 +143,14 @@ export interface ExtendedRoomsListPageProps extends BaseRoomsListPageProps {
 export interface HeroCoinProps { crypto: CryptoData; onAnalyze: (crypto: CryptoData) => void; idrRate: number | null; currency: Currency;}
 export interface CryptoCardProps { crypto: CryptoData; onAnalyze: (crypto: CryptoData) => void; idrRate: number | null; currency: Currency;}
 export interface AnalysisModalProps { isOpen: boolean; onClose: () => void; crypto: CryptoData; analysisResult: AnalysisResult | null; isLoading: boolean; error: string | null; exchangeTickers: ExchangeTicker[]; isTickersLoading: boolean; tickersError: string | null; idrRate: number | null; currency: Currency;}
-export interface LoginPageProps { onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void; onLogin: (usernameOrEmail: string, password: string) => Promise<string | void>;}
-export interface CreateIdPageProps { onProfileComplete: (username: string, password: string) => Promise<string | void>; googleProfile: GoogleProfile;}
+
+// Interface LoginPageProps yang sudah diupdate
+export interface LoginPageProps {
+  onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void;
+  // onLogin prop dihapus
+}
+
+export interface CreateIdPageProps {
+  onProfileComplete: (username: string, password: string) => Promise<string | void>;
+  googleProfile: GoogleProfile;
+}

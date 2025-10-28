@@ -8,8 +8,8 @@ import {
   signOut,
   GoogleAuthProvider,
   signInWithCredential,
-  User as FirebaseUser,
-  signInWithEmailAndPassword // <-- Impor ditambahkan di sini
+  User as FirebaseUser
+  // Hapus signInWithEmailAndPassword jika tidak digunakan lagi
 } from "firebase/auth";
 
 // Impor Komponen
@@ -114,50 +114,35 @@ const AppContent = () => {
         } catch (e) { console.error("Gagal load users", e); }
     }, []);
 
-    // Firebase Auth State Listener
+    // Firebase Auth State Listener (tanpa log debug login)
     useEffect(() => {
         const auth = getAuth();
         setIsAuthLoading(true);
-        console.log("Setting up Firebase Auth listener...");
         const unsubscribe = onAuthStateChanged(auth, (user) => {
-            console.log("onAuthStateChanged triggered. User:", user ? user.uid : 'null');
             setFirebaseUser(user);
             if (user) {
-                // Jika ada user Firebase, cari data user lokal yang cocok
                 const appUser = Object.values(users).find(u => u.email === user.email);
                 if (appUser) {
-                    // Jika user lokal ditemukan dan berbeda dari currentUser, update currentUser
                     if (!currentUser || currentUser.email !== appUser.email) {
-                        console.log("Auth listener: Found matching app user, setting currentUser:", appUser);
                         setCurrentUser(appUser);
-                        setPendingGoogleUser(null); // Pastikan tidak ada user Google yang pending
+                        setPendingGoogleUser(null);
                     }
                 } else if (!pendingGoogleUser) {
-                     // Jika user Firebase ada tapi TIDAK ADA user lokal yang cocok,
-                     // DAN TIDAK ADA user Google yang menunggu dibuatkan profil,
-                     // ini kondisi aneh, paksa logout lokal
                     console.warn("Auth listener: Firebase user exists but no matching app user found and not pending. Forcing app logout.");
-                    setCurrentUser(null);
+                    setCurrentUser(null); // Paksa logout lokal jika state tidak konsisten
                 }
-                // Jika ada pendingGoogleUser, biarkan alur CreateIdPage berjalan
             } else {
-                 // Jika tidak ada user Firebase (logout)
                  if (currentUser !== null) {
-                    console.log("Auth listener: Firebase user logged out, clearing currentUser.");
-                    setCurrentUser(null); // Hapus currentUser lokal
+                    setCurrentUser(null);
                  }
-                 setPendingGoogleUser(null); // Hapus juga user Google yang pending
+                 setPendingGoogleUser(null);
             }
-            setIsAuthLoading(false); // Selesai loading status auth
+            setIsAuthLoading(false);
         });
-        // Cleanup listener saat komponen unmount
         return () => {
-             console.log("Cleaning up Firebase Auth listener.");
              unsubscribe();
         };
-    // Perhatikan dependensi: users, currentUser, pendingGoogleUser
     }, [users, currentUser, pendingGoogleUser]);
-
 
     // Persist users & currentUser to Local Storage
     useEffect(() => { try { localStorage.setItem('cryptoUsers', JSON.stringify(users)); } catch (e) { console.error("Gagal simpan users", e); } }, [users]);
@@ -214,7 +199,7 @@ const AppContent = () => {
                  [currentRoom!.id]: finalMessages.sort((a, b) => {
                       const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0);
                       const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0);
-                      return timeA - timeB; // Pastikan return ada
+                      return timeA - timeB;
                   })
              }));
          }, (error) => {
@@ -233,7 +218,7 @@ const AppContent = () => {
        const fetchAndProcessNews = async () => {
            const currentTime = Date.now();
            const lastFetch = parseInt(localStorage.getItem(LAST_FETCH_KEY) || '0', 10);
-           // if (currentTime - lastFetch < NEWS_FETCH_INTERVAL) return;
+           // if (currentTime - lastFetch < NEWS_FETCH_INTERVAL) return; // Uncomment to re-enable interval check
            try {
                const fetchedArticles = await fetchNewsArticles();
                if (!isMounted || !fetchedArticles || fetchedArticles.length === 0) return;
@@ -279,20 +264,16 @@ const AppContent = () => {
         try {
             const decoded: { email: string; name: string; picture: string; } = jwtDecode(credentialResponse.credential);
             const { email, name, picture } = decoded;
-            console.log("Google Sign-In Success, attempting Firebase link...");
             const auth = getAuth();
             const googleCredential = GoogleAuthProvider.credential(credentialResponse.credential);
             signInWithCredential(auth, googleCredential)
               .then((userCredential) => {
                  const fbUser = userCredential.user;
-                 console.log("Firebase signInWithCredential success:", fbUser);
                  const existingAppUser = Object.values(users).find(u => u.email === email);
                  if (existingAppUser) {
-                      console.log("Existing user found, setting currentUser.");
                       setCurrentUser(existingAppUser);
                       setPendingGoogleUser(null);
                  } else {
-                      console.log("New user via Google, setting pendingGoogleUser.");
                       setPendingGoogleUser({ email, name, picture });
                       if (currentUser) setCurrentUser(null);
                  }
@@ -312,57 +293,7 @@ const AppContent = () => {
         }
     }, [users, currentUser]);
 
-    // --- handleLogin YANG SUDAH DIMODIFIKASI ---
-    const handleLogin = useCallback(async (usernameOrEmail: string, password: string): Promise<string | void> => {
-        setAuthError(null);
-        const lowerUsernameOrEmail = usernameOrEmail.toLowerCase();
-
-        console.log("Attempting login with:", { usernameOrEmail: lowerUsernameOrEmail, passwordInput: password }); // Log input
-
-        // 1. Cari pengguna di data lokal (users state)
-        const user = Object.values(users).find(u =>
-            u.username.toLowerCase() === lowerUsernameOrEmail ||
-            u.email.toLowerCase() === lowerUsernameOrEmail
-        );
-
-        console.log("User found in local data:", user); // Log if user was found
-
-        // 2. Verifikasi password lokal (case-sensitive)
-        if (user && user.password && user.password === password) {
-            console.log("Local password match successful.");
-
-            // 3. Coba login ke Firebase Authentication
-            try {
-                const auth = getAuth();
-                console.log("Attempting Firebase signInWithEmailAndPassword for email:", user.email);
-                // Penting: Gunakan user.email yang ditemukan dari data lokal
-                await signInWithEmailAndPassword(auth, user.email, password);
-                console.log("Firebase signInWithEmailAndPassword successful.");
-                // Jika berhasil, onAuthStateChanged listener akan otomatis menangani
-                // pengaturan firebaseUser dan currentUser. Tidak perlu setCurrentUser di sini.
-            } catch (firebaseError: any) {
-                console.error("Firebase signInWithEmailAndPassword error:", firebaseError);
-                let errorMsg = 'Gagal login ke Firebase.';
-                // Perbaiki pengecekan kode error Firebase
-                if (firebaseError.code === 'auth/user-not-found' || firebaseError.code === 'auth/wrong-password' || firebaseError.code === 'auth/invalid-credential') {
-                    errorMsg = 'Email atau kata sandi Firebase salah.';
-                } else if (firebaseError.message) {
-                    errorMsg += ` (${firebaseError.message})`;
-                }
-                setAuthError(errorMsg);
-                return errorMsg; // Kembalikan pesan error Firebase
-            }
-
-        } else {
-            // Jika verifikasi lokal gagal
-            const errorMsg = user ? 'Kata sandi lokal salah.' : 'Username/email tidak ditemukan.';
-            setAuthError(errorMsg);
-            console.error(errorMsg);
-            return errorMsg; // Kembalikan pesan error lokal
-        }
-    }, [users]); // users adalah dependensi
-    // --- AKHIR handleLogin YANG DIMODIFIKASI ---
-
+    // handleLogin dihapus
 
     const handleProfileComplete = useCallback(async (username: string, password: string): Promise<string | void> => {
         setAuthError(null);
@@ -371,23 +302,18 @@ const AppContent = () => {
         if (Object.values(users).some(u => u.username.toLowerCase() === username.toLowerCase())) {
             const errorMsg = 'Username sudah digunakan.'; setAuthError(errorMsg); return errorMsg;
         }
-        // TODO: Idealnya, di sini Anda juga harus membuat/update user di Firebase Auth
-        // dengan email/password jika belum ada atau menautkannya ke akun Google.
-        // Untuk sekarang, kita hanya simpan di state lokal.
+        // TODO: Menautkan/membuat akun email/password di Firebase Auth
 
         const newUser: User = { email: pendingGoogleUser.email, username: username, password: password, googleProfilePicture: pendingGoogleUser.picture, createdAt: Date.now() };
-        console.log("Profile complete, creating new user:", newUser);
         setUsers(prev => ({ ...prev, [newUser.email]: newUser }));
-        setCurrentUser(newUser); // Langsung set currentUser karena Firebase user sudah ada
+        setCurrentUser(newUser);
         setPendingGoogleUser(null);
     }, [users, pendingGoogleUser, firebaseUser]);
 
     const handleLogout = useCallback(() => {
-        console.log("handleLogout called");
         const auth = getAuth();
         signOut(auth).catch((error) => { console.error("Firebase signOut error:", error); });
-        // State currentUser akan di-clear oleh onAuthStateChanged listener
-        setActivePage('home'); // Kembali ke home setelah logout
+        setActivePage('home');
     }, []);
 
     // --- App Logic Handlers ---
@@ -400,44 +326,25 @@ const AppContent = () => {
     const handleCreateRoom = useCallback((roomName: string) => { if (!currentUser?.username) { alert("Login dulu."); return; } const trimmedName = roomName.trim(); if (rooms.some(r => r.name.toLowerCase() === trimmedName.toLowerCase())) { alert('Nama room sudah ada.'); return; } const newRoom: Room = { id: trimmedName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), name: trimmedName, userCount: 1, createdBy: currentUser.username }; setRooms(prev => [newRoom, ...prev]); handleJoinRoom(newRoom); }, [handleJoinRoom, rooms, currentUser]);
 
     const handleDeleteRoom = useCallback((roomId: string) => {
-        // --- PERBAIKAN DI SINI (Error TS2345 baris ~371) ---
-        // Pindahkan pengecekan database ke *dalam* scope Promise
-        if (!currentUser?.username || !firebaseUser) { // Cek user dulu
-             console.warn("Delete room prerequisites failed (user).");
-             return;
-        }
-
+        if (!currentUser?.username || !firebaseUser) { console.warn("Delete room prerequisites failed (user)."); return; }
         const roomToDelete = rooms.find(r => r.id === roomId);
         if (!roomToDelete || DEFAULT_ROOM_IDS.includes(roomId)) return;
-
-        // Cek database *sebelum* memanggil ref
-        if (!database) {
-            console.error("Cannot delete room: Database not initialized.");
-            alert("Gagal menghapus room: Koneksi database bermasalah.");
-            return;
-        }
-        // Sekarang database pasti tidak null
-        const currentDb = database; // Capture instance
+        if (!database) { console.error("Cannot delete room: Database not initialized."); alert("Gagal menghapus room: Koneksi database bermasalah."); return; }
+        const currentDb = database;
         const adminsRef = ref(currentDb, 'admins/' + firebaseUser.uid);
-        // --- AKHIR PERBAIKAN ---
-
         get(adminsRef).then((snapshot) => {
             const isAdmin = snapshot.exists() && snapshot.val() === true;
             const isCreator = roomToDelete.createdBy === currentUser.username;
-
             if (!isAdmin && !isCreator) { alert("Hanya admin/pembuat yang bisa hapus."); return; }
-
             if (window.confirm(`Hapus room "${roomToDelete.name}"?`)) {
                 setRooms(prev => prev.filter(r => r.id !== roomId));
                 setJoinedRoomIds(prev => { const n = new Set(prev); n.delete(roomId); return n; });
                 if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
-                // Gunakan currentDb yang sudah pasti tidak null
                 const messagesRef = ref(currentDb, `messages/${roomId}`);
                 set(messagesRef, null).catch(error => console.error(`Gagal hapus pesan room ${roomId}:`, error));
             }
         }).catch(error => console.error("Gagal memeriksa status admin:", error));
-
-    }, [currentUser, rooms, currentRoom, database, firebaseUser]); // database tetap dependency
+    }, [currentUser, rooms, currentRoom, database, firebaseUser]);
 
     const handleSendMessage = useCallback((message: Partial<ChatMessage>) => {
         if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username) { console.error("Prasyarat kirim pesan gagal", { db: !!database, room: currentRoom?.id, fbUid: firebaseUser?.uid, appUser: currentUser?.username }); alert("Gagal mengirim: Belum login atau data tidak lengkap."); return; }
@@ -497,7 +404,6 @@ const AppContent = () => {
     let contentToRender;
     // Tampilkan aplikasi utama JIKA ada user Firebase DAN (user lokal ada DAN punya username ATAU TIDAK ADA pendingGoogleUser)
     if (firebaseUser && ((currentUser && currentUser.username) || !pendingGoogleUser)) {
-         console.log("Rendering Main App (Firebase user exists, local user complete or no pending Google)");
          contentToRender = (
              <>
                  <Header
@@ -518,17 +424,15 @@ const AppContent = () => {
          );
     // Tampilkan CreateIdPage JIKA ada user Firebase TAPI (user lokal belum ada ATAU belum punya username) DAN ADA pendingGoogleUser
     } else if (firebaseUser && (!currentUser || !currentUser.username) && pendingGoogleUser) {
-         console.log("Rendering CreateIdPage (Firebase user exists, local user incomplete, pendingGoogleUser exists)");
          contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
     // Jika tidak ada user Firebase, tampilkan LoginPage
     } else {
-        console.log("Rendering LoginPage (Firebase user is null or in invalid state)");
-        // Jika state tidak valid (misal firebaseUser ada tapi currentUser tidak ada dan pendingGoogleUser juga tidak ada), paksa logout
         if (firebaseUser && !currentUser && !pendingGoogleUser && !isAuthLoading) {
              console.error("Invalid state detected, forcing logout.");
              handleLogout(); // Panggil logout untuk membersihkan state Firebase
         }
-        contentToRender = <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} onLogin={handleLogin} />;
+        // Hanya onGoogleRegisterSuccess yang diperlukan
+        contentToRender = <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} />;
     }
 
 
