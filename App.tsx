@@ -301,19 +301,43 @@ const AppContent = () => {
         }
     }, [users, currentUser]);
 
+    // --- MODIFIED handleLogin with Debugging ---
     const handleLogin = useCallback(async (usernameOrEmail: string, password: string): Promise<string | void> => {
         setAuthError(null);
-        const user = Object.values(users).find(u => u.username.toLowerCase() === usernameOrEmail.toLowerCase() || u.email.toLowerCase() === usernameOrEmail.toLowerCase());
-        if (user && user.password === password) {
-            console.log("Manual login successful, setting currentUser:", user);
-            // TODO: Implement Firebase sign-in with email/password if needed
-            setCurrentUser(user);
+        const lowerUsernameOrEmail = usernameOrEmail.toLowerCase(); // Sudah case-insensitive untuk pencarian
+
+        console.log("Attempting login with:", { usernameOrEmail: lowerUsernameOrEmail, passwordInput: password }); // Log input
+
+        // Cari pengguna berdasarkan username atau email (case-insensitive)
+        const user = Object.values(users).find(u =>
+            u.username.toLowerCase() === lowerUsernameOrEmail ||
+            u.email.toLowerCase() === lowerUsernameOrEmail
+        );
+
+        console.log("User found in local data:", user); // Log if user was found
+
+        // Bandingkan password (case-sensitive as originally written)
+        if (user && user.password) {
+            console.log("Stored password:", user.password); // Log stored password
+            console.log("Password comparison result:", user.password === password); // Log comparison result
+            if (user.password === password) {
+                console.log("Manual login successful (case-sensitive), setting currentUser:", user);
+                // TODO: Implement Firebase sign-in with email/password if needed
+                setCurrentUser(user);
+            } else {
+                 const errorMsg = 'Username/email atau kata sandi salah (perbandingan gagal).';
+                 setAuthError(errorMsg);
+                 console.error(errorMsg); // Log error
+                 return errorMsg; // Kembalikan pesan error
+            }
         } else {
-            const errorMsg = 'Username/email atau kata sandi salah.';
-            setAuthError(errorMsg);
-            return errorMsg;
+             const errorMsg = user ? 'User ditemukan tapi tidak ada password tersimpan.' : 'Username/email tidak ditemukan.';
+             setAuthError(errorMsg);
+             console.error(errorMsg); // Log error
+             return errorMsg; // Kembalikan pesan error
         }
-    }, [users]);
+    }, [users]); // users adalah dependensi
+    // --- END MODIFIED handleLogin ---
 
     const handleProfileComplete = useCallback(async (username: string, password: string): Promise<string | void> => {
         setAuthError(null);
