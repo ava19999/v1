@@ -88,6 +88,14 @@ const Particles: React.FC = () => (
   </div>
 );
 
+// Helper function untuk safely menggunakan database
+const safeRef = (path: string) => {
+  if (!database) {
+    throw new Error('Database not initialized');
+  }
+  return ref(database, path);
+};
+
 const AppContent: React.FC = () => {
   const [activePage, setActivePage] = useState<Page>('home');
   const [currency, setCurrency] = useState<Currency>('usd');
@@ -338,7 +346,7 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    const messagesRef = ref(database, `messages/${currentRoom.id}`);
+    const messagesRef = safeRef(`messages/${currentRoom.id}`);
     const listener = onValue(messagesRef, (snapshot) => {
       const data = snapshot.val();
       const messagesArray: ForumMessageItem[] = [];
@@ -421,7 +429,7 @@ const AppContent: React.FC = () => {
     return () => {
       if (database) off(messagesRef, 'value', listener);
     };
-  }, [currentRoom, database, lastMessageTimestamps]);
+  }, [currentRoom, lastMessageTimestamps]);
 
   // Listener untuk semua room untuk unread counts (kecuali berita kripto)
   useEffect(() => {
@@ -432,7 +440,7 @@ const AppContent: React.FC = () => {
     joinedRoomIds.forEach(roomId => {
       if (roomId === currentRoom?.id || roomId === 'berita-kripto') return;
 
-      const messagesRef = ref(database, `messages/${roomId}`);
+      const messagesRef = safeRef(`messages/${roomId}`);
       const listener = onValue(messagesRef, (snapshot) => {
         const data = snapshot.val();
         if (!data) return;
@@ -460,7 +468,7 @@ const AppContent: React.FC = () => {
     return () => {
       roomUnsubscribes.forEach(unsubscribe => unsubscribe());
     };
-  }, [joinedRoomIds, currentRoom, database, userLastVisit]);
+  }, [joinedRoomIds, currentRoom, userLastVisit]);
 
   const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => {
     setAuthError(null);
@@ -577,23 +585,27 @@ const AppContent: React.FC = () => {
 
     // Tambahkan disclaimer jika room baru atau belum ada pesan (kecuali room berita kripto)
     if (database && room.id !== 'berita-kripto' && (!firebaseMessages[room.id] || firebaseMessages[room.id].length === 0)) {
-      const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
-        type: 'system',
-        text: DISCLAIMER_MESSAGE_TEXT,
-        sender: 'system',
-        timestamp: Date.now(),
-        reactions: {}
-      };
+      try {
+        const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
+          type: 'system',
+          text: DISCLAIMER_MESSAGE_TEXT,
+          sender: 'system',
+          timestamp: Date.now(),
+          reactions: {}
+        };
 
-      const messageListRef = ref(database, `messages/${room.id}`);
-      const newMessageRef = push(messageListRef);
-      set(newMessageRef, disclaimerMsg).catch(error => {
-        console.error('Gagal menambahkan disclaimer:', error);
-      });
+        const messageListRef = safeRef(`messages/${room.id}`);
+        const newMessageRef = push(messageListRef);
+        set(newMessageRef, disclaimerMsg).catch(error => {
+          console.error('Gagal menambahkan disclaimer:', error);
+        });
+      } catch (error) {
+        console.error('Error adding disclaimer:', error);
+      }
     }
     
     setActivePage('forum');
-  }, [database, firebaseMessages]);
+  }, [firebaseMessages]);
 
   const handleLeaveRoom = useCallback(() => { 
     setCurrentRoom(null); 
@@ -622,23 +634,27 @@ const AppContent: React.FC = () => {
     
     // Tambahkan disclaimer ke room baru
     if (database) {
-      const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
-        type: 'system',
-        text: DISCLAIMER_MESSAGE_TEXT,
-        sender: 'system',
-        timestamp: Date.now(),
-        reactions: {}
-      };
+      try {
+        const disclaimerMsg: Omit<ChatMessage, 'id'> & { type: 'system' } = {
+          type: 'system',
+          text: DISCLAIMER_MESSAGE_TEXT,
+          sender: 'system',
+          timestamp: Date.now(),
+          reactions: {}
+        };
 
-      const messageListRef = ref(database, `messages/${newRoom.id}`);
-      const newMessageRef = push(messageListRef);
-      set(newMessageRef, disclaimerMsg).catch(error => {
-        console.error('Gagal menambahkan disclaimer ke room baru:', error);
-      });
+        const messageListRef = safeRef(`messages/${newRoom.id}`);
+        const newMessageRef = push(messageListRef);
+        set(newMessageRef, disclaimerMsg).catch(error => {
+          console.error('Gagal menambahkan disclaimer ke room baru:', error);
+        });
+      } catch (error) {
+        console.error('Error creating room:', error);
+      }
     }
     
     handleJoinRoom(newRoom);
-  }, [handleJoinRoom, rooms, currentUser, database]);
+  }, [handleJoinRoom, rooms, currentUser]);
 
   const handleDeleteRoom = useCallback((roomId: string) => {
     if (!currentUser?.username || !firebaseUser) { 
@@ -657,30 +673,33 @@ const AppContent: React.FC = () => {
       return; 
     }
 
-    // PERBAIKAN: Gunakan non-null assertion operator (!) setelah pengecekan database
-    const adminsRef = ref(database!, 'admins/' + firebaseUser.uid);
-    get(adminsRef).then((snapshot) => {
-      const isAdmin = snapshot.exists() && snapshot.val() === true;
-      const isCreator = roomToDelete.createdBy === currentUser.username;
-      if (!isAdmin && !isCreator) { 
-        alert('Hanya admin atau pembuat room yang dapat menghapus room ini.'); 
-        return; 
-      }
+    try {
+      const adminsRef = safeRef('admins/' + firebaseUser.uid);
+      get(adminsRef).then((snapshot) => {
+        const isAdmin = snapshot.exists() && snapshot.val() === true;
+        const isCreator = roomToDelete.createdBy === currentUser.username;
+        if (!isAdmin && !isCreator) { 
+          alert('Hanya admin atau pembuat room yang dapat menghapus room ini.'); 
+          return; 
+        }
 
-      if (window.confirm(`Anda yakin ingin menghapus room "${roomToDelete.name}" secara permanen? Semua pesan di dalamnya akan hilang.`)) {
-        setRooms(prev => prev.filter(r => r.id !== roomId));
-        handleLeaveJoinedRoom(roomId);
-        // PERBAIKAN: Gunakan non-null assertion operator (!) di sini juga
-        const messagesRef = ref(database!, `messages/${roomId}`);
-        set(messagesRef, null)
-          .then(() => console.log(`Messages for room ${roomId} deleted.`))
-          .catch(error => console.error(`Gagal menghapus pesan untuk room ${roomId}:`, error));
-      }
-    }).catch(error => {
-      console.error('Gagal memeriksa status admin:', error);
-      alert('Gagal memverifikasi izin penghapusan.');
-    });
-  }, [currentUser, rooms, database, firebaseUser, handleLeaveJoinedRoom]);
+        if (window.confirm(`Anda yakin ingin menghapus room "${roomToDelete.name}" secara permanen? Semua pesan di dalamnya akan hilang.`)) {
+          setRooms(prev => prev.filter(r => r.id !== roomId));
+          handleLeaveJoinedRoom(roomId);
+          const messagesRef = safeRef(`messages/${roomId}`);
+          set(messagesRef, null)
+            .then(() => console.log(`Messages for room ${roomId} deleted.`))
+            .catch(error => console.error(`Gagal menghapus pesan untuk room ${roomId}:`, error));
+        }
+      }).catch(error => {
+        console.error('Gagal memeriksa status admin:', error);
+        alert('Gagal memverifikasi izin penghapusan.');
+      });
+    } catch (error) {
+      console.error('Error in handleDeleteRoom:', error);
+      alert('Terjadi kesalahan saat menghapus room.');
+    }
+  }, [currentUser, rooms, firebaseUser, handleLeaveJoinedRoom]);
 
   const handleSendMessage = useCallback((message: Partial<ChatMessage>) => {
     if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username) {
@@ -705,25 +724,29 @@ const AppContent: React.FC = () => {
       ...(message.fileName && { fileName: message.fileName }),
     };
 
-    // PERBAIKAN: Gunakan non-null assertion operator (!) setelah pengecekan database
-    const messageListRef = ref(database!, `messages/${currentRoom.id}`);
-    const newMessageRef = push(messageListRef);
-    set(newMessageRef, messageToSend).catch((error) => {
-      console.error('Firebase send message error:', error);
-      alert(`Gagal mengirim pesan.${(error as any).code === 'PERMISSION_DENIED' ? ' Akses ditolak. Periksa aturan database.' : ''}`);
-    });
-
-    // Update unread counts untuk user lain
-    setUnreadCounts(prev => {
-      const newCounts = { ...prev };
-      Object.keys(newCounts).forEach(roomId => {
-        if (roomId !== currentRoom.id) {
-          newCounts[roomId] = (newCounts[roomId] || 0) + 1;
-        }
+    try {
+      const messageListRef = safeRef(`messages/${currentRoom.id}`);
+      const newMessageRef = push(messageListRef);
+      set(newMessageRef, messageToSend).catch((error) => {
+        console.error('Firebase send message error:', error);
+        alert(`Gagal mengirim pesan.${(error as any).code === 'PERMISSION_DENIED' ? ' Akses ditolak. Periksa aturan database.' : ''}`);
       });
-      return newCounts;
-    });
-  }, [currentRoom, currentUser, database, firebaseUser]);
+
+      // Update unread counts untuk user lain
+      setUnreadCounts(prev => {
+        const newCounts = { ...prev };
+        Object.keys(newCounts).forEach(roomId => {
+          if (roomId !== currentRoom.id) {
+            newCounts[roomId] = (newCounts[roomId] || 0) + 1;
+          }
+        });
+        return newCounts;
+      });
+    } catch (error) {
+      console.error('Error sending message:', error);
+      alert('Gagal mengirim pesan.');
+    }
+  }, [currentRoom, currentUser, firebaseUser]);
 
   const handleReaction = useCallback((messageId: string, emoji: string) => {
     if (!database || !currentRoom?.id || !firebaseUser?.uid || !messageId || !emoji) {
@@ -733,23 +756,26 @@ const AppContent: React.FC = () => {
     const username = currentUser?.username;
     if (!username) { console.warn('Cannot react: Missing app username'); return; }
 
-    // PERBAIKAN: Gunakan non-null assertion operator (!) setelah pengecekan database
-    const reactionUserListRef = ref(database!, `messages/${currentRoom.id}/${messageId}/reactions/${emoji}`);
-    get(reactionUserListRef).then((snapshot) => {
-      const usersForEmoji: string[] = snapshot.val() || [];
-      let updatedUsers: string[] | null;
-      if (!Array.isArray(usersForEmoji)) {
-        console.error('Invalid data format for reactions, expected array or null:', usersForEmoji);
-        updatedUsers = [username];
-      } else if (usersForEmoji.includes(username)) {
-        updatedUsers = usersForEmoji.filter(u => u !== username);
-        if (updatedUsers.length === 0) updatedUsers = null;
-      } else {
-        updatedUsers = [...usersForEmoji, username];
-      }
-      set(reactionUserListRef, updatedUsers).catch(error => console.error(`Failed to update reaction for emoji ${emoji}:`, error));
-    }).catch(error => console.error(`Failed to get reaction data for emoji ${emoji}:`, error));
-  }, [currentRoom, currentUser, database, firebaseUser]);
+    try {
+      const reactionUserListRef = safeRef(`messages/${currentRoom.id}/${messageId}/reactions/${emoji}`);
+      get(reactionUserListRef).then((snapshot) => {
+        const usersForEmoji: string[] = snapshot.val() || [];
+        let updatedUsers: string[] | null;
+        if (!Array.isArray(usersForEmoji)) {
+          console.error('Invalid data format for reactions, expected array or null:', usersForEmoji);
+          updatedUsers = [username];
+        } else if (usersForEmoji.includes(username)) {
+          updatedUsers = usersForEmoji.filter(u => u !== username);
+          if (updatedUsers.length === 0) updatedUsers = null;
+        } else {
+          updatedUsers = [...usersForEmoji, username];
+        }
+        set(reactionUserListRef, updatedUsers).catch(error => console.error(`Failed to update reaction for emoji ${emoji}:`, error));
+      }).catch(error => console.error(`Failed to get reaction data for emoji ${emoji}:`, error));
+    } catch (error) {
+      console.error('Error handling reaction:', error);
+    }
+  }, [currentRoom, currentUser, firebaseUser]);
 
   const handleDeleteMessage = useCallback((roomId: string, messageId: string) => {
     if (!database || !roomId || !messageId) {
@@ -757,15 +783,19 @@ const AppContent: React.FC = () => {
       alert('Gagal menghapus pesan: Informasi tidak lengkap.');
       return;
     }
-    // PERBAIKAN: Gunakan non-null assertion operator (!) setelah pengecekan database
-    const messageRef = ref(database!, `messages/${roomId}/${messageId}`);
-    set(messageRef, null).then(() => {
-      console.log(`Message ${messageId} in room ${roomId} deleted successfully.`);
-    }).catch(error => {
-      console.error(`Failed to delete message ${messageId} in room ${roomId}:`, error);
-      alert('Gagal menghapus pesan. Periksa koneksi atau izin Anda.');
-    });
-  }, [database]);
+    try {
+      const messageRef = safeRef(`messages/${roomId}/${messageId}`);
+      set(messageRef, null).then(() => {
+        console.log(`Message ${messageId} in room ${roomId} deleted successfully.`);
+      }).catch(error => {
+        console.error(`Failed to delete message ${messageId} in room ${roomId}:`, error);
+        alert('Gagal menghapus pesan. Periksa koneksi atau izin Anda.');
+      });
+    } catch (error) {
+      console.error('Error deleting message:', error);
+      alert('Gagal menghapus pesan.');
+    }
+  }, []);
 
   const totalUsers = useMemo(() => rooms.reduce((sum, r) => sum + (r.userCount || 0), 0), [rooms]);
   const heroCoin = useMemo(() => searchedCoin || trendingCoins[0] || null, [searchedCoin, trendingCoins]);
