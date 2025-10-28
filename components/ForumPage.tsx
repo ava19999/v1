@@ -216,7 +216,7 @@ const UserMessage: React.FC<{
 }) => {
   const currentUsername = userProfile?.username || '';
   const isCurrentUser = message.sender === currentUsername && !!currentUsername;
-  const creationDate = isCurrentUser && userProfile ? userProfile.createdAt : undefined;
+  const creationDate = isCurrentUser && userProfile ? userProfile.createdAt : null;
 
   return (
     <div className={`my-0.5 flex relative ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
