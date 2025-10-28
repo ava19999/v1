@@ -67,7 +67,7 @@ const safeRef = (path: string) => {
   return ref(database, path);
 };
 
-// Sound notification yang lebih reliable
+// Sound notification yang lebih reliable - VOLUME DITINGKATKAN
 const playNotificationSound = () => {
   try {
     // Coba beberapa sumber audio
@@ -82,7 +82,7 @@ const playNotificationSound = () => {
     audioSources.forEach((src, index) => {
       if (!audioPlayed) {
         const audio = new Audio(src);
-        audio.volume = 0.3; // Volume lebih rendah
+        audio.volume = 0.6; // Volume ditingkatkan menjadi 0.6
         
         audio.play().then(() => {
           console.log('🔊 Suara notifikasi diputar');
@@ -101,7 +101,7 @@ const playNotificationSound = () => {
               
               oscillator.frequency.value = 800;
               oscillator.type = 'sine';
-              gainNode.gain.value = 0.1; // Volume lebih rendah
+              gainNode.gain.value = 0.3; // Volume fallback ditingkatkan
               
               oscillator.start();
               gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
@@ -184,7 +184,7 @@ const AppContent: React.FC = () => {
   // Ref untuk melacak total unread count sebelumnya dan mencegah suara berulang
   const prevTotalUnreadRef = useRef<number>(0);
   const lastSoundPlayTimeRef = useRef<number>(0);
-  const lastProcessedMessagesRef = useRef<{ [roomId: string]: Set<string> }>({});
+  const roomListenersRef = useRef<{ [roomId: string]: () => void }>({});
 
   // Load disclaimer status dari localStorage
   useEffect(() => {
@@ -202,13 +202,6 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('disclaimerShown', JSON.stringify(disclaimerShown));
   }, [disclaimerShown]);
-
-  // Inisialisasi lastProcessedMessagesRef
-  useEffect(() => {
-    if (!lastProcessedMessagesRef.current) {
-      lastProcessedMessagesRef.current = {};
-    }
-  }, []);
 
   const fetchTrendingData = useCallback(async (showSkeleton = true) => {
     if (showSkeleton) { setIsTrendingLoading(true); setTrendingError(null); }
@@ -254,13 +247,15 @@ const AppContent: React.FC = () => {
     }
   }, [currentRoom]);
 
-  // Fungsi untuk menambahkan disclaimer ke room - DIPERBAIKI
+  // Fungsi untuk menambahkan disclaimer ke room - DIPERBAIKI TOTAL
   const addDisclaimerToRoom = useCallback((roomId: string) => {
     if (!database || roomId === 'berita-kripto') return;
 
+    console.log(`🔄 Memeriksa disclaimer untuk room: ${roomId}`);
+
     // Cek apakah disclaimer sudah ditampilkan untuk room ini
     if (disclaimerShown[roomId]) {
-      console.log(`⚠️ Disclaimer sudah ada di room: ${roomId}`);
+      console.log(`ℹ️ Disclaimer sudah ada di room: ${roomId}`);
       return;
     }
 
@@ -277,7 +272,7 @@ const AppContent: React.FC = () => {
       const newMessageRef = push(messageListRef);
       set(newMessageRef, disclaimerMsg)
         .then(() => {
-          console.log(`✅ Disclaimer ditambahkan ke room: ${roomId}`);
+          console.log(`✅ Disclaimer berhasil ditambahkan ke room: ${roomId}`);
           // Tandai disclaimer sudah ditampilkan untuk room ini
           setDisclaimerShown(prev => ({
             ...prev,
@@ -285,10 +280,10 @@ const AppContent: React.FC = () => {
           }));
         })
         .catch(error => {
-          console.error('Gagal menambahkan disclaimer:', error);
+          console.error('❌ Gagal menambahkan disclaimer:', error);
         });
     } catch (error) {
-      console.error('Error adding disclaimer:', error);
+      console.error('❌ Error adding disclaimer:', error);
     }
   }, [database, disclaimerShown]);
 
@@ -440,12 +435,10 @@ const AppContent: React.FC = () => {
     // Mainkan sound hanya jika:
     // 1. Ada peningkatan jumlah unread
     // 2. Bukan dari 0 (saat pertama kali load)
-    // 3. User tidak sedang berada di room yang sama dengan notifikasi
-    // 4. Minimal 2 detik sejak suara terakhir diputar
+    // 3. Minimal 1 detik sejak suara terakhir diputar
     if (currentTotal > previousTotal && 
         previousTotal > 0 && 
-        currentRoom && 
-        (now - lastSoundPlayTimeRef.current) > 2000) {
+        (now - lastSoundPlayTimeRef.current) > 1000) {
       
       console.log(`🎯 Unread count meningkat: ${previousTotal} → ${currentTotal}`);
       playNotificationSound();
@@ -453,7 +446,7 @@ const AppContent: React.FC = () => {
     }
     
     prevTotalUnreadRef.current = currentTotal;
-  }, [totalUnreadCount, currentRoom]);
+  }, [totalUnreadCount]);
 
   useEffect(() => {
     if (!database) {
@@ -556,72 +549,85 @@ const AppContent: React.FC = () => {
     };
   }, [currentRoom, database, lastMessageTimestamps]);
 
-  // Listener untuk semua room untuk unread counts (kecuali berita-kripto) - DIPERBAIKI TOTAL
+  // Listener untuk semua room untuk unread counts - DIPERBAIKI TOTAL
   useEffect(() => {
     if (!database) return;
 
-    const roomUnsubscribes: (() => void)[] = [];
+    console.log('🔄 Setup unread count listeners untuk rooms:', Array.from(joinedRoomIds));
+
+    // Cleanup previous listeners
+    Object.values(roomListenersRef.current).forEach(unsubscribe => {
+      if (typeof unsubscribe === 'function') {
+        unsubscribe();
+      }
+    });
+    roomListenersRef.current = {};
 
     joinedRoomIds.forEach(roomId => {
-      // Skip room yang sedang aktif atau room berita kripto
-      if (roomId === currentRoom?.id || roomId === 'berita-kripto') return;
+      // Skip room berita kripto karena menggunakan sistem berbeda
+      if (roomId === 'berita-kripto') return;
 
       const messagesRef = safeRef(`messages/${roomId}`);
+      
       const listener = onValue(messagesRef, (snapshot) => {
         const data = snapshot.val();
-        if (!data) return;
-
-        // Inisialisasi set untuk room ini jika belum ada
-        if (!lastProcessedMessagesRef.current[roomId]) {
-          lastProcessedMessagesRef.current[roomId] = new Set();
+        if (!data) {
+          // Jika tidak ada data, set unread count ke 0
+          setUnreadCounts(prev => ({
+            ...prev,
+            [roomId]: 0
+          }));
+          return;
         }
 
-        const processedMessages = lastProcessedMessagesRef.current[roomId];
+        // Hitung pesan baru berdasarkan last visit time
         const lastVisit = userLastVisit[roomId] || 0;
         let newMessagesCount = 0;
 
-        // Hitung hanya pesan yang benar-benar baru
-        Object.entries(data).forEach(([messageId, msgData]: [string, any]) => {
+        Object.values(data).forEach((msgData: any) => {
           if (!msgData) return;
           
           const timestamp = msgData.published_on ? msgData.published_on * 1000 : msgData.timestamp;
           
-          // Pesan dianggap baru jika:
-          // 1. Timestamp lebih baru dari last visit
-          // 2. Belum pernah diproses sebelumnya
-          if (timestamp > lastVisit && !processedMessages.has(messageId)) {
+          // Pesan dianggap baru jika timestamp lebih baru dari last visit
+          // DAN user tidak sedang berada di room tersebut
+          if (timestamp > lastVisit && roomId !== currentRoom?.id) {
             newMessagesCount++;
-            processedMessages.add(messageId); // Tandai sudah diproses
           }
         });
 
-        // Update unread count hanya jika ada pesan baru
+        // Update unread count
         if (newMessagesCount > 0) {
           setUnreadCounts(prev => ({
             ...prev,
-            [roomId]: (prev[roomId] || 0) + newMessagesCount
+            [roomId]: newMessagesCount
           }));
-          console.log(`📨 ${newMessagesCount} pesan baru di ${roomId}`);
+          console.log(`📨 ${newMessagesCount} pesan baru di ${roomId} (last visit: ${new Date(lastVisit).toLocaleTimeString()})`);
+        } else {
+          // Jika tidak ada pesan baru, pastikan unread count 0
+          setUnreadCounts(prev => ({
+            ...prev,
+            [roomId]: 0
+          }));
         }
+      }, (error) => {
+        console.error(`Listener error untuk room ${roomId}:`, error);
       });
 
-      roomUnsubscribes.push(() => off(messagesRef, 'value', listener));
+      // Store listener untuk cleanup
+      roomListenersRef.current[roomId] = () => off(messagesRef, 'value', listener);
     });
 
     return () => {
-      roomUnsubscribes.forEach(unsubscribe => unsubscribe());
+      // Cleanup semua listeners
+      Object.values(roomListenersRef.current).forEach(unsubscribe => {
+        if (typeof unsubscribe === 'function') {
+          unsubscribe();
+        }
+      });
+      roomListenersRef.current = {};
     };
   }, [joinedRoomIds, currentRoom, database, userLastVisit]);
-
-  // Reset processed messages ketika user visit room berubah
-  useEffect(() => {
-    // Reset processed messages untuk semua room ketika userLastVisit berubah
-    Object.keys(userLastVisit).forEach(roomId => {
-      if (lastProcessedMessagesRef.current[roomId]) {
-        lastProcessedMessagesRef.current[roomId].clear();
-      }
-    });
-  }, [userLastVisit]);
 
   const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => {
     setAuthError(null);
@@ -737,10 +743,14 @@ const AppContent: React.FC = () => {
     }));
 
     // TAMBAHKAN DISCLAIMER KE SEMUA ROOM (kecuali berita-kripto) SAAT USER MASUK
-    // TIDAK PERLU CEK APAKAH ROOM KOSONG ATAU TIDAK
+    // PASTIKAN DISCLAIMER SELALU DITAMBAHKAN
     if (database && room.id !== 'berita-kripto') {
-      console.log(`🔄 Memeriksa disclaimer untuk room: ${room.id}`);
-      addDisclaimerToRoom(room.id);
+      console.log(`🚀 User masuk room: ${room.id}, menambahkan disclaimer...`);
+      
+      // Delay sedikit untuk memastikan room sudah terbuka
+      setTimeout(() => {
+        addDisclaimerToRoom(room.id);
+      }, 1000);
     }
     
     setActivePage('forum');
@@ -757,9 +767,10 @@ const AppContent: React.FC = () => {
     setUnreadCounts(prev => { const newCounts = { ...prev }; delete newCounts[roomId]; return newCounts; });
     setUserLastVisit(prev => { const newVisits = { ...prev }; delete newVisits[roomId]; return newVisits; });
     
-    // Hapus juga dari processed messages
-    if (lastProcessedMessagesRef.current[roomId]) {
-      delete lastProcessedMessagesRef.current[roomId];
+    // Hapus listener untuk room yang ditinggalkan
+    if (roomListenersRef.current[roomId]) {
+      roomListenersRef.current[roomId]();
+      delete roomListenersRef.current[roomId];
     }
     
     if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); }
@@ -786,10 +797,14 @@ const AppContent: React.FC = () => {
     
     setRooms(prev => [newRoom, ...prev]);
     
-    // TAMBAHKAN DISCLAIMER KE ROOM BARU
+    // TAMBAHKAN DISCLAIMER KE ROOM BARU - PASTIKAN DITAMBAHKAN
     if (database) {
-      console.log(`🔄 Menambahkan disclaimer ke room baru: ${newRoom.id}`);
-      addDisclaimerToRoom(newRoom.id);
+      console.log(`🚀 Membuat room baru: ${newRoom.id}, menambahkan disclaimer...`);
+      
+      // Delay untuk memastikan room sudah dibuat di Firebase
+      setTimeout(() => {
+        addDisclaimerToRoom(newRoom.id);
+      }, 1500);
     }
     
     handleJoinRoom(newRoom);
