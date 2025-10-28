@@ -553,7 +553,7 @@ const AppContent: React.FC = () => {
       localStorage.setItem('analysisCounts', JSON.stringify(newCounts));
       return newCounts;
     });
-  }, []);
+  }, [baseAnalysisCount]);
 
   const handleNavigate = useCallback((page: Page) => {
     if (page === 'home' && activePage === 'home') handleResetToTrending();

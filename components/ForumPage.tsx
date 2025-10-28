@@ -410,7 +410,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
       ...(currentAttachment && { fileURL: currentAttachment.dataUrl, fileName: currentAttachment.name }),
     };
     
-    onSendMessage(messageData as ChatMessage);
+    onSendMessage(messageData);
     setNewMessage('');
     setAttachment(null);
     if (fileInputRef.current) fileInputRef.current.value = '';
