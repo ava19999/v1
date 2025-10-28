@@ -35,10 +35,14 @@ const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 const defaultMessages: { [key: string]: ForumMessageItem[] } = {
     'pengumuman-aturan': [
         { id: 'rule1', type: 'system', text: 'Selamat datang di RT Crypto! Diskusi & analisis.', sender: 'system', timestamp: Date.now() - 2000 },
-        { id: 'rule2', type: 'system', text: 'Aturan: Dilarang share sinyal. DYOR. Risiko ditanggung sendiri.', sender: 'system', timestamp: Date.now() - 1000 },
+        { id: 'rule2', type: 'system', text: 'Aturan: Dilarang Mengajak Membeli koin. DYOR. Risiko ditanggung sendiri.', sender: 'system', timestamp: Date.now() - 1000 },
         { id: 'mission1', type: 'system', text: 'Misi: Jadi trader cerdas bareng, bukan ikut-ikutan. Ayo menang bareng!', sender: 'system', timestamp: Date.now() }
     ],
 };
+
+// --- Pesan Peringatan Baru Gen Z ---
+const DISCLAIMER_MESSAGE_TEXT = "⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.";
+
 
 // Komponen Partikel (Tetap sama)
 const Particles = () => (
@@ -156,7 +160,7 @@ const AppContent = () => {
     useEffect(() => { const fetchList = async () => { setIsCoinListLoading(true); setCoinListError(null); try { setFullCoinList(await fetchTop500Coins()); } catch (err) { setCoinListError("Gagal ambil daftar koin."); } finally { setIsCoinListLoading(false); } }; fetchList(); }, []);
     useEffect(() => { fetchTrendingData(); }, [fetchTrendingData]);
 
-    // Firebase Messages Listener Effect (DIMODIFIKASI dari respons sebelumnya)
+    // Firebase Messages Listener Effect (DIMODIFIKASI)
      useEffect(() => {
          if (!database) { console.warn("Messages listener skipped: DB not initialized."); if (currentRoom?.id) setFirebaseMessages(prev => ({ ...prev, [currentRoom.id]: [] })); return () => {}; }
          if (!currentRoom?.id) { return () => {}; }
@@ -194,10 +198,11 @@ const AppContent = () => {
              if (messagesArray.length === 0 && currentRoom?.id) {
                  if (defaultMessages[currentRoom.id]) {
                      finalMessages = [...defaultMessages[currentRoom.id]];
-                 } else if (!DEFAULT_ROOM_IDS.includes(currentRoom.id) && currentUser?.username) {
+                 } else if (!DEFAULT_ROOM_IDS.includes(currentRoom.id)) {
+                    // Hanya tambahkan welcome & disclaimer JIKA belum ada pesan sama sekali
                      const welcomeMsg: ChatMessage = { id: `${currentRoom.id}-welcome-${Date.now()}`, type: 'system', text: `Selamat datang di room "${currentRoom.name}".`, sender: 'system', timestamp: Date.now() };
-                     const adminMsg: ChatMessage = { id: `${currentRoom.id}-admin-${Date.now()}`, type: 'user', uid: 'ADMIN_UID_PLACEHOLDER', text: 'Ingat DYOR!', sender: 'Admin_RTC', timestamp: Date.now() + 1, reactions: {'👍': []} };
-                     finalMessages = [welcomeMsg, adminMsg];
+                     const disclaimerMsg: ChatMessage = { id: `${currentRoom.id}-disclaimer-${Date.now() + 1}`, type: 'system', text: DISCLAIMER_MESSAGE_TEXT, sender: 'system', timestamp: Date.now() + 1, reactions: {} };
+                     finalMessages = [welcomeMsg, disclaimerMsg];
                  }
              }
 
@@ -222,7 +227,7 @@ const AppContent = () => {
 
          // Cleanup listener saat komponen unmount atau currentRoom berubah
          return () => { if (database) { off(messagesRef, 'value', listener); } };
-     }, [currentRoom, currentUser, database]); // <-- Dependency array penting
+     }, [currentRoom, database]); // <-- Dependency array penting (hapus currentUser jika tidak diperlukan)
 
      // News Fetch Effect (Tetap sama)
      useEffect(() => {
@@ -394,7 +399,51 @@ const AppContent = () => {
     const handleIncrementAnalysisCount = useCallback((coinId: string) => { setAnalysisCounts(prev => { const current = prev[coinId] || baseAnalysisCount; const newCounts = { ...prev, [coinId]: current + 1 }; localStorage.setItem('analysisCounts', JSON.stringify(newCounts)); return newCounts; }); }, []);
     const handleNavigate = useCallback((page: Page) => { if (page === 'home' && activePage === 'home') { handleResetToTrending(); } else if (page === 'forum') { setActivePage('rooms'); } else { setActivePage(page); } }, [activePage, handleResetToTrending]);
     const handleSelectCoin = useCallback(async (coinId: string) => { setIsTrendingLoading(true); setTrendingError(null); setSearchedCoin(null); try { setSearchedCoin(await fetchCoinDetails(coinId)); } catch (err) { setTrendingError(err instanceof Error ? err.message : "Gagal muat detail koin."); } finally { setIsTrendingLoading(false); } }, []);
-    const handleJoinRoom = useCallback((room: Room) => { setCurrentRoom(room); setJoinedRoomIds(prev => new Set(prev).add(room.id)); setUnreadCounts(prev => ({ ...prev, [room.id]: { count: 0, lastUpdate: Date.now() } })); setActivePage('forum'); }, []);
+
+    // Modifikasi handleJoinRoom
+    const handleJoinRoom = useCallback((room: Room) => {
+        setCurrentRoom(room);
+        setJoinedRoomIds(prev => new Set(prev).add(room.id));
+        setUnreadCounts(prev => ({ ...prev, [room.id]: { count: 0, lastUpdate: Date.now() } }));
+
+        // Tambahkan pesan selamat datang dan disclaimer jika belum ada di Firebase
+        // Cek JIKA pesan untuk room ini belum ada di state firebaseMessages DAN database aktif
+        if (!firebaseMessages[room.id] && database) {
+            const welcomeMessage: Omit<ChatMessage, 'id'> & { type: 'system' } = {
+                type: 'system',
+                text: `Selamat datang di room "${room.name}".`,
+                sender: 'system',
+                timestamp: Date.now(),
+                reactions: {}
+            };
+            const disclaimerMessage: Omit<ChatMessage, 'id'> & { type: 'system' } = {
+                type: 'system',
+                text: DISCLAIMER_MESSAGE_TEXT,
+                sender: 'system',
+                timestamp: Date.now() + 1, // Sedikit setelah welcome
+                reactions: {}
+            };
+
+            const roomMessagesRef = ref(database, `messages/${room.id}`);
+            const welcomeRef = push(roomMessagesRef);
+            const disclaimerRef = push(roomMessagesRef);
+
+            const updates: { [key: string]: any } = {};
+            if (welcomeRef.key) updates[welcomeRef.key] = welcomeMessage;
+            if (disclaimerRef.key) updates[disclaimerRef.key] = disclaimerMessage;
+
+            // HAPUS pesan otomatis dari Admin_RTC
+
+            if (Object.keys(updates).length > 0) {
+                 update(roomMessagesRef, updates).catch(error => {
+                     console.error("Gagal menambahkan pesan awal ke Firebase:", error);
+                 });
+            }
+        }
+        setActivePage('forum');
+    }, [firebaseMessages, database]); // Hapus currentUser dari dependency jika tidak digunakan langsung
+
+
     const handleLeaveRoom = useCallback(() => { setCurrentRoom(null); setActivePage('rooms'); }, []);
     const handleLeaveJoinedRoom = useCallback((roomId: string) => { if (DEFAULT_ROOM_IDS.includes(roomId)) return; setJoinedRoomIds(prev => { const newIds = new Set(prev); newIds.delete(roomId); return newIds; }); if (currentRoom?.id === roomId) { setCurrentRoom(null); setActivePage('rooms'); } }, [currentRoom]);
     const handleCreateRoom = useCallback((roomName: string) => { if (!currentUser?.username) { alert("Anda harus login untuk membuat room."); return; } const trimmedName = roomName.trim(); if (rooms.some(r => r.name.toLowerCase() === trimmedName.toLowerCase())) { alert('Nama room sudah ada. Silakan pilih nama lain.'); return; } const newRoom: Room = { id: trimmedName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), name: trimmedName, userCount: 1, createdBy: currentUser.username }; setRooms(prev => [newRoom, ...prev]); handleJoinRoom(newRoom); }, [handleJoinRoom, rooms, currentUser]);
@@ -568,7 +617,27 @@ const AppContent = () => {
                 // Ambil pesan dari state firebaseMessages atau default
                 const currentMessages = currentRoom ? (firebaseMessages[currentRoom.id] || []) : [];
                 // Logika pesan default jika firebaseMessages kosong (setelah loading awal)
-                const displayMessages = (currentMessages.length === 0 && currentRoom && defaultMessages[currentRoom.id]) ? defaultMessages[currentRoom.id] : currentMessages;
+                let displayMessages = (currentMessages.length === 0 && currentRoom && defaultMessages[currentRoom.id])
+                    ? defaultMessages[currentRoom.id]
+                    : currentMessages;
+
+                // Pastikan disclaimer selalu ada di room non-default jika pesan ada
+                 if (currentRoom && !DEFAULT_ROOM_IDS.includes(currentRoom.id) && displayMessages.length > 0) {
+                     const hasDisclaimer = displayMessages.some(msg => isChatMessage(msg) && msg.type === 'system' && msg.text === DISCLAIMER_MESSAGE_TEXT);
+                     if (!hasDisclaimer) {
+                          const disclaimerMsg: ChatMessage = {
+                               id: `${currentRoom.id}-disclaimer-${Date.now()}`, // ID unik
+                               type: 'system',
+                               text: DISCLAIMER_MESSAGE_TEXT,
+                               sender: 'system',
+                               timestamp: Date.now() - 10000, // Taruh di awal jika baru ditambahkan
+                               reactions: {}
+                          };
+                          // Tambahkan di awal array
+                          displayMessages = [disclaimerMsg, ...displayMessages];
+                     }
+                 }
+
                 // Pastikan yang diteruskan adalah array
                 const messagesToPass = Array.isArray(displayMessages) ? displayMessages : [];
                 return <ForumPage room={currentRoom} messages={messagesToPass} userProfile={currentUser} onSendMessage={handleSendMessage} onLeaveRoom={handleLeaveRoom} onReact={handleReaction} onDeleteMessage={handleDeleteMessage} />;
