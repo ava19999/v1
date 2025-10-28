@@ -243,8 +243,10 @@ const ForumPage: React.FC<ForumPageProps> = ({
             // Jika mengklik pesan yang sudah aktif, nonaktifkan
             // Jika mengklik pesan lain, aktifkan
             const nextActiveId = isCurrentlyActive ? null : messageId;
-            // Selalu tutup picker saat pesan diklik
-            setShowPickerForMsgId(null);
+            // Selalu tutup picker saat pesan diklik (jika picker sedang terbuka)
+            if (showPickerForMsgId) {
+                setShowPickerForMsgId(null);
+            }
             return nextActiveId;
         });
     };
@@ -260,4 +262,215 @@ const ForumPage: React.FC<ForumPageProps> = ({
     };
 
      // Handler untuk menutup picker/actions saat klik di area chat
-     const handleChatAreaClick = (e: React.MouseEvent<HTMLDivElement>) =
+     // DIPERBAIKI: Pastikan tipe event benar
+     const handleChatAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
+        // Cek apakah klik terjadi di dalam elemen interaktif pesan
+        const targetElement = e.target as Element;
+        if (!targetElement.closest('[data-message-interactive="true"]')) {
+             // Jika klik di luar area interaktif, tutup semua
+             if (activeMessageId !== null) {
+                setActiveMessageId(null);
+             }
+             if (showPickerForMsgId !== null) {
+                setShowPickerForMsgId(null);
+             }
+        }
+    };
+
+
+    // --- (Sisa kode useEffect, useMemo, handleSendMessageSubmit, handleFileChange, render tidak berubah) ---
+    const safeMessages = Array.isArray(messages) ? messages : [];
+    const sortedMessages = useMemo(() => { return [...safeMessages].sort((a, b) => { const timeA = isNewsArticle(a) ? (a.published_on * 1000) : (isChatMessage(a) ? a.timestamp : 0); const timeB = isNewsArticle(b) ? (b.published_on * 1000) : (isChatMessage(b) ? b.timestamp : 0); if (!timeA && !timeB) return 0; if (!timeA) return 1; if (!timeB) return -1; return timeA - timeB; }); }, [safeMessages]);
+    useEffect(() => { if(activeMessageId === null && chatEndRef.current) { chatEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' }); } }, [sortedMessages, activeMessageId]);
+
+    const handleSendMessageSubmit = (e: React.FormEvent<HTMLFormElement>) => {
+        e.preventDefault();
+        const currentMessageText = newMessage.trim();
+        const currentAttachment = attachment;
+        if ((!currentMessageText && !currentAttachment) || !username) { return; }
+        const messageData: Partial<ChatMessage> & { type: 'user'; sender: string; timestamp: number } = {
+            type: 'user', sender: username, timestamp: Date.now(), reactions: {},
+            ...(currentMessageText && { text: currentMessageText }),
+            ...(currentAttachment && { fileURL: currentAttachment.dataUrl, fileName: currentAttachment.name }),
+        };
+        onSendMessage(messageData as ChatMessage);
+        setNewMessage(''); setAttachment(null);
+        if(fileInputRef.current) fileInputRef.current.value = "";
+    };
+
+    const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && file.type.startsWith('image/')) { const reader = new FileReader(); reader.onloadend = () => { if (reader.result) { setAttachment({ dataUrl: reader.result as string, name: file.name }); } }; reader.readAsDataURL(file); } else { setAttachment(null); } };
+
+    if (!room) { return (<div className="flex flex-col flex-grow items-center justify-center text-gray-500">Pilih room untuk memulai.</div>); }
+
+    const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
+    const isSendDisabled = (!newMessage.trim() && !attachment) || !username;
+    // Cek apakah user saat ini adalah admin
+    const isAdmin = userProfile?.username ? ADMIN_USERNAMES.map(n => n.toLowerCase()).includes(userProfile.username.toLowerCase()) : false;
+
+    return (
+        <div className="container mx-auto px-2 sm:px-4 py-3 animate-fade-in flex flex-col flex-grow h-[calc(100vh-56px)]">
+             {/* Header Room (tidak berubah) */}
+             <div className="mb-3 flex-shrink-0">
+                 <div className="flex items-center justify-between gap-4 mb-3"> <button onClick={onLeaveRoom} className="flex items-center gap-2 text-gray-400 hover:text-electric transition-colors"> <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /></svg> <span className="text-sm font-semibold">Semua Room</span> </button> <div className="flex items-center gap-2.5"> <div className="relative flex h-2.5 w-2.5"> <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span> <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-lime"></span> </div> <p className="text-sm font-semibold"> <span className="text-white">{room.userCount.toLocaleString('id-ID')}</span> <span className="text-gray-400 ml-1.5">Online</span> </p> </div> </div>
+                  <div className="flex items-center"> <div> <h1 className="text-2xl md:text-3xl font-black tracking-tight bg-gradient-to-r from-electric to-magenta text-transparent bg-clip-text truncate font-heading">{room.name}</h1> <p className="text-gray-400 text-xs mt-1">Diskusikan pasar. Berita terbaru muncul otomatis.</p> </div> </div>
+             </div>
+
+            {/* Main Chat Area Container */}
+            <div className="bg-gray-900 border border-white/10 rounded-xl flex flex-col flex-grow overflow-hidden">
+                {/* Message List Area */}
+                {/* Tambahkan onClick={handleChatAreaClick} di sini */}
+                <div className="p-2 md:p-4 flex-grow overflow-y-auto space-y-1 custom-scrollbar" onClick={handleChatAreaClick}>
+                     {sortedMessages.length === 0 ? (
+                         <div className="flex items-center justify-center h-full text-gray-500"><p>Belum ada pesan.</p></div>
+                     ) : (
+                         sortedMessages.map((item, index) => {
+                           const isActive = activeMessageId === item.id;
+                           // Tentukan apakah picker harus tampil untuk pesan ini (TIDAK LAGI DIPERLUKAN DI SINI)
+                           // const showPicker = showPickerForMsgId === item.id;
+                           // Key unik
+                           const messageKey = item.id || `fallback-${item.type}-${index}`;
+                           // Tentukan apakah tombol aksi harus tampil (hanya jika pesan aktif)
+                           const showActions = isActive;
+
+                           // Render berdasarkan tipe pesan
+                           if (isChatMessage(item)) {
+                               if (item.type === 'system') {
+                                   // Render Announcement atau System message
+                                   return room.id === 'pengumuman-aturan'
+                                       ? <AnnouncementMessage key={messageKey} message={item} />
+                                       : <SystemMessage key={messageKey} message={item} />;
+                               }
+                               // Pesan User
+                               const isOwnMessage = item.sender === username && !!username;
+                               // Cek apakah bisa dihapus (admin atau pemilik pesan)
+                               const canDelete = isAdmin || (isOwnMessage && item.type === 'user');
+                               // Dapatkan profil user HANYA jika itu pesannya sendiri
+                               const senderProfile = isOwnMessage ? userProfile : null;
+                               return <UserMessage
+                                          key={messageKey}
+                                          message={item}
+                                          userProfile={senderProfile} // Kirim null jika bukan pesan sendiri
+                                          onReact={onReact}
+                                          onDeleteClick={() => {
+                                              if (window.confirm('Yakin hapus pesan ini?')) {
+                                                  onDeleteMessage(room.id, item.id);
+                                              }
+                                          }}
+                                          canDelete={canDelete}
+                                          isActive={isActive}
+                                          showActions={showActions} // <-- Gunakan showActions
+                                          // showPicker dihapus dari props
+                                          onMessageClick={() => handleMessageClick(item.id)}
+                                          onReactButtonClick={(e) => handleReactButtonClick(e, item.id)}
+                                          // onClosePicker dihapus
+                                          // {...{ 'data-message-interactive': true }} // Atribut ini tidak diperlukan lagi di sini
+                                      />;
+                           } else if (isNewsArticle(item)) {
+                               // Pesan Berita
+                               const canDeleteNews = isAdmin; // Hanya admin bisa hapus berita
+                               return <NewsMessage
+                                          key={messageKey}
+                                          article={item}
+                                          username={username}
+                                          onReact={onReact}
+                                          onDeleteClick={() => {
+                                              if (window.confirm('Yakin hapus berita ini?')) {
+                                                  onDeleteMessage(room.id, item.id);
+                                              }
+                                          }}
+                                          canDelete={canDeleteNews}
+                                          isActive={isActive}
+                                          showActions={showActions} // <-- Gunakan showActions
+                                          // showPicker dihapus
+                                          onMessageClick={() => handleMessageClick(item.id)}
+                                          onReactButtonClick={(e) => handleReactButtonClick(e, item.id)}
+                                          // onClosePicker dihapus
+                                          // {...{ 'data-message-interactive': true }} // Tidak diperlukan lagi
+                                      />;
+                           }
+                           console.warn("Unknown item type in messages:", item);
+                           return null;
+                        })
+                    )}
+                    {/* Element to scroll to */}
+                    <div ref={chatEndRef} />
+                </div>
+
+                 {/* Input Area (tidak berubah) */}
+                 <div className="p-3 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
+                       {isDefaultRoom ? (
+                         <div className="text-center text-sm text-gray-500 py-2 flex items-center justify-center gap-2">
+                             <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}><path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /></svg>
+                             Room ini hanya untuk membaca.
+                         </div>
+                     ) : (
+                         <div className="space-y-2">
+                             {attachment && (
+                                <div className="relative inline-block">
+                                     <img src={attachment.dataUrl} alt="Pratinjau" className="max-h-24 rounded-lg" />
+                                     <button onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ""; }} className="absolute -top-2 -right-2 bg-red-500 text-white rounded-full h-6 w-6 flex items-center justify-center text-xs font-bold hover:bg-red-700 transition-colors" title="Hapus lampiran"> × </button>
+                                </div>
+                             )}
+                             <form onSubmit={handleSendMessageSubmit} className="flex items-center space-x-2">
+                                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
+                                 <button type="button" onClick={() => fileInputRef.current?.click()} className="text-gray-400 hover:text-electric p-2 rounded-full transition-colors flex-shrink-0" title="Lampirkan gambar">
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /></svg>
+                                 </button>
+                                 <div className="relative flex-1">
+                                     <input type="text" value={newMessage} onChange={(e) => setNewMessage(e.target.value)} placeholder="Ketik pesan Anda..." className="w-full bg-gray-800 border border-gray-700 rounded-full py-2.5 pl-4 pr-12 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all" disabled={!username} />
+                                 </div>
+                                 <button type="submit" className="bg-electric text-white rounded-full p-2.5 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0" disabled={isSendDisabled} title="Kirim">
+                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" viewBox="0 0 20 20" fill="currentColor"><path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" /></svg>
+                                 </button>
+                             </form>
+                         </div>
+                     )}
+                 </div>
+            </div>
+             {/* Render Picker Emoji Terpusat jika showPickerForMsgId tidak null */}
+             {showPickerForMsgId && (
+                 <ReactionPicker
+                    onSelect={(emoji) => {
+                        onReact(showPickerForMsgId, emoji); // Gunakan ID pesan yang tersimpan
+                        setShowPickerForMsgId(null); // Tutup picker setelah memilih
+                    }}
+                    onClose={() => setShowPickerForMsgId(null)} // Tutup picker
+                 />
+             )}
+             {/* Styles (tidak berubah) */}
+             <style>{`
+                  /* Action buttons positioning */
+                .opacity-0 { opacity: 0; }
+                .opacity-100 { opacity: 1; }
+                .pointer-events-none { pointer-events: none; }
+
+                .z-10 { z-index: 10; }
+                .z-20 { z-index: 20; }
+                .z-50 { z-index: 50; } /* Untuk picker */
+
+                @keyframes fade-in-fast { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } }
+                .animate-fade-in-fast { animation: fade-in-fast 0.15s ease-out forwards; }
+
+                .custom-scrollbar::-webkit-scrollbar { width: 6px; height: 6px; }
+                .custom-scrollbar::-webkit-scrollbar-track { background: transparent; }
+                .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 3px; }
+                .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0, 191, 255, 0.5); }
+                .custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; }
+
+                 @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+                 @keyframes fade-in-up { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } }
+                 .animate-fade-in { animation: fade-in 0.5s ease-out forwards; }
+                 .animate-fade-in-up { animation: fade-in-up 0.4s ease-out forwards; }
+                 @keyframes pulse-notification {
+                   0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 255, 0.7); }
+                   50% { transform: scale(1.05); box-shadow: 0 0 0 5px rgba(255, 0, 255, 0); }
+                 }
+                 .animate-pulse-notification { animation: pulse-notification 1.5s infinite; }
+                 @keyframes drift { 0% { transform: translateY(100vh) scale(0); opacity: 0; } 10% { opacity: 0.5; } 90% { opacity: 0.5; } 100% { transform: translateY(-100vh) scale(1.2); opacity: 0; } }
+
+            `}</style>
+        </div>
+    );
+};
+
+export default ForumPage;
