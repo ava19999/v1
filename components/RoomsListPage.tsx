@@ -1,6 +1,6 @@
 // components/RoomsListPage.tsx
 import React, { useState, useMemo, useEffect } from 'react';
-import UserTag, { ADMIN_USERNAMES } from './UserTag';
+import UserTag, { ADMIN_USERNAMES, getTagInfo } from './UserTag';
 import type { Room, User, RoomsListPageProps } from '../types';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
@@ -34,6 +34,9 @@ const RoomListItem: React.FC<{
     const canDelete = (isAdmin || isCreator) && !isDefaultRoom;
     const canLeave = isJoined && !isDefaultRoom;
 
+    // Dapatkan informasi tag untuk creator room
+    const creatorTagInfo = room.createdBy ? getTagInfo(room.createdBy, null) : null;
+
     const handleActionClick = (e: React.MouseEvent, action: () => void) => {
         e.stopPropagation();
         action();
@@ -55,7 +58,12 @@ const RoomListItem: React.FC<{
                     <h3 className="font-bold text-gray-100 truncate text-xs">{room.name}</h3>
                     {room.createdBy && !isDefaultRoom && (
                         <div className="flex items-center gap-1 mt-0.5">
-                            <p className="text-xs text-gray-500 truncate">Dibuat oleh: {room.createdBy}</p>
+                            <p className="text-xs text-gray-500 truncate">Dibuat oleh:</p>
+                            {creatorTagInfo && (
+                                <span className={`text-xs font-semibold ${creatorTagInfo.tagColor} bg-gray-800/50 px-1.5 py-0.5 rounded-full`}>
+                                    #{creatorTagInfo.tagName}
+                                </span>
+                            )}
                             {room.createdBy === currentUser?.username && (
                                 <span className="text-xs bg-electric/20 text-electric px-1.5 py-0.5 rounded-full">
                                     Anda

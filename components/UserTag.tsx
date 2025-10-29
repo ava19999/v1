@@ -11,7 +11,8 @@ interface UserTagProps {
     userCreationDate: number | null;
 }
 
-const UserTag: React.FC<UserTagProps> = ({ sender, userCreationDate }) => {
+// Fungsi untuk mendapatkan informasi tag berdasarkan user
+export const getTagInfo = (sender: string, userCreationDate: number | null) => {
     let tagName = '';
     let tagColor = 'text-gray-400';
 
@@ -43,6 +44,12 @@ const UserTag: React.FC<UserTagProps> = ({ sender, userCreationDate }) => {
         tagName = 'pejuang';
         tagColor = 'text-gray-400';
     }
+
+    return { tagName, tagColor };
+};
+
+const UserTag: React.FC<UserTagProps> = ({ sender, userCreationDate }) => {
+    const { tagName, tagColor } = getTagInfo(sender, userCreationDate);
 
     return (
         <span className={`text-xs font-semibold ${tagColor}`}>

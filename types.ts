@@ -279,6 +279,12 @@ export interface UserTagProps {
   userCreationDate: number | null;
 }
 
+// --- User Tag Info Type ---
+export interface UserTagInfo {
+  tagName: string;
+  tagColor: string;
+}
+
 // --- App State Types ---
 export interface AppState {
   activePage: Page;
