@@ -358,13 +358,17 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const onImageClick = (url: string) => setPreviewImage(url);
 
-  // PERBAIKAN: Cek apakah user adalah admin
-  const isAdmin = userProfile?.username ? ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(userProfile.username.toLowerCase()) : false;
+  // PERBAIKAN: Cek apakah user adalah admin - menggunakan logika yang sama dengan UserTag
+  const isAdmin = username ? ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(username.toLowerCase()) : false;
   
   // PERBAIKAN: Cek apakah room adalah pengumuman-aturan dan user bukan admin
   const isAnnouncementRoom = room?.id === 'pengumuman-aturan';
   const isDefaultRoom = room?.id ? DEFAULT_ROOM_IDS.includes(room.id) : false;
-  const canSendMessages = !isAnnouncementRoom || (isAnnouncementRoom && isAdmin);
+  
+  // PERBAIKAN: User bisa mengirim pesan jika:
+  // 1. Bukan room default, ATAU
+  // 2. Room pengumuman-aturan dan user adalah admin
+  const canSendMessages = !isDefaultRoom || (isAnnouncementRoom && isAdmin);
 
   const handleMessageClick = (messageId: string) => {
     setActiveMessageId((currentId) => {
@@ -586,16 +590,14 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
         {/* Input Area */}
         <div className="p-1.5 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
           {/* PERBAIKAN: Logika yang diperbarui untuk kontrol akses */}
-          {isDefaultRoom ? (
+          {room.id === 'berita-kripto' ? (
             <div className="text-center text-xs text-gray-500 py-1 flex items-center justify-center gap-1">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
-              {room.id === 'berita-kripto' 
-                ? 'Room ini hanya untuk membaca.' 
-                : 'Hanya admin yang dapat mengirim pesan di room ini.'}
+              Room ini hanya untuk membaca.
             </div>
-          ) : !canSendMessages ? (
+          ) : isAnnouncementRoom && !isAdmin ? (
             <div className="text-center text-xs text-gray-500 py-1 flex items-center justify-center gap-1">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
