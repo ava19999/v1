@@ -224,24 +224,32 @@ const AppContent: React.FC = () => {
     }
   }, [currentRoom]);
 
-  // Update userLastVisit dan reset unread count ketika activePage berubah
-  useEffect(() => {
-    if (currentRoom?.id) {
-      const currentTime = Date.now();
-      setUserLastVisit(prev => ({
-        ...prev,
-        [currentRoom.id]: currentTime
-      }));
-      
-      // Reset unread count untuk room yang sedang aktif
-      setUnreadCounts(prev => ({
-        ...prev,
-        [currentRoom.id]: 0
-      }));
-    }
-  }, [activePage, currentRoom]);
+  // Fungsi untuk keluar dari room - DIPERBAIKI: Konsisten untuk semua navigasi
+  const leaveCurrentRoom = useCallback(() => {
+    if (!currentRoom?.id) return;
+    
+    const currentTime = Date.now();
+    const roomId = currentRoom.id;
+    
+    // Update userLastVisit saat meninggalkan room
+    setUserLastVisit(prev => ({
+      ...prev,
+      [roomId]: currentTime
+    }));
+    
+    // Reset unread count untuk room yang ditinggalkan
+    setUnreadCounts(prev => ({
+      ...prev,
+      [roomId]: 0
+    }));
+    
+    // Set currentRoom menjadi null
+    setCurrentRoom(null);
+    
+    console.log(`Left room: ${roomId}, reset unread count and updated last visit`);
+  }, [currentRoom]);
 
-  // Update userLastVisit ketika currentRoom berubah
+  // Update userLastVisit ketika currentRoom berubah - DIPERBAIKI
   useEffect(() => {
     if (currentRoom?.id) {
       const currentTime = Date.now();
@@ -426,17 +434,7 @@ const AppContent: React.FC = () => {
     prevTotalUnreadRef.current = currentTotal;
   }, [totalUnreadCount]);
 
-  // Helper function untuk mengecek apakah ada room dengan notifikasi aktif yang memiliki unread count
-  const hasEnabledNotificationsWithUnread = useCallback(() => {
-    return Object.entries(unreadCounts).some(([roomId, count]) => {
-      // Cek apakah room memiliki unread count DAN notifikasi aktif DAN bukan room yang sedang aktif
-      return count > 0 && 
-             notificationSettings[roomId] !== false && 
-             roomId !== currentRoom?.id;
-    });
-  }, [unreadCounts, notificationSettings, currentRoom]);
-
-  // Listener untuk messages di room yang sedang aktif - PERBAIKAN: TIDAK MEMICU UNREAD COUNT UNTUK ROOM AKTIF
+  // Listener untuk messages di room yang sedang aktif
   useEffect(() => {
     if (!database) {
       console.warn('Messages listener skipped: DB not initialized.');
@@ -480,9 +478,6 @@ const AppContent: React.FC = () => {
                 timestamp,
                 ...(userCreationDate && { userCreationDate })
               });
-
-              // PERBAIKAN: Jangan update last message timestamp untuk room yang sedang aktif
-              // karena kita tidak ingin memicu unread count untuk room aktif
             } else {
               console.warn('Invalid or missing message type:', key, msgData);
             }
@@ -657,34 +652,21 @@ const AppContent: React.FC = () => {
   }, [users, pendingGoogleUser, firebaseUser]);
 
   const handleLogout = useCallback(() => {
-    // Update userLastVisit sebelum logout
-    if (currentRoom?.id) {
-      const currentTime = Date.now();
-      setUserLastVisit(prev => ({
-        ...prev,
-        [currentRoom.id]: currentTime
-      }));
-      
-      setUnreadCounts(prev => ({
-        ...prev,
-        [currentRoom.id]: 0
-      }));
-    }
+    // Keluar dari room sebelum logout
+    leaveCurrentRoom();
     
     const auth = getAuth();
     signOut(auth)
       .then(() => {
         setActivePage('home');
-        setCurrentRoom(null);
       })
       .catch((error) => {
         console.error('Firebase signOut error:', error);
         setCurrentUser(null);
         setFirebaseUser(null);
         setActivePage('home');
-        setCurrentRoom(null);
       });
-  }, [currentRoom]);
+  }, [leaveCurrentRoom]);
 
   const handleIncrementAnalysisCount = useCallback((coinId: string) => {
     setAnalysisCounts(prev => {
@@ -695,25 +677,29 @@ const AppContent: React.FC = () => {
     });
   }, [baseAnalysisCount]);
 
+  // PERBAIKAN BESAR: Navigasi yang konsisten untuk semua tombol
   const handleNavigate = useCallback((page: Page) => {
-    // Update userLastVisit sebelum navigasi
-    if (currentRoom?.id) {
-      const currentTime = Date.now();
-      setUserLastVisit(prev => ({
-        ...prev,
-        [currentRoom.id]: currentTime
-      }));
-      
-      setUnreadCounts(prev => ({
-        ...prev,
-        [currentRoom.id]: 0
-      }));
+    // Selalu keluar dari room saat navigasi, kecuali jika navigasi ke forum dari dalam room yang sama
+    if (currentRoom && (page !== 'forum' || activePage !== 'forum')) {
+      leaveCurrentRoom();
     }
     
-    if (page === 'home' && activePage === 'home') handleResetToTrending();
-    else if (page === 'forum') setActivePage('rooms');
-    else setActivePage(page);
-  }, [activePage, handleResetToTrending, currentRoom]);
+    if (page === 'home' && activePage === 'home') {
+      handleResetToTrending();
+    } else if (page === 'forum') {
+      // Jika sudah di forum dan ada currentRoom, tetap di forum
+      // Jika sudah di forum tanpa currentRoom, pergi ke rooms list
+      if (activePage === 'forum' && currentRoom) {
+        // Tetap di forum page
+        setActivePage('forum');
+      } else {
+        // Pergi ke rooms list
+        setActivePage('rooms');
+      }
+    } else {
+      setActivePage(page);
+    }
+  }, [activePage, handleResetToTrending, currentRoom, leaveCurrentRoom]);
 
   const handleSelectCoin = useCallback(async (coinId: string) => {
     setIsTrendingLoading(true); setTrendingError(null); setSearchedCoin(null);
@@ -740,25 +726,12 @@ const AppContent: React.FC = () => {
       [room.id]: currentTime
     }));
   }, []);
-
+  
+  // PERBAIKAN: handleLeaveRoom sekarang menggunakan leaveCurrentRoom yang konsisten
   const handleLeaveRoom = useCallback(() => { 
-    // Update userLastVisit saat meninggalkan room
-    if (currentRoom?.id) {
-      const currentTime = Date.now();
-      setUserLastVisit(prev => ({
-        ...prev,
-        [currentRoom.id]: currentTime
-      }));
-      
-      setUnreadCounts(prev => ({
-        ...prev,
-        [currentRoom.id]: 0
-      }));
-    }
-    
-    setCurrentRoom(null); 
+    leaveCurrentRoom();
     setActivePage('rooms'); 
-  }, [currentRoom]);
+  }, [leaveCurrentRoom]);
   
   const handleLeaveJoinedRoom = useCallback((roomId: string) => {
     if (DEFAULT_ROOM_IDS.includes(roomId)) return;
@@ -774,10 +747,10 @@ const AppContent: React.FC = () => {
     }
     
     if (currentRoom?.id === roomId) { 
-      setCurrentRoom(null); 
+      leaveCurrentRoom();
       setActivePage('rooms'); 
     }
-  }, [currentRoom]);
+  }, [currentRoom, leaveCurrentRoom]);
 
   const handleCreateRoom = useCallback((roomName: string) => {
     if (!currentUser?.username) { 
