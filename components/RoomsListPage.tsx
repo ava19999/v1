@@ -134,39 +134,21 @@ const RoomListItem: React.FC<{
     );
 };
 
-const RoomsListPage: React.FC<RoomsListPageProps> = ({
+// Extend the RoomsListPageProps to include new props
+interface ExtendedRoomsListPageProps extends RoomsListPageProps {
+    onToggleNotification: (roomId: string, enabled: boolean) => void;
+    notificationSettings: { [roomId: string]: boolean };
+}
+
+const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
     rooms, onJoinRoom, onCreateRoom, totalUsers, hotCoin, userProfile,
-    currentRoomId, joinedRoomIds, onLeaveJoinedRoom, unreadCounts, onDeleteRoom
+    currentRoomId, joinedRoomIds, onLeaveJoinedRoom, unreadCounts, onDeleteRoom,
+    onToggleNotification, notificationSettings
 }) => {
     const [newRoomName, setNewRoomName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
-    const [notificationSettings, setNotificationSettings] = useState<{ [roomId: string]: boolean }>({});
     
     const username = userProfile?.username || '';
-
-    // Load notification settings from localStorage
-    useEffect(() => {
-        const savedSettings = localStorage.getItem('roomNotificationSettings');
-        if (savedSettings) {
-            try {
-                setNotificationSettings(JSON.parse(savedSettings));
-            } catch (e) {
-                console.error('Gagal load pengaturan notifikasi', e);
-            }
-        }
-    }, []);
-
-    // Save notification settings to localStorage
-    useEffect(() => {
-        localStorage.setItem('roomNotificationSettings', JSON.stringify(notificationSettings));
-    }, [notificationSettings]);
-
-    const handleToggleNotification = (roomId: string, enabled: boolean) => {
-        setNotificationSettings(prev => ({
-            ...prev,
-            [roomId]: enabled
-        }));
-    };
 
     const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -266,7 +248,7 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({
                                     onJoinRoom={onJoinRoom}
                                     onLeaveRoom={onLeaveJoinedRoom}
                                     onDeleteRoom={onDeleteRoom}
-                                    onToggleNotification={handleToggleNotification}
+                                    onToggleNotification={onToggleNotification}
                                     isActive={room.id === currentRoomId}
                                     isJoined={true}
                                     unreadCount={unreadCounts[room.id] || 0}
@@ -288,7 +270,7 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({
                                     onJoinRoom={onJoinRoom}
                                     onLeaveRoom={onLeaveJoinedRoom}
                                     onDeleteRoom={onDeleteRoom}
-                                    onToggleNotification={handleToggleNotification}
+                                    onToggleNotification={onToggleNotification}
                                     isActive={false}
                                     isJoined={false}
                                     unreadCount={0}

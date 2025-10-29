@@ -100,10 +100,16 @@ export interface ChatMessage {
 
 export type ForumMessageItem = NewsArticle | ChatMessage;
 
+// --- Notification Types ---
+export interface NotificationSettings {
+  [roomId: string]: boolean;
+}
+
 // --- Type Guards ---
 export const isNewsArticle = (item: ForumMessageItem | null | undefined): item is NewsArticle => {
     return !!item && item.type === 'news' && typeof (item as NewsArticle).published_on === 'number';
 };
+
 export const isChatMessage = (item: ForumMessageItem | null | undefined): item is ChatMessage => {
      return !!item && (item.type === 'user' || item.type === 'system') && typeof (item as ChatMessage).timestamp === 'number';
 };
@@ -158,10 +164,10 @@ export interface RoomsListPageProps {
   onLeaveJoinedRoom: (roomId: string) => void;
   unreadCounts: { [key: string]: number };
   onDeleteRoom: (roomId: string) => void;
-  onToggleNotification?: (roomId: string, enabled: boolean) => void;
+  onToggleNotification: (roomId: string, enabled: boolean) => void;
+  notificationSettings: NotificationSettings;
 }
 
-// RoomListItem Props (untuk komponen internal RoomsListPage)
 export interface RoomListItemProps {
   room: Room;
   currentUser: User | null;
@@ -212,7 +218,168 @@ export interface CreateIdPageProps {
   googleProfile: GoogleProfile;
 }
 
-// --- Notification Types ---
-export interface NotificationSettings {
-  [roomId: string]: boolean;
+// --- Reaction Types ---
+export interface ReactionPickerProps {
+  onSelect: (emoji: string) => void;
+  onClose: () => void;
+}
+
+export interface ReactionsProps {
+  message: NewsArticle | ChatMessage | undefined | null;
+  username: string;
+  onReact: (emoji: string) => void;
+}
+
+export interface DeleteButtonProps {
+  onClick: (e: React.MouseEvent) => void;
+}
+
+export interface ReactButtonProps {
+  onClick: (e: React.MouseEvent) => void;
+}
+
+// --- Message Component Types ---
+export interface NewsMessageProps {
+  article: NewsArticle;
+  username: string;
+  onReact: (messageId: string, emoji: string) => void;
+  onDeleteClick: () => void;
+  canDelete: boolean;
+  isActive: boolean;
+  showActions: boolean;
+  onMessageClick: () => void;
+  onReactButtonClick: (e: React.MouseEvent) => void;
+  onImageClick: (url: string) => void;
+}
+
+export interface UserMessageProps {
+  message: ChatMessage;
+  userProfile: User | null;
+  onReact: (messageId: string, emoji: string) => void;
+  onDeleteClick: () => void;
+  canDelete: boolean;
+  isActive: boolean;
+  showActions: boolean;
+  onMessageClick: () => void;
+  onReactButtonClick: (e: React.MouseEvent) => void;
+  onImageClick: (url: string) => void;
+}
+
+export interface SystemMessageProps {
+  message: ChatMessage;
+}
+
+export interface AnnouncementMessageProps {
+  message: ChatMessage;
+}
+
+// --- User Tag Types ---
+export interface UserTagProps {
+  sender: string;
+  userCreationDate: number | null;
+}
+
+// --- App State Types ---
+export interface AppState {
+  activePage: Page;
+  currency: Currency;
+  idrRate: number | null;
+  isRateLoading: boolean;
+  users: { [email: string]: User };
+  currentUser: User | null;
+  pendingGoogleUser: GoogleProfile | null;
+  firebaseUser: any | null; // Firebase User type
+  authError: string | null;
+  isAuthLoading: boolean;
+  analysisCounts: { [key: string]: number };
+  fullCoinList: CoinListItem[];
+  isCoinListLoading: boolean;
+  coinListError: string | null;
+  trendingCoins: CryptoData[];
+  isTrendingLoading: boolean;
+  trendingError: string | null;
+  searchedCoin: CryptoData | null;
+  rooms: Room[];
+  currentRoom: Room | null;
+  joinedRoomIds: Set<string>;
+  unreadCounts: { [key: string]: number };
+  firebaseMessages: { [roomId: string]: ForumMessageItem[] };
+  lastMessageTimestamps: { [roomId: string]: number };
+  userLastVisit: { [roomId: string]: number };
+  newsArticles: NewsArticle[];
+  notificationSettings: NotificationSettings;
+}
+
+// --- Firebase Types ---
+export interface FirebaseMessageData {
+  [key: string]: {
+    type: 'user' | 'system' | 'news';
+    uid?: string;
+    sender?: string;
+    text?: string;
+    timestamp?: number;
+    published_on?: number;
+    fileURL?: string;
+    fileName?: string;
+    reactions?: { [key: string]: string[] };
+    userCreationDate?: number;
+    title?: string;
+    url?: string;
+    imageurl?: string;
+    source?: string;
+    body?: string;
+  };
+}
+
+// --- API Service Types ---
+export interface CacheItem {
+  data: any;
+  expiry: number;
+}
+
+// --- Environment Configuration Types ---
+export interface FirebaseConfig {
+  apiKey: string;
+  authDomain: string;
+  databaseURL: string;
+  projectId: string;
+  storageBucket: string;
+  messagingSenderId: string;
+  appId: string;
+  measurementId?: string;
+}
+
+// --- Event Handler Types ---
+export interface NavigationHandlers {
+  onNavigate: (page: Page) => void;
+  onLogout: () => void;
+  onJoinRoom: (room: Room) => void;
+  onLeaveRoom: () => void;
+  onLeaveJoinedRoom: (roomId: string) => void;
+  onCreateRoom: (roomName: string) => void;
+  onDeleteRoom: (roomId: string) => void;
+  onSendMessage: (message: Partial<ChatMessage>) => void;
+  onReact: (messageId: string, emoji: string) => void;
+  onDeleteMessage: (roomId: string, messageId: string) => void;
+  onSelectCoin: (coinId: string) => void;
+  onReloadTrending: () => void;
+  onIncrementAnalysisCount: (coinId: string) => void;
+  onToggleNotification: (roomId: string, enabled: boolean) => void;
+  onCurrencyChange: (currency: Currency) => void;
+  onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void;
+  onProfileComplete: (username: string, password: string) => Promise<string | void>;
+}
+
+// --- Local Storage Types ---
+export interface LocalStorageData {
+  cryptoUsers: string;
+  currentUser: string;
+  joinedRoomIds: string;
+  unreadCounts: string;
+  userLastVisit: string;
+  analysisCounts: string;
+  lastAnalysisResetDate: string;
+  cryptoNews: string;
+  lastNewsFetch: string;
+  roomNotificationSettings: string;
 }

@@ -145,6 +145,9 @@ const AppContent: React.FC = () => {
   const roomListenersRef = useRef<{ [roomId: string]: () => void }>({});
   const lastProcessedTimestampsRef = useRef<{ [roomId: string]: number }>({});
 
+  // Track pesan yang dikirim oleh user sendiri untuk mencegah notifikasi suara
+  const userSentMessagesRef = useRef<Set<string>>(new Set());
+
   // Initialize lastProcessedTimestampsRef
   useEffect(() => {
     if (!lastProcessedTimestampsRef.current) {
@@ -388,42 +391,40 @@ const AppContent: React.FC = () => {
     return () => clearInterval(newsInterval);
   }, [fetchAndStoreNews]);
 
-  // Hitung total unread counts untuk sound notification
+  // Hitung total unread counts untuk sound notification - PERBAIKAN LOGIKA
   const totalUnreadCount = useMemo(() => {
-    return Object.values(unreadCounts).reduce((total, count) => total + count, 0);
-  }, [unreadCounts]);
+    return Object.entries(unreadCounts).reduce((total, [roomId, count]) => {
+      // Hanya hitung jika notifikasi untuk room ini aktif
+      if (notificationSettings[roomId] !== false) {
+        return total + count;
+      }
+      return total;
+    }, 0);
+  }, [unreadCounts, notificationSettings]);
 
-  // Play sound ketika unread count bertambah - DENGAN PENGATURAN NOTIFIKASI
+  // Play sound ketika unread count bertambah - LOGIKA DIPERBAIKI
   useEffect(() => {
     const currentTotal = totalUnreadCount;
     const previousTotal = prevTotalUnreadRef.current;
     const now = Date.now();
     
-    // Cek apakah ada room dengan notifikasi yang aktif
-    const hasEnabledNotifications = Object.keys(unreadCounts).some(roomId => {
-      const count = unreadCounts[roomId] || 0;
-      const isNotificationEnabled = notificationSettings[roomId] !== false; // Default true
-      return count > 0 && isNotificationEnabled;
-    });
-    
     // Mainkan sound hanya jika:
     // 1. Ada peningkatan jumlah unread
     // 2. Bukan dari 0 (saat pertama kali load)
     // 3. Minimal 1 detik sejak suara terakhir diputar
-    // 4. Ada setidaknya satu room dengan notifikasi yang aktif
+    // 4. User tidak sedang di room yang sama dengan notifikasi
     if (currentTotal > previousTotal && 
         previousTotal > 0 && 
-        (now - lastSoundPlayTimeRef.current) > 1000 &&
-        hasEnabledNotifications) {
+        (now - lastSoundPlayTimeRef.current) > 1000) {
       
       playNotificationSound();
       lastSoundPlayTimeRef.current = now;
     }
     
     prevTotalUnreadRef.current = currentTotal;
-  }, [totalUnreadCount, unreadCounts, notificationSettings]);
+  }, [totalUnreadCount]);
 
-  // Listener untuk messages di room yang sedang aktif
+  // Listener untuk messages di room yang sedang aktif - PERBAIKAN: TIDAK MEMICU UNREAD COUNT UNTUK ROOM AKTIF
   useEffect(() => {
     if (!database) {
       console.warn('Messages listener skipped: DB not initialized.');
@@ -468,13 +469,8 @@ const AppContent: React.FC = () => {
                 ...(userCreationDate && { userCreationDate })
               });
 
-              // Update last message timestamp untuk unread counts
-              if (timestamp > (lastMessageTimestamps[currentRoom.id] || 0)) {
-                setLastMessageTimestamps(prev => ({
-                  ...prev,
-                  [currentRoom.id!]: timestamp
-                }));
-              }
+              // PERBAIKAN: Jangan update last message timestamp untuk room yang sedang aktif
+              // karena kita tidak ingin memicu unread count untuk room aktif
             } else {
               console.warn('Invalid or missing message type:', key, msgData);
             }
@@ -502,9 +498,9 @@ const AppContent: React.FC = () => {
     return () => {
       if (database) off(messagesRef, 'value', listener);
     };
-  }, [currentRoom, database, lastMessageTimestamps]);
+  }, [currentRoom, database]);
 
-  // Listener untuk semua room untuk unread counts
+  // Listener untuk semua room untuk unread counts - PERBAIKAN: HANYA UNTUK ROOM YANG TIDAK AKTIF
   useEffect(() => {
     if (!database) return;
 
@@ -520,7 +516,7 @@ const AppContent: React.FC = () => {
       // Skip room berita kripto karena menggunakan sistem berbeda
       if (roomId === 'berita-kripto') return;
 
-      // Skip room yang sedang aktif
+      // Skip room yang sedang aktif - TIDAK PERLU LISTENER UNTUK ROOM AKTIF
       if (roomId === currentRoom?.id) return;
 
       const messagesRef = safeRef(`messages/${roomId}`);
@@ -539,26 +535,32 @@ const AppContent: React.FC = () => {
         // Hitung pesan baru berdasarkan last visit time
         const lastVisit = userLastVisit[roomId] || 0;
         let newMessagesCount = 0;
+        let hasNewMessageFromOthers = false;
 
         Object.values(data).forEach((msgData: any) => {
           if (!msgData) return;
           
           const timestamp = msgData.published_on ? msgData.published_on * 1000 : msgData.timestamp;
+          const sender = msgData.sender;
+          const isCurrentUser = sender === currentUser?.username;
           
-          // Pesan dianggap baru jika timestamp lebih baru dari last visit
-          if (timestamp > lastVisit) {
+          // PERBAIKAN: Pesan dianggap baru jika:
+          // 1. Timestamp lebih baru dari last visit
+          // 2. BUKAN dikirim oleh user sendiri
+          if (timestamp > lastVisit && !isCurrentUser) {
             newMessagesCount++;
+            hasNewMessageFromOthers = true;
           }
         });
 
-        // Update unread count dengan jumlah pesan baru
-        if (newMessagesCount > 0) {
+        // Update unread count hanya jika ada pesan dari user lain
+        if (hasNewMessageFromOthers) {
           setUnreadCounts(prev => ({
             ...prev,
             [roomId]: newMessagesCount
           }));
         } else {
-          // Jika tidak ada pesan baru, reset ke 0
+          // Jika tidak ada pesan baru dari user lain, reset ke 0
           setUnreadCounts(prev => ({
             ...prev,
             [roomId]: 0
@@ -581,7 +583,7 @@ const AppContent: React.FC = () => {
       });
       roomListenersRef.current = {};
     };
-  }, [joinedRoomIds, currentRoom, database, userLastVisit]);
+  }, [joinedRoomIds, currentRoom, database, userLastVisit, currentUser]);
 
   const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => {
     setAuthError(null);
@@ -711,6 +713,12 @@ const AppContent: React.FC = () => {
     setCurrentRoom(room);
     setJoinedRoomIds(prev => new Set(prev).add(room.id));
     setActivePage('forum');
+    
+    // Reset unread count saat masuk room
+    setUnreadCounts(prev => ({
+      ...prev,
+      [room.id]: 0
+    }));
   }, []);
 
   const handleLeaveRoom = useCallback(() => { 
@@ -830,7 +838,7 @@ const AppContent: React.FC = () => {
       return;
     }
 
-    const messageToSend: Omit<ChatMessage, 'id'> & { type: 'user'; userCreationDate: number } = {
+    const messageToSend: Omit<ChatMessage, 'id'> & { type: 'user'; sender: string; timestamp: number; userCreationDate: number } = {
       type: 'user',
       uid: firebaseUser.uid,
       sender: currentUser.username,
@@ -845,6 +853,10 @@ const AppContent: React.FC = () => {
     try {
       const messageListRef = safeRef(`messages/${currentRoom.id}`);
       const newMessageRef = push(messageListRef);
+      
+      // Tandai pesan ini sebagai dikirim oleh user sendiri
+      userSentMessagesRef.current.add(newMessageRef.key!);
+      
       set(newMessageRef, messageToSend).catch((error) => {
         console.error('Firebase send message error:', error);
         alert(`Gagal mengirim pesan.${(error as any).code === 'PERMISSION_DENIED' ? ' Akses ditolak. Periksa aturan database.' : ''}`);
@@ -926,7 +938,8 @@ const AppContent: React.FC = () => {
           onLeaveJoinedRoom={handleLeaveJoinedRoom} 
           unreadCounts={unreadCounts} 
           onDeleteRoom={handleDeleteRoom}
-          // Tambahkan prop untuk toggle notifikasi jika diperlukan
+          onToggleNotification={handleToggleNotification}
+          notificationSettings={notificationSettings}
         />;
       case 'forum': {
         let displayMessages: ForumMessageItem[] = [];
