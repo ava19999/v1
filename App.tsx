@@ -141,7 +141,7 @@ const AppContent: React.FC = () => {
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
   const [roomUserCounts, setRoomUserCounts] = useState<RoomUserCounts>({});
   
-  // PERBAIKAN: Forum active users dinamis antara 600-700
+  // PERBAIKAN: Forum active users dinamis antara 600-700 (TIDAK TERHUBUNG DENGAN USER COUNT ROOM)
   const [forumActiveUsers, setForumActiveUsers] = useState<number>(650);
 
   // Ref untuk melacak total unread count sebelumnya dan mencegah suara berulang
@@ -163,16 +163,23 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
-  // PERBAIKAN: Fungsi untuk generate random user count antara 600-700 untuk forum page
+  // PERBAIKAN BESAR: Fungsi untuk generate random user count antara 600-700 untuk forum page
+  // INI SEPENUHNYA TERPISAH DARI USER COUNT DI ROOM
   useEffect(() => {
-    const generateRandomUserCount = () => Math.floor(Math.random() * 101) + 600; // 600-700
+    const generateRandomUserCount = () => {
+      const min = 600;
+      const max = 700;
+      return Math.floor(Math.random() * (max - min + 1)) + min;
+    };
     
     // Set initial value
     setForumActiveUsers(generateRandomUserCount());
     
     // Update every 30 seconds to simulate dynamic changes
     const interval = setInterval(() => {
-      setForumActiveUsers(generateRandomUserCount());
+      const newCount = generateRandomUserCount();
+      setForumActiveUsers(newCount);
+      console.log(`Forum active users updated: ${newCount}`);
     }, 30000);
     
     return () => clearInterval(interval);
@@ -326,11 +333,6 @@ const AppContent: React.FC = () => {
     
     const currentTime = Date.now();
     const roomId = currentRoom.id;
-    
-    // PERBAIKAN: JANGAN update user count saat leave room biasa, hanya saat klik tombol keluar room
-    // if (!DEFAULT_ROOM_IDS.includes(roomId)) {
-    //   updateRoomUserCount(roomId, false);
-    // }
     
     // Update userLastVisit saat meninggalkan room
     setUserLastVisit(prev => ({
