@@ -137,6 +137,7 @@ const AppContent: React.FC = () => {
   const [lastMessageTimestamps, setLastMessageTimestamps] = useState<{ [roomId: string]: number }>({});
   const [userLastVisit, setUserLastVisit] = useState<{ [roomId: string]: number }>({});
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
+  const [notificationSettings, setNotificationSettings] = useState<{ [roomId: string]: boolean }>({});
 
   // Ref untuk melacak total unread count sebelumnya dan mencegah suara berulang
   const prevTotalUnreadRef = useRef<number>(0);
@@ -149,6 +150,30 @@ const AppContent: React.FC = () => {
     if (!lastProcessedTimestampsRef.current) {
       lastProcessedTimestampsRef.current = {};
     }
+  }, []);
+
+  // Load notification settings from localStorage
+  useEffect(() => {
+    const savedSettings = localStorage.getItem('roomNotificationSettings');
+    if (savedSettings) {
+      try {
+        setNotificationSettings(JSON.parse(savedSettings));
+      } catch (e) {
+        console.error('Gagal load pengaturan notifikasi', e);
+      }
+    }
+  }, []);
+
+  // Save notification settings to localStorage
+  useEffect(() => {
+    localStorage.setItem('roomNotificationSettings', JSON.stringify(notificationSettings));
+  }, [notificationSettings]);
+
+  const handleToggleNotification = useCallback((roomId: string, enabled: boolean) => {
+    setNotificationSettings(prev => ({
+      ...prev,
+      [roomId]: enabled
+    }));
   }, []);
 
   const fetchTrendingData = useCallback(async (showSkeleton = true) => {
@@ -368,26 +393,35 @@ const AppContent: React.FC = () => {
     return Object.values(unreadCounts).reduce((total, count) => total + count, 0);
   }, [unreadCounts]);
 
-  // Play sound ketika unread count bertambah - LOGIKA DIPERBAIKI
+  // Play sound ketika unread count bertambah - DENGAN PENGATURAN NOTIFIKASI
   useEffect(() => {
     const currentTotal = totalUnreadCount;
     const previousTotal = prevTotalUnreadRef.current;
     const now = Date.now();
     
+    // Cek apakah ada room dengan notifikasi yang aktif
+    const hasEnabledNotifications = Object.keys(unreadCounts).some(roomId => {
+      const count = unreadCounts[roomId] || 0;
+      const isNotificationEnabled = notificationSettings[roomId] !== false; // Default true
+      return count > 0 && isNotificationEnabled;
+    });
+    
     // Mainkan sound hanya jika:
     // 1. Ada peningkatan jumlah unread
     // 2. Bukan dari 0 (saat pertama kali load)
     // 3. Minimal 1 detik sejak suara terakhir diputar
+    // 4. Ada setidaknya satu room dengan notifikasi yang aktif
     if (currentTotal > previousTotal && 
         previousTotal > 0 && 
-        (now - lastSoundPlayTimeRef.current) > 1000) {
+        (now - lastSoundPlayTimeRef.current) > 1000 &&
+        hasEnabledNotifications) {
       
       playNotificationSound();
       lastSoundPlayTimeRef.current = now;
     }
     
     prevTotalUnreadRef.current = currentTotal;
-  }, [totalUnreadCount]);
+  }, [totalUnreadCount, unreadCounts, notificationSettings]);
 
   // Listener untuk messages di room yang sedang aktif
   useEffect(() => {
@@ -470,7 +504,7 @@ const AppContent: React.FC = () => {
     };
   }, [currentRoom, database, lastMessageTimestamps]);
 
-  // Listener untuk semua room untuk unread counts - LOGIKA DIPERBAIKI
+  // Listener untuk semua room untuk unread counts
   useEffect(() => {
     if (!database) return;
 
@@ -703,6 +737,7 @@ const AppContent: React.FC = () => {
     setJoinedRoomIds(prev => { const newIds = new Set(prev); newIds.delete(roomId); return newIds; });
     setUnreadCounts(prev => { const newCounts = { ...prev }; delete newCounts[roomId]; return newCounts; });
     setUserLastVisit(prev => { const newVisits = { ...prev }; delete newVisits[roomId]; return newVisits; });
+    setNotificationSettings(prev => { const newSettings = { ...prev }; delete newSettings[roomId]; return newSettings; });
     
     // Hapus listener untuk room yang ditinggalkan
     if (roomListenersRef.current[roomId]) {
@@ -879,7 +914,20 @@ const AppContent: React.FC = () => {
       case 'home':
         return <HomePage idrRate={idrRate} isRateLoading={isRateLoading} currency={currency} onIncrementAnalysisCount={handleIncrementAnalysisCount} fullCoinList={fullCoinList} isCoinListLoading={isCoinListLoading} coinListError={coinListError} heroCoin={heroCoin} otherTrendingCoins={otherTrendingCoins} isTrendingLoading={isTrendingLoading} trendingError={trendingError} onSelectCoin={handleSelectCoin} onReloadTrending={handleResetToTrending} />;
       case 'rooms':
-        return <RoomsListPage rooms={rooms} onJoinRoom={handleJoinRoom} onCreateRoom={handleCreateRoom} totalUsers={totalUsers} hotCoin={hotCoinForHeader} userProfile={currentUser} currentRoomId={currentRoom?.id || null} joinedRoomIds={joinedRoomIds} onLeaveJoinedRoom={handleLeaveJoinedRoom} unreadCounts={unreadCounts} onDeleteRoom={handleDeleteRoom} />;
+        return <RoomsListPage 
+          rooms={rooms} 
+          onJoinRoom={handleJoinRoom} 
+          onCreateRoom={handleCreateRoom} 
+          totalUsers={totalUsers} 
+          hotCoin={hotCoinForHeader} 
+          userProfile={currentUser} 
+          currentRoomId={currentRoom?.id || null} 
+          joinedRoomIds={joinedRoomIds} 
+          onLeaveJoinedRoom={handleLeaveJoinedRoom} 
+          unreadCounts={unreadCounts} 
+          onDeleteRoom={handleDeleteRoom}
+          // Tambahkan prop untuk toggle notifikasi jika diperlukan
+        />;
       case 'forum': {
         let displayMessages: ForumMessageItem[] = [];
         if (currentRoom) {

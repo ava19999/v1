@@ -158,6 +158,21 @@ export interface RoomsListPageProps {
   onLeaveJoinedRoom: (roomId: string) => void;
   unreadCounts: { [key: string]: number };
   onDeleteRoom: (roomId: string) => void;
+  onToggleNotification?: (roomId: string, enabled: boolean) => void;
+}
+
+// RoomListItem Props (untuk komponen internal RoomsListPage)
+export interface RoomListItemProps {
+  room: Room;
+  currentUser: User | null;
+  onJoinRoom: (room: Room) => void;
+  onLeaveRoom: (roomId: string) => void;
+  onDeleteRoom: (roomId: string) => void;
+  onToggleNotification: (roomId: string, enabled: boolean) => void;
+  isActive: boolean;
+  isJoined: boolean;
+  unreadCount: number;
+  notificationEnabled: boolean;
 }
 
 export interface HeroCoinProps { 
@@ -195,4 +210,9 @@ export interface LoginPageProps {
 export interface CreateIdPageProps {
   onProfileComplete: (username: string, password: string) => Promise<string | void>;
   googleProfile: GoogleProfile;
+}
+
+// --- Notification Types ---
+export interface NotificationSettings {
+  [roomId: string]: boolean;
 }

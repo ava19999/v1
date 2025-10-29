@@ -1,5 +1,5 @@
 // components/RoomsListPage.tsx
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import UserTag, { ADMIN_USERNAMES } from './UserTag';
 import type { Room, User, RoomsListPageProps } from '../types';
 
@@ -11,10 +11,23 @@ const RoomListItem: React.FC<{
     onJoinRoom: (room: Room) => void;
     onLeaveRoom: (roomId: string) => void;
     onDeleteRoom: (roomId: string) => void;
+    onToggleNotification: (roomId: string, enabled: boolean) => void;
     isActive: boolean;
     isJoined: boolean;
     unreadCount: number;
-}> = ({ room, currentUser, onJoinRoom, onLeaveRoom, onDeleteRoom, isActive, isJoined, unreadCount }) => {
+    notificationEnabled: boolean;
+}> = ({ 
+    room, 
+    currentUser, 
+    onJoinRoom, 
+    onLeaveRoom, 
+    onDeleteRoom, 
+    onToggleNotification,
+    isActive, 
+    isJoined, 
+    unreadCount,
+    notificationEnabled 
+}) => {
     const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
     const isAdmin = currentUser?.username ? ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(currentUser.username.toLowerCase()) : false;
     const isCreator = room.createdBy === currentUser?.username;
@@ -26,6 +39,11 @@ const RoomListItem: React.FC<{
         action();
     };
 
+    const handleToggleNotification = (e: React.MouseEvent) => {
+        e.stopPropagation();
+        onToggleNotification(room.id, !notificationEnabled);
+    };
+
     return (
         <div
             onClick={() => onJoinRoom(room)}
@@ -34,17 +52,20 @@ const RoomListItem: React.FC<{
             <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <div className="flex-1 overflow-hidden">
                     <h3 className="font-bold text-gray-100 truncate text-sm">{room.name}</h3>
-                     {room.createdBy && !isDefaultRoom && (
+                    {room.createdBy && !isDefaultRoom && (
                         <p className="text-xs text-gray-500 truncate">Dibuat oleh: {room.createdBy}</p>
-                     )}
+                    )}
                 </div>
             </div>
             <div className="flex items-center gap-2 flex-shrink-0">
+                {/* Unread Count - selalu tampil jika ada pesan belum dibaca */}
                 {unreadCount > 0 && (
-                     <div className="bg-magenta text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center flex-shrink-0">
+                    <div className="bg-magenta text-white text-xs font-bold rounded-full h-5 w-5 flex items-center justify-center flex-shrink-0">
                         {unreadCount > 99 ? '99+' : unreadCount}
                     </div>
                 )}
+                
+                {/* User Count - selalu tampil */}
                 {!isDefaultRoom && (
                     <div className="text-right text-xs text-gray-400 flex items-center gap-1.5 flex-shrink-0">
                         <span className="relative flex h-2 w-2">
@@ -53,19 +74,61 @@ const RoomListItem: React.FC<{
                         </span>
                         <span>{room.userCount.toLocaleString('id-ID')}</span>
                     </div>
-                 )}
-                 <div className={`flex items-center gap-1 transition-opacity duration-200 ${isActive ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+                )}
+                
+                {/* Action Buttons - SELALU TAMPIL */}
+                <div className="flex items-center gap-1 opacity-100">
+                    {/* Notification Toggle Button */}
+                    {isJoined && (
+                        <button 
+                            onClick={handleToggleNotification} 
+                            title={notificationEnabled ? "Matikan Notifikasi Suara" : "Aktifkan Notifikasi Suara"}
+                            className={`p-1 rounded-full transition-colors ${
+                                notificationEnabled 
+                                    ? 'text-electric hover:bg-electric/20' 
+                                    : 'text-gray-400 hover:bg-gray-600/50 hover:text-white'
+                            }`}
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                {notificationEnabled ? (
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                                ) : (
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M9.346 5.353A6 6 0 0118 11v3.159c0 .538-.214 1.055-.595 1.436L16 17H8l-1.405-1.405A2.032 2.032 0 016 14.159V11a6 6 0 01.346-5.647M9.346 5.353L15 5l-5.654.353zM15 17v1a3 3 0 01-6 0v-1m6 0H9" />
+                                )}
+                            </svg>
+                        </button>
+                    )}
+                    
+                    {/* Leave Room Button */}
                     {canLeave && (
-                        <button onClick={(e) => handleActionClick(e, () => onLeaveRoom(room.id))} title="Keluar Room" className="p-1 rounded-full text-gray-400 hover:bg-gray-600/50 hover:text-white transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /> </svg>
+                        <button 
+                            onClick={(e) => handleActionClick(e, () => onLeaveRoom(room.id))} 
+                            title="Keluar Room" 
+                            className="p-1 rounded-full text-gray-400 hover:bg-gray-600/50 hover:text-white transition-colors"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> 
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" /> 
+                            </svg>
                         </button>
                     )}
+                    
+                    {/* Delete Room Button */}
                     {canDelete && (
-                         <button onClick={(e) => handleActionClick(e, () => { if (window.confirm(`Yakin ingin menghapus room "${room.name}"?`)) { onDeleteRoom(room.id); } })} title="Hapus Room" className="p-1 rounded-full text-red-500 hover:bg-red-500/20 hover:text-red-400 transition-colors">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /> </svg>
+                        <button 
+                            onClick={(e) => handleActionClick(e, () => { 
+                                if (window.confirm(`Yakin ingin menghapus room "${room.name}"?`)) { 
+                                    onDeleteRoom(room.id); 
+                                } 
+                            })} 
+                            title="Hapus Room" 
+                            className="p-1 rounded-full text-red-500 hover:bg-red-500/20 hover:text-red-400 transition-colors"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> 
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" /> 
+                            </svg>
                         </button>
                     )}
-                 </div>
+                </div>
             </div>
         </div>
     );
@@ -77,7 +140,33 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({
 }) => {
     const [newRoomName, setNewRoomName] = useState('');
     const [searchQuery, setSearchQuery] = useState('');
+    const [notificationSettings, setNotificationSettings] = useState<{ [roomId: string]: boolean }>({});
+    
     const username = userProfile?.username || '';
+
+    // Load notification settings from localStorage
+    useEffect(() => {
+        const savedSettings = localStorage.getItem('roomNotificationSettings');
+        if (savedSettings) {
+            try {
+                setNotificationSettings(JSON.parse(savedSettings));
+            } catch (e) {
+                console.error('Gagal load pengaturan notifikasi', e);
+            }
+        }
+    }, []);
+
+    // Save notification settings to localStorage
+    useEffect(() => {
+        localStorage.setItem('roomNotificationSettings', JSON.stringify(notificationSettings));
+    }, [notificationSettings]);
+
+    const handleToggleNotification = (roomId: string, enabled: boolean) => {
+        setNotificationSettings(prev => ({
+            ...prev,
+            [roomId]: enabled
+        }));
+    };
 
     const handleCreate = (e: React.FormEvent<HTMLFormElement>) => {
         e.preventDefault();
@@ -177,9 +266,11 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({
                                     onJoinRoom={onJoinRoom}
                                     onLeaveRoom={onLeaveJoinedRoom}
                                     onDeleteRoom={onDeleteRoom}
+                                    onToggleNotification={handleToggleNotification}
                                     isActive={room.id === currentRoomId}
                                     isJoined={true}
                                     unreadCount={unreadCounts[room.id] || 0}
+                                    notificationEnabled={notificationSettings[room.id] !== false} // Default true
                                 />
                             ))}
                         </div>
@@ -197,9 +288,11 @@ const RoomsListPage: React.FC<RoomsListPageProps> = ({
                                     onJoinRoom={onJoinRoom}
                                     onLeaveRoom={onLeaveJoinedRoom}
                                     onDeleteRoom={onDeleteRoom}
+                                    onToggleNotification={handleToggleNotification}
                                     isActive={false}
                                     isJoined={false}
                                     unreadCount={0}
+                                    notificationEnabled={notificationSettings[room.id] !== false}
                                 />
                             ))}
                         </div>
