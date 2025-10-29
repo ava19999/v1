@@ -363,6 +363,7 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
   
   // PERBAIKAN: Cek apakah room adalah pengumuman-aturan dan user bukan admin
   const isAnnouncementRoom = room?.id === 'pengumuman-aturan';
+  const isDefaultRoom = room?.id ? DEFAULT_ROOM_IDS.includes(room.id) : false;
   const canSendMessages = !isAnnouncementRoom || (isAnnouncementRoom && isAdmin);
 
   const handleMessageClick = (messageId: string) => {
@@ -471,7 +472,6 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
     return <div className="flex flex-col flex-grow items-center justify-center text-gray-500">Pilih room untuk memulai.</div>;
   }
 
-  const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
   const isSendDisabled = (!newMessage.trim() && !attachment) || !username || !canSendMessages;
 
   return (
@@ -479,7 +479,8 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
       <div className="bg-gray-900 border border-white/10 rounded-xl flex flex-col flex-grow overflow-hidden h-full">
         <div className="flex-shrink-0 p-2 border-b border-white/10 bg-gray-900">
           <div className="flex items-center justify-between gap-2 mb-1">
-            <div className="flex items-center gap-1">
+            {/* Indikator Online - Sembunyikan untuk room default */}
+            <div className={`flex items-center gap-1 ${isDefaultRoom ? 'invisible' : ''}`}>
               <div className="relative flex h-1.5 w-1.5">
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-lime"></span>
