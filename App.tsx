@@ -1,4 +1,4 @@
-// App.tsx
+// App.tsx - Room default diperbarui
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -117,14 +117,13 @@ const AppContent: React.FC = () => {
   const [isTrendingLoading, setIsTrendingLoading] = useState(true);
   const [trendingError, setTrendingError] = useState<string | null>(null);
   const [searchedCoin, setSearchedCoin] = useState<CryptoData | null>(null);
+  
+  // PERBAIKAN: Hanya menyisakan 2 room default, hapus room lainnya
   const [rooms, setRooms] = useState<Room[]>([
     { id: 'berita-kripto', name: 'Berita Kripto', userCount: 150 },
-    { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 150 },
-    { id: 'umum', name: 'Kripto Naik/Turun Hari Ini', userCount: 134, createdBy: 'Admin_RTC' },
-    { id: 'meme', name: 'Meme Coin Mania', userCount: 88 },
-    { id: 'xrp-army', name: 'Xrp Army', userCount: 73 },
-    { id: 'roblox-tuker-kripto', name: 'Roblox Tuker Kripto', userCount: 42 },
+    { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 150 }
   ]);
+  
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
   const [joinedRoomIds, setJoinedRoomIds] = useState<Set<string>>(() => {
     const saved = localStorage.getItem('joinedRoomIds');
@@ -790,7 +789,7 @@ const AppContent: React.FC = () => {
     }
   }, [currentRoom, leaveCurrentRoom]);
 
-  // 🔧 PERBAIKAN: handleCreateRoom dengan Firebase yang lebih robust
+  // 🔧 PERBAIKAN: handleCreateRoom dengan batasan 25 karakter
   const handleCreateRoom = useCallback((roomName: string) => {
     if (!currentUser?.username || !firebaseUser) { 
       alert('Anda harus login untuk membuat room.'); 
@@ -799,9 +798,9 @@ const AppContent: React.FC = () => {
     
     const trimmedName = roomName.trim();
     
-    // Validasi panjang nama room (maksimal 15 karakter)
-    if (trimmedName.length > 15) {
-      alert('Nama room maksimal 15 karakter.');
+    // PERBAIKAN: Ubah batasan menjadi 25 karakter
+    if (trimmedName.length > 25) {
+      alert('Nama room maksimal 25 karakter.');
       return;
     }
     

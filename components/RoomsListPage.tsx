@@ -51,7 +51,8 @@ const RoomListItem: React.FC<{
         >
             <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <div className="flex-1 overflow-hidden">
-                    <h3 className="font-bold text-gray-100 truncate text-sm">{room.name}</h3>
+                    {/* PERBAIKAN: Perkecil ukuran font nama room dari text-sm menjadi text-xs */}
+                    <h3 className="font-bold text-gray-100 truncate text-xs">{room.name}</h3>
                     {room.createdBy && !isDefaultRoom && (
                         <div className="flex items-center gap-1 mt-0.5">
                             <p className="text-xs text-gray-500 truncate">Dibuat oleh: {room.createdBy}</p>
@@ -239,19 +240,23 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                     type="text" 
                     value={newRoomName} 
                     onChange={(e) => setNewRoomName(e.target.value)} 
-                    placeholder={userProfile ? "Buat room baru (max 15 huruf)..." : "Login untuk buat room"}
+                    // PERBAIKAN: Ubah placeholder dari 15 menjadi 25 karakter
+                    placeholder={userProfile ? "Buat room baru (max 25 huruf)..." : "Login untuk buat room"}
                     className="flex-1 bg-transparent py-1 px-2 text-sm text-white placeholder-gray-500 focus:outline-none" 
                     disabled={!userProfile}
-                    maxLength={15}
+                    // PERBAIKAN: Ubah maxLength dari 15 menjadi 25
+                    maxLength={25}
                 />
                 <div className="flex items-center gap-2">
+                    {/* PERBAIKAN: Ubah tampilan counter dari 15 menjadi 25 */}
                     <span className="text-xs text-gray-500">
-                        {newRoomName.length}/15
+                        {newRoomName.length}/25
                     </span>
                     <button 
                         type="submit" 
                         className="bg-magenta hover:bg-magenta/80 text-white font-semibold py-1 px-4 rounded-md transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm" 
-                        disabled={!newRoomName.trim() || !userProfile || newRoomName.length > 15}
+                        // PERBAIKAN: Ubah validasi dari 15 menjadi 25
+                        disabled={!newRoomName.trim() || !userProfile || newRoomName.length > 25}
                     >
                         Buat
                     </button>
