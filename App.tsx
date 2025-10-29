@@ -140,6 +140,8 @@ const AppContent: React.FC = () => {
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
   const [roomUserCounts, setRoomUserCounts] = useState<RoomUserCounts>({});
+  
+  // PERBAIKAN: Forum active users dinamis antara 600-700
   const [forumActiveUsers, setForumActiveUsers] = useState<number>(650);
 
   // Ref untuk melacak total unread count sebelumnya dan mencegah suara berulang
@@ -151,6 +153,9 @@ const AppContent: React.FC = () => {
   // Track pesan yang dikirim oleh user sendiri untuk mencegah notifikasi suara
   const userSentMessagesRef = useRef<Set<string>>(new Set());
 
+  // PERBAIKAN: State untuk melacak user yang sedang aktif di setiap room
+  const [activeUsersInRooms, setActiveUsersInRooms] = useState<{[roomId: string]: number}>({});
+
   // Initialize lastProcessedTimestampsRef
   useEffect(() => {
     if (!lastProcessedTimestampsRef.current) {
@@ -158,7 +163,7 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
-  // Fungsi untuk generate random user count antara 600-700 untuk forum page
+  // PERBAIKAN: Fungsi untuk generate random user count antara 600-700 untuk forum page
   useEffect(() => {
     const generateRandomUserCount = () => Math.floor(Math.random() * 101) + 600; // 600-700
     
@@ -222,7 +227,7 @@ const AppContent: React.FC = () => {
     };
   }, [database]);
 
-  // Update room user count when joining/leaving a room (hanya untuk room custom)
+  // PERBAIKAN: Update room user count when joining/leaving a room (hanya untuk room custom)
   const updateRoomUserCount = useCallback(async (roomId: string, increment: boolean) => {
     if (!database) return;
 
@@ -242,10 +247,25 @@ const AppContent: React.FC = () => {
         ...prev,
         [roomId]: newCount
       }));
+
+      // PERBAIKAN: Update active users in rooms state
+      setActiveUsersInRooms(prev => ({
+        ...prev,
+        [roomId]: newCount
+      }));
     } catch (error) {
       console.error('Error updating room user count:', error);
     }
   }, [database]);
+
+  // PERBAIKAN: Initialize active users in rooms dari roomUserCounts
+  useEffect(() => {
+    const initialActiveUsers: {[roomId: string]: number} = {};
+    Object.keys(roomUserCounts).forEach(roomId => {
+      initialActiveUsers[roomId] = roomUserCounts[roomId];
+    });
+    setActiveUsersInRooms(initialActiveUsers);
+  }, [roomUserCounts]);
 
   // Load notification settings from localStorage
   useEffect(() => {
@@ -1089,13 +1109,13 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
-  // Update rooms dengan user counts yang terbaru
+  // PERBAIKAN: Update rooms dengan user counts yang terbaru dari activeUsersInRooms
   const updatedRooms = useMemo(() => {
     return rooms.map(room => ({
       ...room,
-      userCount: roomUserCounts[room.id] || room.userCount
+      userCount: activeUsersInRooms[room.id] || room.userCount || 0
     }));
-  }, [rooms, roomUserCounts]);
+  }, [rooms, activeUsersInRooms]);
 
   const totalUsers = useMemo(() => updatedRooms.reduce((sum, r) => sum + (r.userCount || 0), 0), [updatedRooms]);
   const heroCoin = useMemo(() => searchedCoin || trendingCoins[0] || null, [searchedCoin, trendingCoins]);

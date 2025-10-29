@@ -311,7 +311,7 @@ const AnnouncementMessage: React.FC<{ message: ChatMessage }> = ({ message }) =>
   } else if (title.includes('Misi')) {
     icon = (
       <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0zm6 3a2 2 0 11-4 0 2 2 0 014 0zM7 10a2 2 0 11-4 0 2 2 0 014 0z" />
       </svg>
     );
     titleColor = 'text-lime';
@@ -484,7 +484,7 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-lime"></span>
               </div>
-              {/* PERUBAHAN: Gunakan forumActiveUsers yang dinamis */}
+              {/* PERUBAHAN: Gunakan forumActiveUsers yang dinamis dari prop */}
               <p className="text-xs font-semibold">
                 <span className="text-white">{forumActiveUsers.toLocaleString('id-ID')}</span>
                 <span className="text-gray-400 ml-1">Online</span>
