@@ -153,8 +153,8 @@ const AppContent: React.FC = () => {
   // Track pesan yang dikirim oleh user sendiri untuk mencegah notifikasi suara
   const userSentMessagesRef = useRef<Set<string>>(new Set());
 
-  // PERBAIKAN: State untuk melacak user yang sedang aktif di setiap room (local state saja)
-  const [activeUsersInRooms, setActiveUsersInRooms] = useState<{[roomId: string]: number}>({});
+  // PERBAIKAN: State untuk melacak user yang sudah pernah join room (untuk mencegah double counting)
+  const [hasJoinedRoom, setHasJoinedRoom] = useState<{[roomId: string]: boolean}>({});
 
   // Initialize lastProcessedTimestampsRef
   useEffect(() => {
@@ -247,25 +247,10 @@ const AppContent: React.FC = () => {
         ...prev,
         [roomId]: newCount
       }));
-
-      // PERBAIKAN: Update active users in rooms state
-      setActiveUsersInRooms(prev => ({
-        ...prev,
-        [roomId]: newCount
-      }));
     } catch (error) {
       console.error('Error updating room user count:', error);
     }
   }, [database]);
-
-  // PERBAIKAN: Initialize active users in rooms dari roomUserCounts
-  useEffect(() => {
-    const initialActiveUsers: {[roomId: string]: number} = {};
-    Object.keys(roomUserCounts).forEach(roomId => {
-      initialActiveUsers[roomId] = roomUserCounts[roomId];
-    });
-    setActiveUsersInRooms(initialActiveUsers);
-  }, [roomUserCounts]);
 
   // Load notification settings from localStorage
   useEffect(() => {
@@ -826,12 +811,21 @@ const AppContent: React.FC = () => {
 
   const handleJoinRoom = useCallback((room: Room) => {
     setCurrentRoom(room);
+    
+    // PERBAIKAN: Cek apakah user sudah pernah join room ini sebelumnya
+    const isFirstTimeJoin = !hasJoinedRoom[room.id];
+    
     setJoinedRoomIds(prev => new Set(prev).add(room.id));
     setActivePage('forum');
     
-    // PERBAIKAN: Update user count for the room when joining (hanya untuk room custom)
-    if (!room.isDefaultRoom) {
+    // PERBAIKAN: Update user count for the room when joining (hanya untuk room custom dan hanya pertama kali join)
+    if (!room.isDefaultRoom && isFirstTimeJoin) {
       updateRoomUserCount(room.id, true);
+      // Tandai bahwa user sudah pernah join room ini
+      setHasJoinedRoom(prev => ({
+        ...prev,
+        [room.id]: true
+      }));
     }
     
     // Reset unread count saat masuk room
@@ -846,7 +840,7 @@ const AppContent: React.FC = () => {
       ...prev,
       [room.id]: currentTime
     }));
-  }, [updateRoomUserCount]);
+  }, [updateRoomUserCount, hasJoinedRoom]);
   
   // PERBAIKAN: handleLeaveRoom sekarang menggunakan leaveCurrentRoom yang konsisten
   const handleLeaveRoom = useCallback(() => { 
@@ -858,7 +852,15 @@ const AppContent: React.FC = () => {
     if (DEFAULT_ROOM_IDS.includes(roomId)) return;
     
     // PERBAIKAN: Update user count for the room when leaving (hanya saat klik tombol keluar room)
-    updateRoomUserCount(roomId, false);
+    // Hanya kurangi count jika user pernah join sebelumnya
+    if (hasJoinedRoom[roomId]) {
+      updateRoomUserCount(roomId, false);
+      // Reset status hasJoinedRoom untuk room ini
+      setHasJoinedRoom(prev => ({
+        ...prev,
+        [roomId]: false
+      }));
+    }
     
     setJoinedRoomIds(prev => { const newIds = new Set(prev); newIds.delete(roomId); return newIds; });
     setUnreadCounts(prev => { const newCounts = { ...prev }; delete newCounts[roomId]; return newCounts; });
@@ -875,7 +877,7 @@ const AppContent: React.FC = () => {
       leaveCurrentRoom();
       setActivePage('rooms'); 
     }
-  }, [currentRoom, leaveCurrentRoom, updateRoomUserCount]);
+  }, [currentRoom, leaveCurrentRoom, updateRoomUserCount, hasJoinedRoom]);
 
   // 🔧 PERBAIKAN: handleCreateRoom dengan batasan 25 karakter
   const handleCreateRoom = useCallback((roomName: string) => {
@@ -937,6 +939,11 @@ const AppContent: React.FC = () => {
       set(roomRef, roomData)
       .then(() => {
         console.log('Room berhasil dibuat:', newRoom);
+        // Tandai bahwa user sudah join room ini (sebagai creator)
+        setHasJoinedRoom(prev => ({
+          ...prev,
+          [roomId]: true
+        }));
         // Room berhasil dibuat, langsung join ke room tersebut
         handleJoinRoom(newRoom);
       })
@@ -999,6 +1006,12 @@ const AppContent: React.FC = () => {
             })
             .then(() => {
               console.log(`Messages for room ${roomId} deleted.`);
+              // Reset status hasJoinedRoom untuk room yang dihapus
+              setHasJoinedRoom(prev => {
+                const newState = {...prev};
+                delete newState[roomId];
+                return newState;
+              });
               // Handle leave room jika sedang di room yang dihapus
               if (currentRoom?.id === roomId) {
                 leaveCurrentRoom();
@@ -1109,13 +1122,13 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
-  // PERBAIKAN: Update rooms dengan user counts yang terbaru dari activeUsersInRooms
+  // PERBAIKAN: Update rooms dengan user counts yang terbaru dari Firebase
   const updatedRooms = useMemo(() => {
     return rooms.map(room => ({
       ...room,
-      userCount: activeUsersInRooms[room.id] || room.userCount || 0
+      userCount: roomUserCounts[room.id] || room.userCount || 0
     }));
-  }, [rooms, activeUsersInRooms]);
+  }, [rooms, roomUserCounts]);
 
   const totalUsers = useMemo(() => updatedRooms.reduce((sum, r) => sum + (r.userCount || 0), 0), [updatedRooms]);
   const heroCoin = useMemo(() => searchedCoin || trendingCoins[0] || null, [searchedCoin, trendingCoins]);
