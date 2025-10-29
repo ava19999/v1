@@ -15,12 +15,24 @@ interface UserTagProps {
 export const getTagInfo = (sender: string, userCreationDate: number | null) => {
     let tagName = '';
     let tagColor = 'text-gray-400';
+    let icon = null;
 
     // Prioritaskan pemeriksaan admin (case-insensitive)
     if (sender && ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(sender.toLowerCase())) {
         tagName = 'atmin';
         tagColor = 'text-yellow-400';
-    } else if (userCreationDate) {
+    } 
+    // Pengecualian khusus untuk username "Maz" - selalu menjadi #Goat
+    else if (sender && sender.toLowerCase() === 'Maz') {
+        tagName = 'Goat';
+        tagColor = 'text-lime';
+        icon = (
+            <svg className="h-3 w-3 ml-0.5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                <path d="M9 21h6v-3H9v3zM12 3c-1.1 0-2 .9-2 2v3h4V5c0-1.1-.9-2-2-2zM7 9v2h2v8h6v-8h2V9H7z"/>
+            </svg>
+        );
+    }
+    else if (userCreationDate) {
         // Logika tag berbasis usia akun
         const now = Date.now();
         const ageInMillis = now - userCreationDate;
@@ -36,8 +48,14 @@ export const getTagInfo = (sender: string, userCreationDate: number | null) => {
             tagName = 'suhu';
             tagColor = 'text-magenta';
         } else {
-            tagName = 'buyut';
+            // Ubah dari #buyut menjadi #Goat dengan ikon candle naik
+            tagName = 'Goat';
             tagColor = 'text-lime';
+            icon = (
+                <svg className="h-3 w-3 ml-0.5" fill="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path d="M9 21h6v-3H9v3zM12 3c-1.1 0-2 .9-2 2v3h4V5c0-1.1-.9-2-2-2zM7 9v2h2v8h6v-8h2V9H7z"/>
+                </svg>
+            );
         }
     } else {
         // Jika userCreationDate tidak ada, beri tag default
@@ -45,15 +63,16 @@ export const getTagInfo = (sender: string, userCreationDate: number | null) => {
         tagColor = 'text-gray-400';
     }
 
-    return { tagName, tagColor };
+    return { tagName, tagColor, icon };
 };
 
 const UserTag: React.FC<UserTagProps> = ({ sender, userCreationDate }) => {
-    const { tagName, tagColor } = getTagInfo(sender, userCreationDate);
+    const { tagName, tagColor, icon } = getTagInfo(sender, userCreationDate);
 
     return (
-        <span className={`text-xs font-semibold ${tagColor}`}>
+        <span className={`text-xs font-semibold ${tagColor} flex items-center`}>
             #{tagName}
+            {icon}
         </span>
     );
 };

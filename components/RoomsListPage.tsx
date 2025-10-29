@@ -60,8 +60,9 @@ const RoomListItem: React.FC<{
                         <div className="flex items-center gap-1 mt-0.5">
                             <p className="text-xs text-gray-500 truncate">Dibuat oleh:</p>
                             {creatorTagInfo && (
-                                <span className={`text-xs font-semibold ${creatorTagInfo.tagColor} bg-gray-800/50 px-1.5 py-0.5 rounded-full`}>
+                                <span className={`text-xs font-semibold ${creatorTagInfo.tagColor} bg-gray-800/50 px-1.5 py-0.5 rounded-full flex items-center`}>
                                     #{creatorTagInfo.tagName}
+                                    {creatorTagInfo.icon}
                                 </span>
                             )}
                             {room.createdBy === currentUser?.username && (

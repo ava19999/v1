@@ -283,6 +283,7 @@ export interface UserTagProps {
 export interface UserTagInfo {
   tagName: string;
   tagColor: string;
+  icon?: React.ReactNode;
 }
 
 // --- App State Types ---
