@@ -32,7 +32,8 @@ import type {
   Currency,
   NewsArticle,
   User,
-  GoogleProfile
+  GoogleProfile,
+  NotificationSettings
 } from './types';
 import { isNewsArticle, isChatMessage } from './types';
 import {
@@ -137,7 +138,7 @@ const AppContent: React.FC = () => {
   const [lastMessageTimestamps, setLastMessageTimestamps] = useState<{ [roomId: string]: number }>({});
   const [userLastVisit, setUserLastVisit] = useState<{ [roomId: string]: number }>({});
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
-  const [notificationSettings, setNotificationSettings] = useState<{ [roomId: string]: boolean }>({});
+  const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
 
   // Ref untuk melacak total unread count sebelumnya dan mencegah suara berulang
   const prevTotalUnreadRef = useRef<number>(0);
@@ -391,16 +392,18 @@ const AppContent: React.FC = () => {
     return () => clearInterval(newsInterval);
   }, [fetchAndStoreNews]);
 
-  // Hitung total unread counts untuk sound notification - PERBAIKAN LOGIKA
+  // Hitung total unread counts untuk sound notification - PERBAIKAN: EXCLUDE ROOM YANG SEDANG AKTIF
   const totalUnreadCount = useMemo(() => {
     return Object.entries(unreadCounts).reduce((total, [roomId, count]) => {
-      // Hanya hitung jika notifikasi untuk room ini aktif
-      if (notificationSettings[roomId] !== false) {
+      // Hanya hitung jika:
+      // 1. Notifikasi untuk room ini aktif
+      // 2. Room ini BUKAN room yang sedang aktif
+      if (notificationSettings[roomId] !== false && roomId !== currentRoom?.id) {
         return total + count;
       }
       return total;
     }, 0);
-  }, [unreadCounts, notificationSettings]);
+  }, [unreadCounts, notificationSettings, currentRoom]);
 
   // Play sound ketika unread count bertambah - LOGIKA DIPERBAIKI
   useEffect(() => {
@@ -412,7 +415,6 @@ const AppContent: React.FC = () => {
     // 1. Ada peningkatan jumlah unread
     // 2. Bukan dari 0 (saat pertama kali load)
     // 3. Minimal 1 detik sejak suara terakhir diputar
-    // 4. User tidak sedang di room yang sama dengan notifikasi
     if (currentTotal > previousTotal && 
         previousTotal > 0 && 
         (now - lastSoundPlayTimeRef.current) > 1000) {
@@ -423,6 +425,16 @@ const AppContent: React.FC = () => {
     
     prevTotalUnreadRef.current = currentTotal;
   }, [totalUnreadCount]);
+
+  // Helper function untuk mengecek apakah ada room dengan notifikasi aktif yang memiliki unread count
+  const hasEnabledNotificationsWithUnread = useCallback(() => {
+    return Object.entries(unreadCounts).some(([roomId, count]) => {
+      // Cek apakah room memiliki unread count DAN notifikasi aktif DAN bukan room yang sedang aktif
+      return count > 0 && 
+             notificationSettings[roomId] !== false && 
+             roomId !== currentRoom?.id;
+    });
+  }, [unreadCounts, notificationSettings, currentRoom]);
 
   // Listener untuk messages di room yang sedang aktif - PERBAIKAN: TIDAK MEMICU UNREAD COUNT UNTUK ROOM AKTIF
   useEffect(() => {
@@ -500,7 +512,7 @@ const AppContent: React.FC = () => {
     };
   }, [currentRoom, database]);
 
-  // Listener untuk semua room untuk unread counts - PERBAIKAN: HANYA UNTUK ROOM YANG TIDAK AKTIF
+  // Listener untuk semua room untuk unread counts - PERBAIKAN: HANYA UNTUK ROOM YANG TIDAK AKTIF DAN BUKAN DARI USER SENDIRI
   useEffect(() => {
     if (!database) return;
 
@@ -547,14 +559,15 @@ const AppContent: React.FC = () => {
           // PERBAIKAN: Pesan dianggap baru jika:
           // 1. Timestamp lebih baru dari last visit
           // 2. BUKAN dikirim oleh user sendiri
-          if (timestamp > lastVisit && !isCurrentUser) {
+          // 3. Room ini BUKAN room yang sedang aktif
+          if (timestamp > lastVisit && !isCurrentUser && roomId !== currentRoom?.id) {
             newMessagesCount++;
             hasNewMessageFromOthers = true;
           }
         });
 
-        // Update unread count hanya jika ada pesan dari user lain
-        if (hasNewMessageFromOthers) {
+        // Update unread count hanya jika ada pesan dari user lain DAN room tidak aktif
+        if (hasNewMessageFromOthers && roomId !== currentRoom?.id) {
           setUnreadCounts(prev => ({
             ...prev,
             [roomId]: newMessagesCount
@@ -718,6 +731,13 @@ const AppContent: React.FC = () => {
     setUnreadCounts(prev => ({
       ...prev,
       [room.id]: 0
+    }));
+    
+    // Update last visit time untuk room ini
+    const currentTime = Date.now();
+    setUserLastVisit(prev => ({
+      ...prev,
+      [room.id]: currentTime
     }));
   }, []);
 
