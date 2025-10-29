@@ -331,6 +331,14 @@ export interface FirebaseMessageData {
   };
 }
 
+export interface FirebaseRoomData {
+  [key: string]: {
+    name: string;
+    userCount: number;
+    createdBy?: string;
+  };
+}
+
 // --- API Service Types ---
 export interface CacheItem {
   data: any;
@@ -382,4 +390,52 @@ export interface LocalStorageData {
   cryptoNews: string;
   lastNewsFetch: string;
   roomNotificationSettings: string;
+}
+
+// --- Extended Props for RoomsListPage ---
+export interface ExtendedRoomsListPageProps extends RoomsListPageProps {
+  onToggleNotification: (roomId: string, enabled: boolean) => void;
+  notificationSettings: NotificationSettings;
+}
+
+// --- Room Management Types ---
+export interface RoomCreationData {
+  name: string;
+  userCount: number;
+  createdBy: string;
+}
+
+export interface RoomDeletionData {
+  roomId: string;
+  roomName: string;
+  deletedBy: string;
+  timestamp: number;
+}
+
+// --- Validation Types ---
+export interface RoomValidationResult {
+  isValid: boolean;
+  error?: string;
+}
+
+// --- Firebase Operation Results ---
+export interface FirebaseOperationResult {
+  success: boolean;
+  error?: string;
+  data?: any;
+}
+
+// --- Room Filtering and Sorting ---
+export interface RoomFilterOptions {
+  searchQuery: string;
+  showJoined: boolean;
+  showPublic: boolean;
+  sortBy: 'name' | 'userCount' | 'recent';
+}
+
+// --- Room List Display ---
+export interface RoomListDisplay {
+  myRooms: Room[];
+  publicRooms: Room[];
+  filteredRooms: Room[];
 }

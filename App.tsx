@@ -45,7 +45,7 @@ import {
 } from './services/mockData';
 import { ADMIN_USERNAMES } from './components/UserTag';
 import { database } from './services/firebaseService';
-import { ref, set, push, onValue, off, update, get, Database } from 'firebase/database';
+import { ref, set, push, onValue, off, update, get, Database, remove } from 'firebase/database';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 
@@ -155,6 +155,40 @@ const AppContent: React.FC = () => {
       lastProcessedTimestampsRef.current = {};
     }
   }, []);
+
+  // Load rooms dari Firebase
+  useEffect(() => {
+    if (!database) return;
+
+    const roomsRef = safeRef('rooms');
+    const listener = onValue(roomsRef, (snapshot) => {
+      const data = snapshot.val();
+      if (data) {
+        const roomsArray: Room[] = [];
+        Object.keys(data).forEach(key => {
+          const roomData = data[key];
+          if (roomData && typeof roomData === 'object') {
+            roomsArray.push({
+              id: key,
+              name: roomData.name,
+              userCount: roomData.userCount || 0,
+              createdBy: roomData.createdBy
+            });
+          }
+        });
+        
+        // Gabungkan dengan default rooms
+        const defaultRooms = rooms.filter(r => DEFAULT_ROOM_IDS.includes(r.id));
+        setRooms([...defaultRooms, ...roomsArray]);
+      }
+    }, (error) => {
+      console.error('Firebase rooms listener error:', error);
+    });
+
+    return () => {
+      if (database) off(roomsRef, 'value', listener);
+    };
+  }, [database]);
 
   // Load notification settings from localStorage
   useEffect(() => {
@@ -752,7 +786,7 @@ const AppContent: React.FC = () => {
     }
   }, [currentRoom, leaveCurrentRoom]);
 
-  // 🔧 PERBAIKAN: handleCreateRoom dengan validasi 15 karakter
+  // 🔧 FUNGSI BARU: handleCreateRoom dengan Firebase
   const handleCreateRoom = useCallback((roomName: string) => {
     if (!currentUser?.username) { 
       alert('Anda harus login untuk membuat room.'); 
@@ -779,17 +813,36 @@ const AppContent: React.FC = () => {
       return; 
     }
     
+    if (!database) {
+      alert('Database tidak tersedia. Coba lagi nanti.');
+      return;
+    }
+
     const newRoom: Room = { 
-      id: trimmedName.toLowerCase().replace(/\s+/g, '-') + '-' + Date.now(), 
+      id: '', // Akan di-generate oleh Firebase
       name: trimmedName, 
       userCount: 1, 
       createdBy: currentUser.username 
     };
     
-    setRooms(prev => [newRoom, ...prev]);
-    handleJoinRoom(newRoom);
-  }, [handleJoinRoom, rooms, currentUser]);
+    const roomsRef = safeRef('rooms');
+    const newRoomRef = push(roomsRef);
+    newRoom.id = newRoomRef.key!;
+    
+    set(newRoomRef, {
+      name: newRoom.name,
+      userCount: newRoom.userCount,
+      createdBy: newRoom.createdBy
+    }).then(() => {
+      // Room berhasil dibuat, langsung join ke room tersebut
+      handleJoinRoom(newRoom);
+    }).catch(error => {
+      console.error('Gagal membuat room:', error);
+      alert('Gagal membuat room. Coba lagi.');
+    });
+  }, [handleJoinRoom, rooms, currentUser, database]);
 
+  // 🔧 FUNGSI BARU: handleDeleteRoom dengan Firebase
   const handleDeleteRoom = useCallback((roomId: string) => {
     if (!currentUser?.username || !firebaseUser) { 
       console.warn('Delete room prerequisites failed (user).'); 
@@ -818,12 +871,26 @@ const AppContent: React.FC = () => {
         }
 
         if (window.confirm(`Anda yakin ingin menghapus room "${roomToDelete.name}" secara permanen? Semua pesan di dalamnya akan hilang.`)) {
-          setRooms(prev => prev.filter(r => r.id !== roomId));
-          handleLeaveJoinedRoom(roomId);
-          const messagesRef = safeRef(`messages/${roomId}`);
-          set(messagesRef, null)
-            .then(() => console.log(`Messages for room ${roomId} deleted.`))
-            .catch(error => console.error(`Gagal menghapus pesan untuk room ${roomId}:`, error));
+          const roomRef = safeRef(`rooms/${roomId}`);
+          remove(roomRef)
+            .then(() => {
+              console.log(`Room ${roomId} deleted.`);
+              // Hapus juga semua pesan di room tersebut
+              const messagesRef = safeRef(`messages/${roomId}`);
+              return remove(messagesRef);
+            })
+            .then(() => {
+              console.log(`Messages for room ${roomId} deleted.`);
+              // Handle leave room jika sedang di room yang dihapus
+              if (currentRoom?.id === roomId) {
+                leaveCurrentRoom();
+                setActivePage('rooms');
+              }
+            })
+            .catch(error => {
+              console.error(`Gagal menghapus room ${roomId}:`, error);
+              alert('Gagal menghapus room. Periksa koneksi atau izin Anda.');
+            });
         }
       }).catch(error => {
         console.error('Gagal memeriksa status admin:', error);
@@ -833,7 +900,7 @@ const AppContent: React.FC = () => {
       console.error('Error in handleDeleteRoom:', error);
       alert('Terjadi kesalahan saat menghapus room.');
     }
-  }, [currentUser, rooms, firebaseUser, handleLeaveJoinedRoom]);
+  }, [currentUser, rooms, firebaseUser, currentRoom, leaveCurrentRoom]);
 
   const handleSendMessage = useCallback((message: Partial<ChatMessage>) => {
     if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username) {
@@ -912,7 +979,7 @@ const AppContent: React.FC = () => {
     }
     try {
       const messageRef = safeRef(`messages/${roomId}/${messageId}`);
-      set(messageRef, null).then(() => {
+      remove(messageRef).then(() => {
         console.log(`Message ${messageId} in room ${roomId} deleted successfully.`);
       }).catch(error => {
         console.error(`Failed to delete message ${messageId} in room ${roomId}:`, error);
