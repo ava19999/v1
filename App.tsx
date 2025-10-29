@@ -119,10 +119,10 @@ const AppContent: React.FC = () => {
   const [trendingError, setTrendingError] = useState<string | null>(null);
   const [searchedCoin, setSearchedCoin] = useState<CryptoData | null>(null);
   
-  // PERBAIKAN: Hanya menyisakan 2 room default, hapus room lainnya
+  // PERBAIKAN: Inisialisasi rooms dengan menandai room default
   const [rooms, setRooms] = useState<Room[]>([
-    { id: 'berita-kripto', name: 'Berita Kripto', userCount: 650 },
-    { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 650 }
+    { id: 'berita-kripto', name: 'Berita Kripto', userCount: 0, isDefaultRoom: true },
+    { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 0, isDefaultRoom: true }
   ]);
   
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
@@ -195,7 +195,8 @@ const AppContent: React.FC = () => {
               id: key,
               name: roomData.name,
               userCount: userCount,
-              createdBy: roomData.createdBy
+              createdBy: roomData.createdBy,
+              isDefaultRoom: roomData.isDefaultRoom || false
             });
             userCounts[key] = userCount;
           }
@@ -206,8 +207,8 @@ const AppContent: React.FC = () => {
         
         // Gabungkan dengan default rooms (jika default room tidak ada di Firebase, tetap pertahankan)
         const defaultRooms = [
-          { id: 'berita-kripto', name: 'Berita Kripto', userCount: userCounts['berita-kripto'] || 650 },
-          { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: userCounts['pengumuman-aturan'] || 650 }
+          { id: 'berita-kripto', name: 'Berita Kripto', userCount: 0, isDefaultRoom: true },
+          { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 0, isDefaultRoom: true }
         ];
         const combinedRooms = [...defaultRooms, ...roomsArray.filter(r => !DEFAULT_ROOM_IDS.includes(r.id))];
         setRooms(combinedRooms);
@@ -221,9 +222,12 @@ const AppContent: React.FC = () => {
     };
   }, [database]);
 
-  // Update room user count when joining/leaving a room
+  // Update room user count when joining/leaving a room (hanya untuk room custom)
   const updateRoomUserCount = useCallback(async (roomId: string, increment: boolean) => {
     if (!database) return;
+
+    // Jangan update user count untuk room default
+    if (DEFAULT_ROOM_IDS.includes(roomId)) return;
 
     try {
       const roomRef = safeRef(`rooms/${roomId}/userCount`);
@@ -318,7 +322,7 @@ const AppContent: React.FC = () => {
     const currentTime = Date.now();
     const roomId = currentRoom.id;
     
-    // Update user count for the room when leaving
+    // Update user count for the room when leaving (hanya untuk room custom)
     if (!DEFAULT_ROOM_IDS.includes(roomId)) {
       updateRoomUserCount(roomId, false);
     }
@@ -805,8 +809,8 @@ const AppContent: React.FC = () => {
     setJoinedRoomIds(prev => new Set(prev).add(room.id));
     setActivePage('forum');
     
-    // Update user count for the room when joining
-    if (!DEFAULT_ROOM_IDS.includes(room.id)) {
+    // Update user count for the room when joining (hanya untuk room custom)
+    if (!room.isDefaultRoom) {
       updateRoomUserCount(room.id, true);
     }
     
@@ -892,7 +896,8 @@ const AppContent: React.FC = () => {
       id: roomId,
       name: trimmedName, 
       userCount: 1, 
-      createdBy: currentUser.username
+      createdBy: currentUser.username,
+      isDefaultRoom: false
     };
     
     try {
@@ -903,7 +908,8 @@ const AppContent: React.FC = () => {
         name: trimmedName,
         userCount: 1,
         createdBy: currentUser.username,
-        createdAt: Date.now()
+        createdAt: Date.now(),
+        isDefaultRoom: false
       };
       
       console.log('Mencoba membuat room dengan data:', roomData);

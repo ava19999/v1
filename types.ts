@@ -71,6 +71,7 @@ export interface Room {
   name: string;
   userCount: number;
   createdBy?: string;
+  isDefaultRoom?: boolean; // Ditambahkan untuk identifikasi room default
 }
 
 export interface NewsArticle {
@@ -108,6 +109,14 @@ export interface NotificationSettings {
 // --- User Count Types ---
 export interface RoomUserCounts {
   [roomId: string]: number;
+}
+
+// --- User Activity Types ---
+export interface UserActivityData {
+  [roomId: string]: {
+    users: string[];
+    lastUpdated: number;
+  };
 }
 
 // --- Type Guards ---
@@ -155,7 +164,7 @@ export interface ForumPageProps {
   onLeaveRoom: () => void;
   onReact: (messageId: string, emoji: string) => void;
   onDeleteMessage: (roomId: string, messageId: string) => void;
-  forumActiveUsers?: number; // Ditambahkan untuk user count dinamis di forum page
+  forumActiveUsers?: number;
 }
 
 export interface RoomsListPageProps {
@@ -301,7 +310,7 @@ export interface AppState {
   users: { [email: string]: User };
   currentUser: User | null;
   pendingGoogleUser: GoogleProfile | null;
-  firebaseUser: any | null; // Firebase User type
+  firebaseUser: any | null;
   authError: string | null;
   isAuthLoading: boolean;
   analysisCounts: { [key: string]: number };
@@ -321,8 +330,9 @@ export interface AppState {
   userLastVisit: { [roomId: string]: number };
   newsArticles: NewsArticle[];
   notificationSettings: NotificationSettings;
-  roomUserCounts: RoomUserCounts; // Ditambahkan untuk menyimpan user count per room
-  forumActiveUsers: number; // Ditambahkan untuk user count dinamis di forum page
+  roomUserCounts: RoomUserCounts;
+  forumActiveUsers: number;
+  userActivities: UserActivityData; // Ditambahkan untuk tracking user aktif per room
 }
 
 // --- Firebase Types ---
@@ -352,6 +362,17 @@ export interface FirebaseRoomData {
     userCount: number;
     createdBy?: string;
     createdAt?: number;
+    isDefaultRoom?: boolean;
+  };
+}
+
+export interface FirebaseUserActivityData {
+  [roomId: string]: {
+    [userId: string]: {
+      username: string;
+      joinedAt: number;
+      lastActive: number;
+    };
   };
 }
 
@@ -392,6 +413,7 @@ export interface NavigationHandlers {
   onCurrencyChange: (currency: Currency) => void;
   onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void;
   onProfileComplete: (username: string, password: string) => Promise<string | void>;
+  onUpdateUserActivity?: (roomId: string, userId: string, username: string) => void; // Ditambahkan
 }
 
 // --- Local Storage Types ---
@@ -406,6 +428,7 @@ export interface LocalStorageData {
   cryptoNews: string;
   lastNewsFetch: string;
   roomNotificationSettings: string;
+  userActivities: string;
 }
 
 // --- Extended Props for RoomsListPage ---
@@ -420,6 +443,7 @@ export interface RoomCreationData {
   userCount: number;
   createdBy: string;
   createdAt: number;
+  isDefaultRoom?: boolean;
 }
 
 export interface RoomDeletionData {
@@ -429,10 +453,30 @@ export interface RoomDeletionData {
   timestamp: number;
 }
 
+// --- User Activity Management ---
+export interface UserJoinData {
+  roomId: string;
+  userId: string;
+  username: string;
+  timestamp: number;
+}
+
+export interface UserLeaveData {
+  roomId: string;
+  userId: string;
+  timestamp: number;
+}
+
 // --- Validation Types ---
 export interface RoomValidationResult {
   isValid: boolean;
   error?: string;
+}
+
+export interface UserCountValidationResult {
+  isValid: boolean;
+  actualCount: number;
+  expectedCount: number;
 }
 
 // --- Firebase Operation Results ---
@@ -440,6 +484,14 @@ export interface FirebaseOperationResult {
   success: boolean;
   error?: string;
   data?: any;
+}
+
+export interface UserCountOperationResult {
+  success: boolean;
+  roomId: string;
+  newCount: number;
+  previousCount: number;
+  error?: string;
 }
 
 // --- Room Filtering and Sorting ---
@@ -461,3 +513,21 @@ export interface RoomListDisplay {
 export interface ExtendedForumPageProps extends ForumPageProps {
   forumActiveUsers?: number;
 }
+
+// --- User Count Display Configuration ---
+export interface UserCountDisplayConfig {
+  showForDefaultRooms: boolean;
+  showForCustomRooms: boolean;
+  updateInterval: number;
+  minUsers: number;
+  maxUsers: number;
+}
+
+// Default configuration
+export const DEFAULT_USER_COUNT_CONFIG: UserCountDisplayConfig = {
+  showForDefaultRooms: false, // Room default tidak menampilkan user count
+  showForCustomRooms: true,   // Room custom menampilkan user count
+  updateInterval: 30000,      // 30 detik
+  minUsers: 1,                // Minimum 1 user
+  maxUsers: 1000              // Maximum 1000 user
+};

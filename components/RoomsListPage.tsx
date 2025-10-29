@@ -28,7 +28,7 @@ const RoomListItem: React.FC<{
     unreadCount,
     notificationEnabled 
 }) => {
-    const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
+    const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id) || room.isDefaultRoom;
     const isAdmin = currentUser?.username ? ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(currentUser.username.toLowerCase()) : false;
     const isCreator = room.createdBy === currentUser?.username;
     const canDelete = (isAdmin || isCreator) && !isDefaultRoom;
@@ -54,7 +54,6 @@ const RoomListItem: React.FC<{
         >
             <div className="flex items-center gap-3 overflow-hidden flex-1">
                 <div className="flex-1 overflow-hidden">
-                    {/* PERBAIKAN: Perkecil ukuran font nama room dari text-sm menjadi text-xs */}
                     <h3 className="font-bold text-gray-100 truncate text-xs">{room.name}</h3>
                     {room.createdBy && !isDefaultRoom && (
                         <div className="flex items-center gap-1 mt-0.5">
@@ -82,15 +81,17 @@ const RoomListItem: React.FC<{
                     </div>
                 )}
                 
-                {/* User Count - PERUBAHAN: Selalu tampilkan user count untuk semua room */}
-                <div className="text-right text-xs text-gray-400 flex items-center gap-1.5 flex-shrink-0">
-                    <span className="relative flex h-2 w-2">
-                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
-                        <span className="relative inline-flex rounded-full h-2 w-2 bg-lime"></span>
-                    </span>
-                    {/* Tampilkan user count dari room data */}
-                    <span>{room.userCount.toLocaleString('id-ID')}</span>
-                </div>
+                {/* User Count - Hanya tampilkan untuk room custom (non-default) */}
+                {!isDefaultRoom && (
+                    <div className="text-right text-xs text-gray-400 flex items-center gap-1.5 flex-shrink-0">
+                        <span className="relative flex h-2 w-2">
+                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
+                            <span className="relative inline-flex rounded-full h-2 w-2 bg-lime"></span>
+                        </span>
+                        {/* Tampilkan user count dari room data */}
+                        <span>{room.userCount.toLocaleString('id-ID')}</span>
+                    </div>
+                )}
                 
                 {/* Action Buttons - SELALU TAMPIL */}
                 <div className="flex items-center gap-1 opacity-100">
@@ -185,8 +186,8 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                 const unreadA = unreadCounts[a.id] || 0;
                 const unreadB = unreadCounts[b.id] || 0;
                 if (unreadB !== unreadA) return unreadB - unreadA;
-                const isADefault = DEFAULT_ROOM_IDS.includes(a.id);
-                const isBDefault = DEFAULT_ROOM_IDS.includes(b.id);
+                const isADefault = DEFAULT_ROOM_IDS.includes(a.id) || a.isDefaultRoom;
+                const isBDefault = DEFAULT_ROOM_IDS.includes(b.id) || b.isDefaultRoom;
                 if (isADefault && !isBDefault) return -1;
                 if (!isADefault && isBDefault) return 1;
                 return a.name.localeCompare(b.name);
@@ -248,22 +249,18 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                     type="text" 
                     value={newRoomName} 
                     onChange={(e) => setNewRoomName(e.target.value)} 
-                    // PERBAIKAN: Ubah placeholder dari 15 menjadi 25 karakter
                     placeholder={userProfile ? "Buat room baru (max 25 huruf)..." : "Login untuk buat room"}
                     className="flex-1 bg-transparent py-1 px-2 text-sm text-white placeholder-gray-500 focus:outline-none" 
                     disabled={!userProfile}
-                    // PERBAIKAN: Ubah maxLength dari 15 menjadi 25
                     maxLength={25}
                 />
                 <div className="flex items-center gap-2">
-                    {/* PERBAIKAN: Ubah tampilan counter dari 15 menjadi 25 */}
                     <span className="text-xs text-gray-500">
                         {newRoomName.length}/25
                     </span>
                     <button 
                         type="submit" 
                         className="bg-magenta hover:bg-magenta/80 text-white font-semibold py-1 px-4 rounded-md transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm" 
-                        // PERBAIKAN: Ubah validasi dari 15 menjadi 25
                         disabled={!newRoomName.trim() || !userProfile || newRoomName.length > 25}
                     >
                         Buat
@@ -289,7 +286,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                                     isActive={room.id === currentRoomId}
                                     isJoined={true}
                                     unreadCount={unreadCounts[room.id] || 0}
-                                    notificationEnabled={notificationSettings[room.id] !== false} // Default true
+                                    notificationEnabled={notificationSettings[room.id] !== false}
                                 />
                             ))}
                         </div>

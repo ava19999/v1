@@ -1,6 +1,6 @@
 // components/ForumPage.tsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import UserTag, { ADMIN_USERNAMES, getTagInfo } from './UserTag'; // PERBAIKAN: Import getTagInfo
+import UserTag, { ADMIN_USERNAMES, getTagInfo } from './UserTag';
 import type { NewsArticle, ChatMessage, ForumPageProps, User } from '../types';
 import { isNewsArticle, isChatMessage } from '../types';
 
