@@ -1,6 +1,6 @@
 // components/ForumPage.tsx
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import UserTag, { ADMIN_USERNAMES } from './UserTag';
+import UserTag, { ADMIN_USERNAMES, getTagInfo } from './UserTag'; // PERBAIKAN: Import getTagInfo
 import type { NewsArticle, ChatMessage, ForumPageProps, User } from '../types';
 import { isNewsArticle, isChatMessage } from '../types';
 
@@ -212,6 +212,9 @@ const UserMessage: React.FC<{
   
   const creationDate = message.userCreationDate ?? null;
 
+  // PERBAIKAN: Gunakan getTagInfo untuk mendapatkan informasi tag yang konsisten
+  const senderTagInfo = getTagInfo(message.sender, creationDate);
+
   return (
     <div className={`my-0.5 flex relative ${isCurrentUser ? 'justify-end' : 'justify-start'}`}>
       <div className={`max-w-xs sm:max-w-sm md:max-w-md ${isCurrentUser ? 'ml-auto' : ''}`}>
@@ -219,7 +222,11 @@ const UserMessage: React.FC<{
           <span className={`font-bold text-[10px] break-all font-heading ${isCurrentUser ? 'text-electric' : 'text-magenta'}`}>
             {message.sender}
           </span>
-          <UserTag sender={message.sender} userCreationDate={creationDate} />
+          {/* PERBAIKAN: Gunakan tag info yang konsisten seperti di RoomsListPage */}
+          <span className={`text-xs font-semibold ${senderTagInfo.tagColor} flex items-center`}>
+            #{senderTagInfo.tagName}
+            {senderTagInfo.icon}
+          </span>
         </div>
 
         <div
@@ -345,6 +352,13 @@ const ForumPage: React.FC<ForumPageProps> = ({
   const [previewImage, setPreviewImage] = useState<string | null>(null);
   const onImageClick = (url: string) => setPreviewImage(url);
 
+  // PERBAIKAN: Cek apakah user adalah admin
+  const isAdmin = userProfile?.username ? ADMIN_USERNAMES.map((name: string) => name.toLowerCase()).includes(userProfile.username.toLowerCase()) : false;
+  
+  // PERBAIKAN: Cek apakah room adalah pengumuman-aturan dan user bukan admin
+  const isAnnouncementRoom = room?.id === 'pengumuman-aturan';
+  const canSendMessages = !isAnnouncementRoom || (isAnnouncementRoom && isAdmin);
+
   const handleMessageClick = (messageId: string) => {
     setActiveMessageId((currentId) => {
       const isCurrentlyActive = currentId === messageId;
@@ -401,6 +415,13 @@ const ForumPage: React.FC<ForumPageProps> = ({
 
   const handleSendMessageSubmit = (e: React.FormEvent<HTMLFormElement>) => {
     e.preventDefault();
+    
+    // PERBAIKAN: Cek apakah user memiliki izin untuk mengirim pesan
+    if (!canSendMessages) {
+      alert('Hanya admin yang dapat mengirim pesan di room Pengumuman & Aturan.');
+      return;
+    }
+    
     const currentMessageText = newMessage.trim();
     const currentAttachment = attachment;
     if ((!currentMessageText && !currentAttachment) || !username) return;
@@ -422,6 +443,12 @@ const ForumPage: React.FC<ForumPageProps> = ({
   };
 
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    // PERBAIKAN: Cek apakah user memiliki izin untuk mengirim file
+    if (!canSendMessages) {
+      alert('Hanya admin yang dapat mengirim pesan di room Pengumuman & Aturan.');
+      return;
+    }
+    
     const file = e.target.files?.[0];
     if (file && file.type.startsWith('image/')) {
       const reader = new FileReader();
@@ -439,8 +466,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
   }
 
   const isDefaultRoom = DEFAULT_ROOM_IDS.includes(room.id);
-  const isSendDisabled = (!newMessage.trim() && !attachment) || !username;
-  const isAdmin = userProfile?.username ? ADMIN_USERNAMES.map((n) => n.toLowerCase()).includes(userProfile.username.toLowerCase()) : false;
+  const isSendDisabled = (!newMessage.trim() && !attachment) || !username || !canSendMessages;
 
   return (
     <div className="flex flex-col flex-grow h-full">
@@ -457,6 +483,12 @@ const ForumPage: React.FC<ForumPageProps> = ({
                 <span className="text-gray-400 ml-1">Online</span>
               </p>
             </div>
+            {/* PERBAIKAN: Tampilkan badge admin jika di room pengumuman */}
+            {isAnnouncementRoom && isAdmin && (
+              <div className="bg-yellow-400/20 text-yellow-400 text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                Admin Mode
+              </div>
+            )}
           </div>
           <div>
             <h1 className="text-lg font-black tracking-tight bg-gradient-to-r from-electric to-magenta text-transparent bg-clip-text truncate font-heading">
@@ -465,6 +497,12 @@ const ForumPage: React.FC<ForumPageProps> = ({
             <p className="text-yellow-400 text-[9px] mt-0.5 break-words leading-tight">
               ⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️.
             </p>
+            {/* PERBAIKAN: Tampilkan pesan khusus untuk room pengumuman */}
+            {isAnnouncementRoom && (
+              <p className="text-electric text-[9px] mt-1 break-words leading-tight">
+                🔐 <strong>Room Khusus Admin:</strong> Hanya admin yang dapat mengirim pesan di room ini.
+              </p>
+            )}
           </div>
         </div>
 
@@ -539,12 +577,22 @@ const ForumPage: React.FC<ForumPageProps> = ({
 
         {/* Input Area */}
         <div className="p-1.5 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
+          {/* PERBAIKAN: Logika yang diperbarui untuk kontrol akses */}
           {isDefaultRoom ? (
             <div className="text-center text-xs text-gray-500 py-1 flex items-center justify-center gap-1">
               <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
               </svg>
-              Room ini hanya untuk membaca.
+              {room.id === 'berita-kripto' 
+                ? 'Room ini hanya untuk membaca.' 
+                : 'Hanya admin yang dapat mengirim pesan di room ini.'}
+            </div>
+          ) : !canSendMessages ? (
+            <div className="text-center text-xs text-gray-500 py-1 flex items-center justify-center gap-1">
+              <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+              </svg>
+              Hanya admin yang dapat mengirim pesan di room ini.
             </div>
           ) : (
             <div className="space-y-1">
@@ -567,9 +615,16 @@ const ForumPage: React.FC<ForumPageProps> = ({
                 <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" />
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => {
+                    if (!canSendMessages) {
+                      alert('Hanya admin yang dapat mengirim pesan di room Pengumuman & Aturan.');
+                      return;
+                    }
+                    fileInputRef.current?.click();
+                  }}
                   className="text-gray-400 hover:text-electric p-1 rounded-full transition-colors flex-shrink-0"
                   title="Lampirkan gambar"
+                  disabled={!canSendMessages}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
@@ -580,16 +635,16 @@ const ForumPage: React.FC<ForumPageProps> = ({
                     type="text"
                     value={newMessage}
                     onChange={(e) => setNewMessage(e.target.value)}
-                    placeholder="Ketik pesan Anda..."
+                    placeholder={canSendMessages ? "Ketik pesan Anda..." : "Hanya admin yang dapat mengirim pesan..."}
                     className="w-full bg-gray-800 border border-gray-700 rounded-full py-1.5 pl-3 pr-8 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-electric transition-all"
-                    disabled={!username}
+                    disabled={!username || !canSendMessages}
                   />
                 </div>
                 <button
                   type="submit"
                   className="bg-electric text-white rounded-full p-1.5 hover:bg-electric/80 transition-colors disabled:bg-gray-600 disabled:cursor-not-allowed flex-shrink-0"
                   disabled={isSendDisabled}
-                  title="Kirim"
+                  title={canSendMessages ? "Kirim" : "Hanya admin yang dapat mengirim pesan"}
                 >
                   <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 20 20" fill="currentColor">
                     <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />

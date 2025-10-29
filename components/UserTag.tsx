@@ -23,7 +23,7 @@ export const getTagInfo = (sender: string, userCreationDate: number | null) => {
         tagColor = 'text-yellow-400';
     } 
     // Pengecualian khusus untuk username "Maz" - selalu menjadi #Goat
-    else if (sender && sender.toLowerCase() === 'Maz') {
+    else if (sender && sender.toLowerCase() === 'maz') {
         tagName = 'Goat';
         tagColor = 'text-lime';
         icon = (
