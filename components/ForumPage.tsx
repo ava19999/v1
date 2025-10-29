@@ -330,8 +330,13 @@ const AnnouncementMessage: React.FC<{ message: ChatMessage }> = ({ message }) =>
   );
 };
 
+// Extended ForumPageProps untuk menerima forumActiveUsers
+interface ExtendedForumPageProps extends ForumPageProps {
+  forumActiveUsers?: number;
+}
+
 /* ------------------------- ForumPage Component Utama ------------------------- */
-const ForumPage: React.FC<ForumPageProps> = ({
+const ForumPage: React.FC<ExtendedForumPageProps> = ({
   room,
   messages = [],
   userProfile,
@@ -339,6 +344,7 @@ const ForumPage: React.FC<ForumPageProps> = ({
   onLeaveRoom,
   onReact,
   onDeleteMessage,
+  forumActiveUsers = 650 // Default value
 }) => {
   const [newMessage, setNewMessage] = useState('');
   const [attachment, setAttachment] = useState<{ dataUrl: string; name: string } | null>(null);
@@ -478,8 +484,9 @@ const ForumPage: React.FC<ForumPageProps> = ({
                 <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
                 <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-lime"></span>
               </div>
+              {/* PERUBAHAN: Gunakan forumActiveUsers yang dinamis */}
               <p className="text-xs font-semibold">
-                <span className="text-white">{room.userCount.toLocaleString('id-ID')}</span>
+                <span className="text-white">{forumActiveUsers.toLocaleString('id-ID')}</span>
                 <span className="text-gray-400 ml-1">Online</span>
               </p>
             </div>

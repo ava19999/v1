@@ -82,16 +82,15 @@ const RoomListItem: React.FC<{
                     </div>
                 )}
                 
-                {/* User Count - selalu tampil */}
-                {!isDefaultRoom && (
-                    <div className="text-right text-xs text-gray-400 flex items-center gap-1.5 flex-shrink-0">
-                        <span className="relative flex h-2 w-2">
-                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
-                            <span className="relative inline-flex rounded-full h-2 w-2 bg-lime"></span>
-                        </span>
-                        <span>{room.userCount.toLocaleString('id-ID')}</span>
-                    </div>
-                )}
+                {/* User Count - PERUBAHAN: Selalu tampilkan user count untuk semua room */}
+                <div className="text-right text-xs text-gray-400 flex items-center gap-1.5 flex-shrink-0">
+                    <span className="relative flex h-2 w-2">
+                        <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span>
+                        <span className="relative inline-flex rounded-full h-2 w-2 bg-lime"></span>
+                    </span>
+                    {/* Tampilkan user count dari room data */}
+                    <span>{room.userCount.toLocaleString('id-ID')}</span>
+                </div>
                 
                 {/* Action Buttons - SELALU TAMPIL */}
                 <div className="flex items-center gap-1 opacity-100">

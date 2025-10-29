@@ -33,7 +33,8 @@ import type {
   NewsArticle,
   User,
   GoogleProfile,
-  NotificationSettings
+  NotificationSettings,
+  RoomUserCounts
 } from './types';
 import { isNewsArticle, isChatMessage } from './types';
 import {
@@ -120,8 +121,8 @@ const AppContent: React.FC = () => {
   
   // PERBAIKAN: Hanya menyisakan 2 room default, hapus room lainnya
   const [rooms, setRooms] = useState<Room[]>([
-    { id: 'berita-kripto', name: 'Berita Kripto', userCount: 150 },
-    { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 150 }
+    { id: 'berita-kripto', name: 'Berita Kripto', userCount: 650 },
+    { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: 650 }
   ]);
   
   const [currentRoom, setCurrentRoom] = useState<Room | null>(null);
@@ -138,6 +139,8 @@ const AppContent: React.FC = () => {
   const [userLastVisit, setUserLastVisit] = useState<{ [roomId: string]: number }>({});
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
   const [notificationSettings, setNotificationSettings] = useState<NotificationSettings>({});
+  const [roomUserCounts, setRoomUserCounts] = useState<RoomUserCounts>({});
+  const [forumActiveUsers, setForumActiveUsers] = useState<number>(650);
 
   // Ref untuk melacak total unread count sebelumnya dan mencegah suara berulang
   const prevTotalUnreadRef = useRef<number>(0);
@@ -155,7 +158,22 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
-  // Load rooms dari Firebase
+  // Fungsi untuk generate random user count antara 600-700 untuk forum page
+  useEffect(() => {
+    const generateRandomUserCount = () => Math.floor(Math.random() * 101) + 600; // 600-700
+    
+    // Set initial value
+    setForumActiveUsers(generateRandomUserCount());
+    
+    // Update every 30 seconds to simulate dynamic changes
+    const interval = setInterval(() => {
+      setForumActiveUsers(generateRandomUserCount());
+    }, 30000);
+    
+    return () => clearInterval(interval);
+  }, []);
+
+  // Load rooms dari Firebase dengan user counts
   useEffect(() => {
     if (!database) {
       console.warn('Firebase rooms listener skipped: Database not initialized.');
@@ -167,20 +185,30 @@ const AppContent: React.FC = () => {
       const data = snapshot.val();
       if (data) {
         const roomsArray: Room[] = [];
+        const userCounts: RoomUserCounts = {};
+        
         Object.keys(data).forEach(key => {
           const roomData = data[key];
           if (roomData && typeof roomData === 'object') {
+            const userCount = roomData.userCount || 0;
             roomsArray.push({
               id: key,
               name: roomData.name,
-              userCount: roomData.userCount || 0,
+              userCount: userCount,
               createdBy: roomData.createdBy
             });
+            userCounts[key] = userCount;
           }
         });
         
+        // Update room user counts
+        setRoomUserCounts(userCounts);
+        
         // Gabungkan dengan default rooms (jika default room tidak ada di Firebase, tetap pertahankan)
-        const defaultRooms = rooms.filter(r => DEFAULT_ROOM_IDS.includes(r.id));
+        const defaultRooms = [
+          { id: 'berita-kripto', name: 'Berita Kripto', userCount: userCounts['berita-kripto'] || 650 },
+          { id: 'pengumuman-aturan', name: 'Pengumuman & Aturan', userCount: userCounts['pengumuman-aturan'] || 650 }
+        ];
         const combinedRooms = [...defaultRooms, ...roomsArray.filter(r => !DEFAULT_ROOM_IDS.includes(r.id))];
         setRooms(combinedRooms);
       }
@@ -191,6 +219,28 @@ const AppContent: React.FC = () => {
     return () => {
       if (database) off(roomsRef, 'value', listener);
     };
+  }, [database]);
+
+  // Update room user count when joining/leaving a room
+  const updateRoomUserCount = useCallback(async (roomId: string, increment: boolean) => {
+    if (!database) return;
+
+    try {
+      const roomRef = safeRef(`rooms/${roomId}/userCount`);
+      const snapshot = await get(roomRef);
+      const currentCount = snapshot.val() || 0;
+      const newCount = increment ? currentCount + 1 : Math.max(0, currentCount - 1);
+      
+      await set(roomRef, newCount);
+      
+      // Update local state
+      setRoomUserCounts(prev => ({
+        ...prev,
+        [roomId]: newCount
+      }));
+    } catch (error) {
+      console.error('Error updating room user count:', error);
+    }
   }, [database]);
 
   // Load notification settings from localStorage
@@ -268,6 +318,11 @@ const AppContent: React.FC = () => {
     const currentTime = Date.now();
     const roomId = currentRoom.id;
     
+    // Update user count for the room when leaving
+    if (!DEFAULT_ROOM_IDS.includes(roomId)) {
+      updateRoomUserCount(roomId, false);
+    }
+    
     // Update userLastVisit saat meninggalkan room
     setUserLastVisit(prev => ({
       ...prev,
@@ -284,7 +339,7 @@ const AppContent: React.FC = () => {
     setCurrentRoom(null);
     
     console.log(`Left room: ${roomId}, reset unread count and updated last visit`);
-  }, [currentRoom]);
+  }, [currentRoom, updateRoomUserCount]);
 
   // Update userLastVisit ketika currentRoom berubah - DIPERBAIKI
   useEffect(() => {
@@ -750,6 +805,11 @@ const AppContent: React.FC = () => {
     setJoinedRoomIds(prev => new Set(prev).add(room.id));
     setActivePage('forum');
     
+    // Update user count for the room when joining
+    if (!DEFAULT_ROOM_IDS.includes(room.id)) {
+      updateRoomUserCount(room.id, true);
+    }
+    
     // Reset unread count saat masuk room
     setUnreadCounts(prev => ({
       ...prev,
@@ -762,7 +822,7 @@ const AppContent: React.FC = () => {
       ...prev,
       [room.id]: currentTime
     }));
-  }, []);
+  }, [updateRoomUserCount]);
   
   // PERBAIKAN: handleLeaveRoom sekarang menggunakan leaveCurrentRoom yang konsisten
   const handleLeaveRoom = useCallback(() => { 
@@ -772,6 +832,10 @@ const AppContent: React.FC = () => {
   
   const handleLeaveJoinedRoom = useCallback((roomId: string) => {
     if (DEFAULT_ROOM_IDS.includes(roomId)) return;
+    
+    // Update user count for the room when leaving
+    updateRoomUserCount(roomId, false);
+    
     setJoinedRoomIds(prev => { const newIds = new Set(prev); newIds.delete(roomId); return newIds; });
     setUnreadCounts(prev => { const newCounts = { ...prev }; delete newCounts[roomId]; return newCounts; });
     setUserLastVisit(prev => { const newVisits = { ...prev }; delete newVisits[roomId]; return newVisits; });
@@ -787,7 +851,7 @@ const AppContent: React.FC = () => {
       leaveCurrentRoom();
       setActivePage('rooms'); 
     }
-  }, [currentRoom, leaveCurrentRoom]);
+  }, [currentRoom, leaveCurrentRoom, updateRoomUserCount]);
 
   // 🔧 PERBAIKAN: handleCreateRoom dengan batasan 25 karakter
   const handleCreateRoom = useCallback((roomName: string) => {
@@ -1019,7 +1083,15 @@ const AppContent: React.FC = () => {
     }
   }, []);
 
-  const totalUsers = useMemo(() => rooms.reduce((sum, r) => sum + (r.userCount || 0), 0), [rooms]);
+  // Update rooms dengan user counts yang terbaru
+  const updatedRooms = useMemo(() => {
+    return rooms.map(room => ({
+      ...room,
+      userCount: roomUserCounts[room.id] || room.userCount
+    }));
+  }, [rooms, roomUserCounts]);
+
+  const totalUsers = useMemo(() => updatedRooms.reduce((sum, r) => sum + (r.userCount || 0), 0), [updatedRooms]);
   const heroCoin = useMemo(() => searchedCoin || trendingCoins[0] || null, [searchedCoin, trendingCoins]);
   const otherTrendingCoins = useMemo(() => searchedCoin ? [] : trendingCoins.slice(1), [searchedCoin, trendingCoins]);
   const hotCoinForHeader = useMemo(() => trendingCoins.length > 1 ? { name: trendingCoins[1].name, logo: trendingCoins[1].image, price: trendingCoins[1].price, change: trendingCoins[1].change } : null, [trendingCoins]);
@@ -1030,7 +1102,7 @@ const AppContent: React.FC = () => {
         return <HomePage idrRate={idrRate} isRateLoading={isRateLoading} currency={currency} onIncrementAnalysisCount={handleIncrementAnalysisCount} fullCoinList={fullCoinList} isCoinListLoading={isCoinListLoading} coinListError={coinListError} heroCoin={heroCoin} otherTrendingCoins={otherTrendingCoins} isTrendingLoading={isTrendingLoading} trendingError={trendingError} onSelectCoin={handleSelectCoin} onReloadTrending={handleResetToTrending} />;
       case 'rooms':
         return <RoomsListPage 
-          rooms={rooms} 
+          rooms={updatedRooms} 
           onJoinRoom={handleJoinRoom} 
           onCreateRoom={handleCreateRoom} 
           totalUsers={totalUsers} 
@@ -1056,7 +1128,16 @@ const AppContent: React.FC = () => {
         }
         const messagesToPass = Array.isArray(displayMessages) ? displayMessages : [];
         
-        return <ForumPage room={currentRoom} messages={messagesToPass} userProfile={currentUser} onSendMessage={handleSendMessage} onLeaveRoom={handleLeaveRoom} onReact={handleReaction} onDeleteMessage={handleDeleteMessage} />;
+        return <ForumPage 
+          room={currentRoom} 
+          messages={messagesToPass} 
+          userProfile={currentUser} 
+          onSendMessage={handleSendMessage} 
+          onLeaveRoom={handleLeaveRoom} 
+          onReact={handleReaction} 
+          onDeleteMessage={handleDeleteMessage} 
+          forumActiveUsers={forumActiveUsers}
+        />;
       }
       case 'about':
         return <AboutPage />;

@@ -105,6 +105,11 @@ export interface NotificationSettings {
   [roomId: string]: boolean;
 }
 
+// --- User Count Types ---
+export interface RoomUserCounts {
+  [roomId: string]: number;
+}
+
 // --- Type Guards ---
 export const isNewsArticle = (item: ForumMessageItem | null | undefined): item is NewsArticle => {
     return !!item && item.type === 'news' && typeof (item as NewsArticle).published_on === 'number';
@@ -150,6 +155,7 @@ export interface ForumPageProps {
   onLeaveRoom: () => void;
   onReact: (messageId: string, emoji: string) => void;
   onDeleteMessage: (roomId: string, messageId: string) => void;
+  forumActiveUsers?: number; // Ditambahkan untuk user count dinamis di forum page
 }
 
 export interface RoomsListPageProps {
@@ -315,6 +321,8 @@ export interface AppState {
   userLastVisit: { [roomId: string]: number };
   newsArticles: NewsArticle[];
   notificationSettings: NotificationSettings;
+  roomUserCounts: RoomUserCounts; // Ditambahkan untuk menyimpan user count per room
+  forumActiveUsers: number; // Ditambahkan untuk user count dinamis di forum page
 }
 
 // --- Firebase Types ---
@@ -447,4 +455,9 @@ export interface RoomListDisplay {
   myRooms: Room[];
   publicRooms: Room[];
   filteredRooms: Room[];
+}
+
+// --- Extended ForumPageProps untuk menerima forumActiveUsers ---
+export interface ExtendedForumPageProps extends ForumPageProps {
+  forumActiveUsers?: number;
 }
