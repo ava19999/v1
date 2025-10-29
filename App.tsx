@@ -153,7 +153,7 @@ const AppContent: React.FC = () => {
   // Track pesan yang dikirim oleh user sendiri untuk mencegah notifikasi suara
   const userSentMessagesRef = useRef<Set<string>>(new Set());
 
-  // PERBAIKAN: State untuk melacak user yang sedang aktif di setiap room
+  // PERBAIKAN: State untuk melacak user yang sedang aktif di setiap room (local state saja)
   const [activeUsersInRooms, setActiveUsersInRooms] = useState<{[roomId: string]: number}>({});
 
   // Initialize lastProcessedTimestampsRef
@@ -342,10 +342,10 @@ const AppContent: React.FC = () => {
     const currentTime = Date.now();
     const roomId = currentRoom.id;
     
-    // Update user count for the room when leaving (hanya untuk room custom)
-    if (!DEFAULT_ROOM_IDS.includes(roomId)) {
-      updateRoomUserCount(roomId, false);
-    }
+    // PERBAIKAN: JANGAN update user count saat leave room biasa, hanya saat klik tombol keluar room
+    // if (!DEFAULT_ROOM_IDS.includes(roomId)) {
+    //   updateRoomUserCount(roomId, false);
+    // }
     
     // Update userLastVisit saat meninggalkan room
     setUserLastVisit(prev => ({
@@ -363,7 +363,7 @@ const AppContent: React.FC = () => {
     setCurrentRoom(null);
     
     console.log(`Left room: ${roomId}, reset unread count and updated last visit`);
-  }, [currentRoom, updateRoomUserCount]);
+  }, [currentRoom]);
 
   // Update userLastVisit ketika currentRoom berubah - DIPERBAIKI
   useEffect(() => {
@@ -829,7 +829,7 @@ const AppContent: React.FC = () => {
     setJoinedRoomIds(prev => new Set(prev).add(room.id));
     setActivePage('forum');
     
-    // Update user count for the room when joining (hanya untuk room custom)
+    // PERBAIKAN: Update user count for the room when joining (hanya untuk room custom)
     if (!room.isDefaultRoom) {
       updateRoomUserCount(room.id, true);
     }
@@ -857,7 +857,7 @@ const AppContent: React.FC = () => {
   const handleLeaveJoinedRoom = useCallback((roomId: string) => {
     if (DEFAULT_ROOM_IDS.includes(roomId)) return;
     
-    // Update user count for the room when leaving
+    // PERBAIKAN: Update user count for the room when leaving (hanya saat klik tombol keluar room)
     updateRoomUserCount(roomId, false);
     
     setJoinedRoomIds(prev => { const newIds = new Set(prev); newIds.delete(roomId); return newIds; });
