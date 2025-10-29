@@ -752,6 +752,7 @@ const AppContent: React.FC = () => {
     }
   }, [currentRoom, leaveCurrentRoom]);
 
+  // 🔧 PERBAIKAN: handleCreateRoom dengan validasi 15 karakter
   const handleCreateRoom = useCallback((roomName: string) => {
     if (!currentUser?.username) { 
       alert('Anda harus login untuk membuat room.'); 
@@ -759,6 +760,20 @@ const AppContent: React.FC = () => {
     }
     
     const trimmedName = roomName.trim();
+    
+    // Validasi panjang nama room (maksimal 15 karakter)
+    if (trimmedName.length > 15) {
+      alert('Nama room maksimal 15 karakter.');
+      return;
+    }
+    
+    // Validasi panjang minimal
+    if (trimmedName.length < 3) {
+      alert('Nama room minimal 3 karakter.');
+      return;
+    }
+    
+    // Validasi nama room sudah ada
     if (rooms.some(r => r.name.toLowerCase() === trimmedName.toLowerCase())) { 
       alert('Nama room sudah ada. Silakan pilih nama lain.'); 
       return; 

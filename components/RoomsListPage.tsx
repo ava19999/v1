@@ -53,7 +53,14 @@ const RoomListItem: React.FC<{
                 <div className="flex-1 overflow-hidden">
                     <h3 className="font-bold text-gray-100 truncate text-sm">{room.name}</h3>
                     {room.createdBy && !isDefaultRoom && (
-                        <p className="text-xs text-gray-500 truncate">Dibuat oleh: {room.createdBy}</p>
+                        <div className="flex items-center gap-1 mt-0.5">
+                            <p className="text-xs text-gray-500 truncate">Dibuat oleh: {room.createdBy}</p>
+                            {room.createdBy === currentUser?.username && (
+                                <span className="text-xs bg-electric/20 text-electric px-1.5 py-0.5 rounded-full">
+                                    Anda
+                                </span>
+                            )}
+                        </div>
                     )}
                 </div>
             </div>
@@ -228,10 +235,27 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
 
             {/* Create Room Form */}
              <form onSubmit={handleCreate} className="flex-shrink-0 bg-gray-900/50 border border-dashed border-white/10 rounded-lg p-2 mb-3 flex items-center gap-2">
-                <input type="text" value={newRoomName} onChange={(e) => setNewRoomName(e.target.value)} placeholder="Bikin tongkrongan baru..." className="flex-1 bg-transparent py-1 px-2 text-sm text-white placeholder-gray-500 focus:outline-none" />
-                <button type="submit" className="bg-magenta hover:bg-magenta/80 text-white font-semibold py-1 px-4 rounded-md transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm" disabled={!newRoomName.trim()}>
-                    Buat
-                </button>
+                <input 
+                    type="text" 
+                    value={newRoomName} 
+                    onChange={(e) => setNewRoomName(e.target.value)} 
+                    placeholder={userProfile ? "Buat room baru (max 15 huruf)..." : "Login untuk buat room"}
+                    className="flex-1 bg-transparent py-1 px-2 text-sm text-white placeholder-gray-500 focus:outline-none" 
+                    disabled={!userProfile}
+                    maxLength={15}
+                />
+                <div className="flex items-center gap-2">
+                    <span className="text-xs text-gray-500">
+                        {newRoomName.length}/15
+                    </span>
+                    <button 
+                        type="submit" 
+                        className="bg-magenta hover:bg-magenta/80 text-white font-semibold py-1 px-4 rounded-md transition-all duration-300 disabled:bg-gray-600 disabled:cursor-not-allowed text-sm" 
+                        disabled={!newRoomName.trim() || !userProfile || newRoomName.length > 15}
+                    >
+                        Buat
+                    </button>
+                </div>
             </form>
 
             {/* Room List */}
