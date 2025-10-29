@@ -336,6 +336,7 @@ export interface FirebaseRoomData {
     name: string;
     userCount: number;
     createdBy?: string;
+    createdAt?: number;
   };
 }
 
@@ -403,6 +404,7 @@ export interface RoomCreationData {
   name: string;
   userCount: number;
   createdBy: string;
+  createdAt: number;
 }
 
 export interface RoomDeletionData {
