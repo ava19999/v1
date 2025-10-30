@@ -16,11 +16,13 @@ const getFirebaseConfig = (): FirebaseOptions => {
   };
 
   // Debug logging untuk membantu troubleshooting
-  console.log('Firebase Config Check:', {
+  console.log('🔥 Firebase Config Check:', {
     hasApiKey: !!config.apiKey,
     hasDatabaseURL: !!config.databaseURL,
     hasProjectId: !!config.projectId,
-    databaseURL: config.databaseURL ? '***' + config.databaseURL.slice(-20) : 'missing'
+    databaseURL: config.databaseURL ? '***' + config.databaseURL.slice(-20) : 'missing',
+    projectId: config.projectId ? '***' + config.projectId.slice(-8) : 'missing',
+    authDomain: config.authDomain || 'missing'
   });
 
   return config;
@@ -53,6 +55,11 @@ export const getFirebaseApp = (): FirebaseApp | null => {
     // Inisialisasi Firebase
     app = initializeApp(firebaseConfig);
     console.log("✅ Firebase initialized successfully.");
+    console.log("📋 Project Info:", {
+      projectId: firebaseConfig.projectId ? '***' + firebaseConfig.projectId.slice(-8) : 'N/A',
+      authDomain: firebaseConfig.authDomain || 'N/A',
+      databaseURL: firebaseConfig.databaseURL ? '***' + firebaseConfig.databaseURL.slice(-20) : 'N/A'
+    });
     
     return app;
   } catch (error) {

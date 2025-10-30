@@ -170,6 +170,13 @@ const useAndroidAuth = () => {
       const userCredential = await signInWithCustomToken(auth, firebaseToken);
       const user = userCredential.user;
       
+      // FIX: Hapus token dari localStorage setelah berhasil digunakan
+      // Ini mencegah penggunaan ulang token custom yang mungkin sudah kadaluarsa/sekali pakai
+      if (localStorage.getItem('FIREBASE_AUTH_TOKEN')) {
+          localStorage.removeItem('FIREBASE_AUTH_TOKEN');
+          console.log('🧹 Menghapus token dari localStorage setelah berhasil login.');
+      }
+      
       console.log('✅ Berhasil login dengan token Android:', user.email);
       return true;
 
@@ -251,8 +258,8 @@ const AppContent: React.FC = () => {
 
   const prevTotalUnreadRef = useRef<number>(0);
   const lastSoundPlayTimeRef = useRef<number>(0);
-  const roomListenersRef = useRef<{ [roomId: string]: () => void }>({});
-  const lastProcessedTimestampsRef = useRef<{ [roomId: string]: number }>({});
+  const roomListenersRef = useRef<{ [roomId: string]: () => void }>();
+  const lastProcessedTimestampsRef = useRef<{ [roomId: string]: number }>();
   const userSentMessagesRef = useRef<Set<string>>(new Set());
 
   // Custom hook untuk autentikasi Android
@@ -261,6 +268,9 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (!lastProcessedTimestampsRef.current) {
       lastProcessedTimestampsRef.current = {};
+    }
+    if (!roomListenersRef.current) {
+        roomListenersRef.current = {};
     }
   }, []);
 
@@ -376,12 +386,22 @@ const AppContent: React.FC = () => {
             const newUser: User = {
               email: user.email,
               username: user.displayName || user.email.split('@')[0],
-              googleProfilePicture: user.photoURL || undefined,
+              // Tambahkan photoURL dari FirebaseUser, jika ada
+              googleProfilePicture: user.photoURL || undefined, 
               createdAt: Date.now()
             };
             
-            setUsers(prev => ({ ...prev, [newUser.email]: newUser }));
-            setCurrentUser(newUser);
+            // Periksa apakah user yang sama sudah login tanpa username (setelah google login tapi belum buat ID)
+            const existingUserByEmail = users[user.email];
+            if (existingUserByEmail && !existingUserByEmail.username) {
+                 // Update data yang hilang dengan data dari Firebase
+                 const updatedUser = { ...existingUserByEmail, ...newUser };
+                 setUsers(prev => ({ ...prev, [updatedUser.email]: updatedUser }));
+                 setCurrentUser(updatedUser);
+            } else {
+                 setUsers(prev => ({ ...prev, [newUser.email]: newUser }));
+                 setCurrentUser(newUser);
+            }
           }
         }
       } else {
@@ -786,7 +806,7 @@ const AppContent: React.FC = () => {
   }, [currentRoom, database]);
 
   useEffect(() => {
-    if (!database) return;
+    if (!database || !roomListenersRef.current) return;
 
     Object.values(roomListenersRef.current).forEach(unsubscribe => {
       if (typeof unsubscribe === 'function') {
@@ -844,11 +864,13 @@ const AppContent: React.FC = () => {
         console.error(`Listener error untuk room ${roomId}:`, error);
       });
 
-      roomListenersRef.current[roomId] = () => off(messagesRef, 'value', listener);
+      roomListenersRef.current[roomId] = () => {
+         if (database) off(messagesRef, 'value', listener);
+      };
     });
 
     return () => {
-      Object.values(roomListenersRef.current).forEach(unsubscribe => {
+      Object.values(roomListenersRef.current as any).forEach((unsubscribe: any) => {
         if (typeof unsubscribe === 'function') {
           unsubscribe();
         }
@@ -1096,7 +1118,7 @@ const AppContent: React.FC = () => {
     setUserLastVisit(prev => { const newVisits = { ...prev }; delete newVisits[roomId]; return newVisits; });
     setNotificationSettings(prev => { const newSettings = { ...prev }; delete newSettings[roomId]; return newSettings; });
     
-    if (roomListenersRef.current[roomId]) {
+    if (roomListenersRef.current && roomListenersRef.current[roomId]) {
       roomListenersRef.current[roomId]();
       delete roomListenersRef.current[roomId];
     }
