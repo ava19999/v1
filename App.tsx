@@ -258,7 +258,8 @@ const AppContent: React.FC = () => {
 
   const prevTotalUnreadRef = useRef<number>(0);
   const lastSoundPlayTimeRef = useRef<number>(0);
-  const roomListenersRef = useRef<{ [roomId: string]: () => void }>();
+  // FIX 1: Initialize useRef with empty object to prevent 'undefined' error
+  const roomListenersRef = useRef<{ [roomId: string]: () => void }>({}); 
   const lastProcessedTimestampsRef = useRef<{ [roomId: string]: number }>();
   const userSentMessagesRef = useRef<Set<string>>(new Set());
 
@@ -269,9 +270,8 @@ const AppContent: React.FC = () => {
     if (!lastProcessedTimestampsRef.current) {
       lastProcessedTimestampsRef.current = {};
     }
-    if (!roomListenersRef.current) {
-        roomListenersRef.current = {};
-    }
+    // FIX 2: Remove redundant initialization check, as roomListenersRef is now initialized.
+    // The previous check here caused the TS error when accessed outside this effect.
   }, []);
 
   // Setup event listener untuk token ready dari Android
@@ -806,8 +806,9 @@ const AppContent: React.FC = () => {
   }, [currentRoom, database]);
 
   useEffect(() => {
-    if (!database || !roomListenersRef.current) return;
+    if (!database) return;
 
+    // FIX 4: Accessing .current is safe now, no need for the extra guard on roomListenersRef.current
     Object.values(roomListenersRef.current).forEach(unsubscribe => {
       if (typeof unsubscribe === 'function') {
         unsubscribe();
@@ -870,7 +871,8 @@ const AppContent: React.FC = () => {
     });
 
     return () => {
-      Object.values(roomListenersRef.current as any).forEach((unsubscribe: any) => {
+      // FIX 5: Simplified cleanup and access. .current is guaranteed.
+      Object.values(roomListenersRef.current).forEach(unsubscribe => {
         if (typeof unsubscribe === 'function') {
           unsubscribe();
         }
@@ -1118,7 +1120,8 @@ const AppContent: React.FC = () => {
     setUserLastVisit(prev => { const newVisits = { ...prev }; delete newVisits[roomId]; return newVisits; });
     setNotificationSettings(prev => { const newSettings = { ...prev }; delete newSettings[roomId]; return newSettings; });
     
-    if (roomListenersRef.current && roomListenersRef.current[roomId]) {
+    // FIX 6: Access roomListenersRef.current safely
+    if (roomListenersRef.current[roomId]) {
       roomListenersRef.current[roomId]();
       delete roomListenersRef.current[roomId];
     }
