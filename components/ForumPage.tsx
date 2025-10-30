@@ -10,7 +10,6 @@ const TYPING_INDICATOR_TIMEOUT = 1500; // Waktu dalam ms sebelum onStartTyping d
 
 /* ------------------------- Sub-komponen ------------------------- */
 
-// ... (ReactionPicker, Reactions, DeleteButton, ReactButton tetap sama) ...
 const ReactionPicker = ({ onSelect, onClose }: { onSelect: (emoji: string) => void; onClose: () => void }) => (
   <div
     className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50 animate-fade-in-fast"
@@ -207,7 +206,7 @@ const AnnouncementMessage: React.FC<{ message: ChatMessage }> = ({ message }) =>
   return (<div className={`bg-gray-800/50 border-l-4 ${borderColor} rounded-r-lg p-3 my-2 animate-fade-in-up`}> <div className="flex items-start gap-3"> <div className={`flex-shrink-0 ${titleColor}`}>{icon}</div> <div className="flex-1"> {title && <h3 className={`text-base font-bold ${titleColor} mb-0.5`}>{title}</h3>} <p className="text-gray-300 leading-relaxed text-sm">{content}</p> </div> </div> </div>);
 };
 
-// --- Komponen Typing Indicator ---
+// --- Komponen Typing Indicator (REVISED TEXT) ---
 const TypingIndicator: React.FC<{ typingUsers: TypingStatus[] }> = ({ typingUsers }) => {
   if (typingUsers.length === 0) return null;
 
@@ -215,29 +214,18 @@ const TypingIndicator: React.FC<{ typingUsers: TypingStatus[] }> = ({ typingUser
     <div className="h-4 px-2 text-xs text-gray-400 italic flex items-center gap-1 overflow-hidden whitespace-nowrap">
       {typingUsers.map((user, index) => (
         <React.Fragment key={user.username}>
+          {/* Tampilkan UserTag untuk setiap user yang mengetik */}
           <UserTag sender={user.username} userCreationDate={user.userCreationDate} />
-          {index < typingUsers.length - 1 && <span>,</span>}
+          {index < typingUsers.length - 1 && <span className="text-gray-500">,</span>} {/* Koma abu-abu */}
         </React.Fragment>
       ))}
-      <span>sedang mengetik...</span>
-      {/* Simple dots animation */}
-      <span className="animate-typing-dots inline-block w-4 overflow-hidden align-bottom">
-        <span className="dot1">.</span><span className="dot2">.</span><span className="dot3">.</span>
-      </span>
-      <style>{`
-        @keyframes typing-dots {
-          0%, 20% { content: '.'; }
-          40% { content: '..'; }
-          60%, 100% { content: '...'; }
-        }
-        .animate-typing-dots::after {
-          content: '...'; /* Fallback */
-          animation: typing-dots 1.5s infinite steps(3, end);
-        }
-      `}</style>
+      {/* Ganti teks menjadi "mengetik" */}
+      <span className="ml-1">mengetik</span>
+      {/* Hapus animasi titik-titik */}
     </div>
   );
 };
+
 
 interface ExtendedForumPageProps extends ForumPageProps {
   forumActiveUsers?: number;
@@ -261,66 +249,57 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
   const isAnnouncementRoom = room?.id === 'pengumuman-aturan';
   const isDefaultRoom = room?.id ? DEFAULT_ROOM_IDS.includes(room.id) : false;
   const canSendMessages = !isDefaultRoom || (isAnnouncementRoom && isAdmin);
-
-  // --- Ref untuk throttle typing indicator ---
   const lastTypingCallRef = useRef<number>(0);
 
   const onImageClick = (url: string) => setPreviewImage(url);
 
-  const handleMessageClick = (messageId: string) => {
-    setActiveMessageId((currentId) => {
+  const handleMessageClick = (messageId: string) => { /* ... (sama) ... */
+     setActiveMessageId((currentId) => {
       const isCurrentlyActive = currentId === messageId;
       const nextActiveId = isCurrentlyActive ? null : messageId;
       if (showPickerForMsgId) setShowPickerForMsgId(null);
       return nextActiveId;
     });
   };
-
-  const handleReactButtonClick = (e: React.MouseEvent, messageId: string) => {
-    e.stopPropagation(); setShowPickerForMsgId(messageId); if (activeMessageId !== messageId) setActiveMessageId(messageId);
-  };
-
-  const handleChatAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
-    const targetElement = e.target as Element;
+  const handleReactButtonClick = (e: React.MouseEvent, messageId: string) => { /* ... (sama) ... */
+     e.stopPropagation(); setShowPickerForMsgId(messageId); if (activeMessageId !== messageId) setActiveMessageId(messageId);
+   };
+  const handleChatAreaClick = (e: React.MouseEvent<HTMLDivElement>) => { /* ... (sama) ... */
+     const targetElement = e.target as Element;
     if (!targetElement.closest('[data-message-interactive="true"]')) { if (activeMessageId !== null) setActiveMessageId(null); if (showPickerForMsgId !== null) setShowPickerForMsgId(null); }
   };
 
-  const filteredMessages = useMemo(() => {
+  const filteredMessages = useMemo(() => { /* ... (sama) ... */
     if (!messages || !Array.isArray(messages)) return []; const seenMessageIds = new Set();
     return messages.filter(message => { if (seenMessageIds.has(message.id)) return false; seenMessageIds.add(message.id); return true; });
   }, [messages]);
-
   const safeMessages = Array.isArray(filteredMessages) ? filteredMessages : [];
-  const sortedMessages = useMemo(() => [...safeMessages].sort((a, b) => {
-    const timeA = isNewsArticle(a) ? a.published_on * 1000 : isChatMessage(a) ? a.timestamp : 0; const timeB = isNewsArticle(b) ? b.published_on * 1000 : isChatMessage(b) ? b.timestamp : 0;
+  const sortedMessages = useMemo(() => [...safeMessages].sort((a, b) => { /* ... (sama) ... */
+     const timeA = isNewsArticle(a) ? a.published_on * 1000 : isChatMessage(a) ? a.timestamp : 0; const timeB = isNewsArticle(b) ? b.published_on * 1000 : isChatMessage(b) ? b.timestamp : 0;
     if (!timeA && !timeB) return 0; if (!timeA) return 1; if (!timeB) return -1; return timeA - timeB;
   }), [safeMessages]);
 
   useEffect(() => { if (activeMessageId === null && chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [sortedMessages, activeMessageId]);
 
-  // --- Modifikasi handleSendMessageSubmit untuk memanggil onStopTyping ---
-  const handleSendMessageSubmit = (e: React.FormEvent<HTMLFormElement>) => {
-    e.preventDefault(); if (!canSendMessages) { alert('Hanya admin yang dapat mengirim pesan di room Pengumuman & Aturan.'); return; }
+  const handleSendMessageSubmit = (e: React.FormEvent<HTMLFormElement>) => { /* ... (sama + onStopTyping) ... */
+     e.preventDefault(); if (!canSendMessages) { alert('Hanya admin yang dapat mengirim pesan di room Pengumuman & Aturan.'); return; }
     const currentMessageText = newMessage.trim(); const currentAttachment = attachment; if ((!currentMessageText && !currentAttachment) || !username) return;
     const messageData: Partial<ChatMessage> & { type: 'user'; sender: string; timestamp: number; userCreationDate: number } = { type: 'user', sender: username, timestamp: Date.now(), reactions: {}, userCreationDate: userProfile?.createdAt || Date.now(), ...(currentMessageText && { text: currentMessageText }), ...(currentAttachment && { fileURL: currentAttachment.dataUrl, fileName: currentAttachment.name }) };
     onSendMessage(messageData);
     onStopTyping(); // Panggil onStopTyping saat pesan dikirim
     setNewMessage(''); setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = '';
-  };
-
-  // --- Modifikasi handleInputChange untuk memanggil onStartTyping ---
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
-    setNewMessage(e.target.value);
+   };
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { /* ... (sama + onStartTyping) ... */
+     setNewMessage(e.target.value);
     const now = Date.now();
     // Throttle: Panggil onStartTyping hanya jika sudah lewat TYPING_INDICATOR_TIMEOUT ms
     if (now - lastTypingCallRef.current > TYPING_INDICATOR_TIMEOUT) {
       onStartTyping();
       lastTypingCallRef.current = now;
     }
-  }, [onStartTyping]);
-
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    if (!canSendMessages) { alert('Hanya admin yang dapat mengirim pesan di room Pengumuman & Aturan.'); return; }
+   }, [onStartTyping]);
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... (sama) ... */
+     if (!canSendMessages) { alert('Hanya admin yang dapat mengirim pesan di room Pengumuman & Aturan.'); return; }
     const file = e.target.files?.[0]; if (file && file.type.startsWith('image/')) { const reader = new FileReader(); reader.onloadend = () => { if (reader.result) setAttachment({ dataUrl: reader.result as string, name: file.name }); }; reader.readAsDataURL(file); } else setAttachment(null);
   };
 
@@ -366,8 +345,7 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
               <form onSubmit={handleSendMessageSubmit} className="flex items-center space-x-1"> <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /> <button type="button" onClick={() => { if (!canSendMessages) { alert('Hanya admin yang dapat mengirim pesan di room Pengumuman & Aturan.'); return; } fileInputRef.current?.click(); }} className="text-gray-400 hover:text-electric p-1 rounded-full transition-colors flex-shrink-0" title="Lampirkan gambar" disabled={!canSendMessages}> <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /> </svg> </button>
                 <div className="relative flex-1">
                   <input type="text" value={newMessage}
-                    // --- Ganti onChange dengan handleInputChange ---
-                    onChange={handleInputChange}
+                    onChange={handleInputChange} // Gunakan handler baru
                     placeholder={canSendMessages ? "Ketik pesan Anda..." : "Hanya admin yang dapat mengirim pesan..."}
                     className="w-full bg-gray-800 border border-gray-700 rounded-full py-1.5 pl-3 pr-8 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-electric transition-all"
                     disabled={!username || !canSendMessages} />
