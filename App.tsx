@@ -1,4 +1,4 @@
-// App.tsx - Room default diperbarui, Typing Indicator Added (REVISED)
+// App.tsx - Room default diperbarui, Typing Indicator Added (REVISED AGAIN FOR DEBUGGING)
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -161,6 +161,7 @@ const AppContent: React.FC = () => {
   const lastProcessedTimestampsRef = useRef<{ [roomId: string]: number }>({});
   const userSentMessagesRef = useRef<Set<string>>(new Set());
 
+
   // ... (useEffect untuk inisialisasi, random user count, load rooms, dsb tetap sama) ...
   useEffect(() => {
     if (!lastProcessedTimestampsRef.current) {
@@ -280,8 +281,8 @@ const AppContent: React.FC = () => {
                try {
                  const typingRef = safeRef(`typing/${currentRoom.id}/${user.uid}`);
                  onDisconnect(typingRef).remove(); // Hapus saat disconnect
-                 console.log(`onDisconnect set for typing status in room ${currentRoom.id}`);
-               } catch(e) { console.error("Error setting onDisconnect for typing status:", e); }
+                 console.log(`[AUTH] onDisconnect set for typing status in room ${currentRoom.id}`);
+               } catch(e) { console.error("[AUTH] Error setting onDisconnect for typing status:", e); }
              }
           }
         } else if (!pendingGoogleUser) { console.warn('Auth listener: Firebase user exists but no matching app user found and not pending.'); }
@@ -293,6 +294,7 @@ const AppContent: React.FC = () => {
     });
     return () => unsubscribe();
   }, [users, currentUser, pendingGoogleUser, database, currentRoom]);
+
 
   // ... (useEffect untuk simpan data ke localStorage tetap sama) ...
   useEffect(() => { try { localStorage.setItem('cryptoUsers', JSON.stringify(users)); } catch (e) { console.error('Gagal simpan users', e); } }, [users]);
@@ -365,56 +367,93 @@ const AppContent: React.FC = () => {
     return () => { Object.values(roomListenersRef.current).forEach(unsubscribe => { if (typeof unsubscribe === 'function') unsubscribe(); }); roomListenersRef.current = {}; };
    }, [joinedRoomIds, currentRoom, database, userLastVisit, currentUser]);
 
-  // --- Listener untuk Typing Indicator (REVISED) ---
+  // --- Listener untuk Typing Indicator (REVISED AGAIN FOR DEBUGGING) ---
   useEffect(() => {
     if (!database) { console.warn("Typing listener skipped: DB not initialized."); return; }
 
+    console.log("[Typing Effect] Setting up listeners for joined rooms:", Array.from(joinedRoomIds));
+
+    // Cleanup existing listeners before setting new ones
     Object.values(typingListenersRef.current).forEach(unsubscribe => unsubscribe());
     typingListenersRef.current = {};
 
     joinedRoomIds.forEach(roomId => {
-      // Tidak perlu listener untuk room berita karena tidak ada chat
-      if (roomId === 'berita-kripto') return;
+      if (roomId === 'berita-kripto') return; // Skip news room
 
       const typingRoomRef = safeRef(`typing/${roomId}`);
+      console.log(`[Typing Listener] Attaching to typing/${roomId}`);
+
       const listener = onValue(typingRoomRef, (snapshot) => {
         const typingData = snapshot.val() as FirebaseTypingStatusData[string] | null;
+        console.log(`[Typing Listener] Raw data received for room ${roomId}:`, JSON.stringify(typingData)); // Log raw data as string
+
         setTypingUsers(prev => {
           const updatedRoomTyping: { [userId: string]: TypingStatus } = {};
+          const now = Date.now();
+          let changed = false; // Flag to check if the room data actually changed
+
           if (typingData) {
-            const now = Date.now();
             Object.entries(typingData).forEach(([userId, status]) => {
-              // REVISI: Pastikan status valid dan belum timeout, dan bukan user sendiri
-              if (status && status.timestamp && now - status.timestamp < TYPING_TIMEOUT && userId !== firebaseUser?.uid) {
-                // Pastikan userCreationDate ada, fallback ke null jika tidak
-                updatedRoomTyping[userId] = {
-                  username: status.username,
-                  userCreationDate: status.userCreationDate ?? null, // Fallback ke null
-                  timestamp: status.timestamp
-                };
+              if (
+                status &&
+                status.timestamp &&
+                now - status.timestamp < TYPING_TIMEOUT &&
+                userId !== firebaseUser?.uid // Ensure firebaseUser is loaded
+              ) {
+                const username = status.username ?? 'Unknown';
+                const userCreationDate = status.userCreationDate ?? null;
+                const timestamp = status.timestamp;
+
+                updatedRoomTyping[userId] = { username, userCreationDate, timestamp };
+                // console.log(`[Typing Listener] Valid typing user added: ${userId} (${username}) in room ${roomId}`);
+              } else {
+                 // Log filtering reasons
+                 if (!status || !status.timestamp) console.log(`[Typing Listener] Filtered invalid status for ${userId} in ${roomId}`);
+                 else if (!(now - status.timestamp < TYPING_TIMEOUT)) console.log(`[Typing Listener] Filtered timed out status for ${userId} in ${roomId}`);
+                 // else if (userId === firebaseUser?.uid) console.log(`[Typing Listener] Filtered self (${userId}) in ${roomId}`);
               }
             });
           }
-          // Perbarui hanya room ini, pertahankan data room lain
-          const newState = { ...prev };
-          newState[roomId] = updatedRoomTyping;
-          return newState;
+
+          // Check if the new data for this room is different from the old one
+          const oldRoomData = prev[roomId] || {};
+          if (JSON.stringify(oldRoomData) !== JSON.stringify(updatedRoomTyping)) {
+            changed = true;
+            console.log(`[Typing Listener] State change detected for room ${roomId}. New data:`, updatedRoomTyping);
+          } else {
+            // console.log(`[Typing Listener] No actual state change for room ${roomId}.`);
+          }
+
+
+          // Only return a new state object if something changed for this room
+          if (changed) {
+            const newState = { ...prev, [roomId]: updatedRoomTyping };
+            return newState;
+          }
+          // Otherwise, return the previous state to avoid unnecessary re-renders
+          return prev;
         });
       }, (error) => {
-        console.error(`Firebase typing listener error for room ${roomId}:`, error);
-        // Mungkin set state room ini ke kosong jika error?
-         setTypingUsers(prev => ({ ...prev, [roomId]: {} }));
+        console.error(`[Typing Listener] Firebase error for room ${roomId}:`, error);
+        setTypingUsers(prev => ({ ...prev, [roomId]: {} })); // Clear room data on error
       });
+
       typingListenersRef.current[roomId] = () => {
-        if(database) off(typingRoomRef, 'value', listener);
+        if(database) {
+          off(typingRoomRef, 'value', listener);
+          console.log(`[Typing Listener] Detached listener from typing/${roomId}`);
+        }
       };
     });
 
     return () => {
+      console.log("[Typing Effect] Cleaning up typing listeners.");
       Object.values(typingListenersRef.current).forEach(unsubscribe => unsubscribe());
       typingListenersRef.current = {};
     };
-  }, [database, joinedRoomIds, firebaseUser?.uid]); // firebaseUser?.uid memastikan listener diperbarui saat login/logout
+  // REVISI: Added currentUser dependency - needed for userCreationDate in status
+  }, [database, joinedRoomIds, firebaseUser?.uid, currentUser]); // Added currentUser
+
 
   // ... (Handler Google Login, Profile Complete, Logout, Increment Count, Navigate, Select Coin tetap sama) ...
   const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => { /* ... (sama) ... */
@@ -451,8 +490,8 @@ const AppContent: React.FC = () => {
        try {
         const typingRef = safeRef(`typing/${room.id}/${firebaseUser.uid}`);
         onDisconnect(typingRef).remove(); // Hapus saat disconnect
-        console.log(`onDisconnect set for typing status in room ${room.id} on join`);
-       } catch(e) { console.error("Error setting onDisconnect on join:", e); }
+        console.log(`[JOIN] onDisconnect set for typing status in room ${room.id} on join`);
+       } catch(e) { console.error("[JOIN] Error setting onDisconnect on join:", e); }
      }
   }, [updateRoomUserCount, hasJoinedRoom, database, firebaseUser]);
 
@@ -514,52 +553,66 @@ const AppContent: React.FC = () => {
     } catch (error) { console.error('Error deleting message:', error); alert('Gagal menghapus pesan.'); }
   }, []);
 
-  // --- Handler untuk Typing Indicator (REVISED) ---
+  // --- Handler untuk Typing Indicator (REVISED AGAIN - Logging diperjelas) ---
   const handleStartTyping = useCallback(() => {
-    if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username) return;
+      if (!database || !currentRoom?.id || !firebaseUser?.uid || !currentUser?.username || currentUser?.createdAt === undefined || currentUser?.createdAt === null) {
+          console.warn("[handleStartTyping] Prerequisites not met:", { db: !!database, room: currentRoom?.id, fbUid: firebaseUser?.uid, appUser: currentUser?.username, createdAtExists: currentUser?.hasOwnProperty('createdAt') });
+          return;
+      }
 
-    const typingRef = safeRef(`typing/${currentRoom.id}/${firebaseUser.uid}`);
-    const status: TypingStatus = {
-      username: currentUser.username,
-      // REVISI: Pastikan createdAt ada, fallback ke null
-      userCreationDate: currentUser.createdAt ?? null,
-      timestamp: Date.now()
-    };
+      const typingRef = safeRef(`typing/${currentRoom.id}/${firebaseUser.uid}`);
+      const status: TypingStatus = {
+          username: currentUser.username,
+          userCreationDate: currentUser.createdAt, // createdAt sudah divalidasi
+          timestamp: Date.now()
+      };
+      console.log(`[handleStartTyping] Attempting to set status for user ${firebaseUser.uid} in room ${currentRoom.id}:`, status);
 
-    // Set status di Firebase
-    set(typingRef, status)
+      set(typingRef, status)
       .then(() => {
-        // Atur onDisconnect lagi setelah berhasil menulis, untuk keamanan
-        return onDisconnect(typingRef).remove();
+          console.log(`[handleStartTyping] Status successfully set for ${firebaseUser.uid}. Setting onDisconnect.`);
+          return onDisconnect(typingRef).remove();
       })
-      .catch(error => console.error("Error setting typing status or onDisconnect:", error));
+      .then(() => {
+           console.log(`[handleStartTyping] onDisconnect set successfully for ${firebaseUser.uid}`);
+      })
+      .catch(error => console.error("[handleStartTyping] Error setting status or onDisconnect:", error));
 
-    // Hapus timeout sebelumnya
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+      if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
 
-    // Set timeout baru
-    typingTimeoutRef.current = setTimeout(() => {
-      // Hapus hanya jika timeout tercapai, bukan jika dibersihkan oleh stopTyping
-      remove(typingRef).catch(error => console.error("Error removing typing status on timeout:", error));
-      typingTimeoutRef.current = null; // Reset ref setelah timeout
-    }, TYPING_TIMEOUT);
+      typingTimeoutRef.current = setTimeout(() => {
+          console.log(`[handleStartTyping] Typing timeout reached for ${firebaseUser?.uid}. Attempting to remove status.`);
+          // Tambahkan pengecekan database lagi di dalam timeout
+          if (database && currentRoom?.id && firebaseUser?.uid) {
+              const timeoutTypingRef = safeRef(`typing/${currentRoom.id}/${firebaseUser.uid}`);
+              remove(timeoutTypingRef).catch(error => console.error("[handleStartTyping] Error removing status on timeout:", error));
+          } else {
+              console.warn("[handleStartTyping] Cannot remove status on timeout - DB or context missing.");
+          }
+          typingTimeoutRef.current = null;
+      }, TYPING_TIMEOUT);
 
   }, [database, currentRoom, firebaseUser, currentUser]);
 
-  const handleStopTyping = useCallback(() => {
-    // Hapus timeout
-    if (typingTimeoutRef.current) {
-      clearTimeout(typingTimeoutRef.current);
-      typingTimeoutRef.current = null;
-    }
 
-    if (!database || !currentRoom?.id || !firebaseUser?.uid) return;
-    const typingRef = safeRef(`typing/${currentRoom.id}/${firebaseUser.uid}`);
-    // Hapus status segera
-    remove(typingRef).catch(error => console.error("Error removing typing status on stop:", error));
+  const handleStopTyping = useCallback(() => {
+      if (typingTimeoutRef.current) {
+          console.log(`[handleStopTyping] Clearing typing timeout for ${firebaseUser?.uid}.`);
+          clearTimeout(typingTimeoutRef.current);
+          typingTimeoutRef.current = null;
+      }
+
+      if (!database || !currentRoom?.id || !firebaseUser?.uid) {
+           console.warn("[handleStopTyping] Prerequisites not met for removal:", { db: !!database, room: currentRoom?.id, fbUid: firebaseUser?.uid });
+          return;
+      }
+      const typingRef = safeRef(`typing/${currentRoom.id}/${firebaseUser.uid}`);
+      console.log(`[handleStopTyping] Attempting to remove status for ${firebaseUser.uid} in room ${currentRoom.id}.`);
+      remove(typingRef).catch(error => console.error("[handleStopTyping] Error removing status:", error));
 
   }, [database, currentRoom, firebaseUser]);
   // --- Akhir Handler Typing Indicator ---
+
 
   // ... (useMemo untuk data tampilan tetap sama) ...
   const updatedRooms = useMemo(() => rooms.map(room => ({ ...room, userCount: roomUserCounts[room.id] || room.userCount || 0 })), [rooms, roomUserCounts]);
@@ -568,22 +621,52 @@ const AppContent: React.FC = () => {
   const otherTrendingCoins = useMemo(() => searchedCoin ? [] : trendingCoins.slice(1), [searchedCoin, trendingCoins]);
   const hotCoinForHeader = useMemo(() => trendingCoins.length > 1 ? { name: trendingCoins[1].name, logo: trendingCoins[1].image, price: trendingCoins[1].price, change: trendingCoins[1].change } : null, [trendingCoins]);
 
-  // --- Filter Typing Users untuk Room Saat Ini (REVISED for safety) ---
+  // --- Filter Typing Users untuk Room Saat Ini (REVISED AGAIN) ---
   const currentTypingUsers = useMemo(() => {
-    if (!currentRoom?.id || !typingUsers || typeof typingUsers !== 'object') return [];
-    const roomTypingData = typingUsers[currentRoom.id];
-    if (!roomTypingData || typeof roomTypingData !== 'object') return [];
+    const currentRoomId = currentRoom?.id;
+    // console.log(`[currentTypingUsers] Recalculating for room: ${currentRoomId}. Current firebaseUser?.uid: ${firebaseUser?.uid}`);
+    if (!currentRoomId || !typingUsers || typeof typingUsers !== 'object') {
+        // console.log("[currentTypingUsers] Condition 1 failed: No current room or invalid typingUsers state", { currentRoomId, typingUsers });
+        return [];
+    }
+
+    const roomTypingData = typingUsers[currentRoomId];
+    if (!roomTypingData || typeof roomTypingData !== 'object') {
+        // console.log(`[currentTypingUsers] Condition 2 failed: No typing data found for room ${currentRoomId}`);
+        return [];
+    }
 
     const now = Date.now();
-    // REVISI: Ambil values, filter null/undefined, dan filter timestamp
-    return Object.values(roomTypingData)
-                 .filter((status): status is TypingStatus =>
-                     !!status && typeof status === 'object' &&
-                     typeof status.timestamp === 'number' &&
-                     now - status.timestamp < TYPING_TIMEOUT
-                 );
-  }, [typingUsers, currentRoom]);
+    const filteredUsers = Object.entries(roomTypingData)
+        .filter(([userId, status]) => {
+            const isNotSelf = userId !== firebaseUser?.uid;
+            const isValidStatus = status && typeof status.timestamp === 'number';
+            const isNotTimedOut = isValidStatus && (now - status.timestamp < TYPING_TIMEOUT);
+            /*
+            console.log(`[currentTypingUsers] Filtering user ${userId}:`, {
+                isNotSelf,
+                isValidStatus,
+                isNotTimedOut,
+                statusTimestamp: status?.timestamp,
+                now,
+                diff: isValidStatus ? now - status.timestamp : 'N/A',
+                timeout: TYPING_TIMEOUT
+            });
+            */
+            return isNotSelf && isValidStatus && isNotTimedOut;
+        })
+        .map(([userId, status]) => ({
+            username: status.username,
+            userCreationDate: status.userCreationDate ?? null,
+            timestamp: status.timestamp
+        }));
+
+    // console.log(`[currentTypingUsers] Result for room ${currentRoomId}:`, filteredUsers);
+    return filteredUsers;
+
+  }, [typingUsers, currentRoom, firebaseUser?.uid]); // firebaseUser.uid is crucial here
   // --- Akhir Filter ---
+
 
   // ... (renderActivePage dan logika render utama tetap sama, pastikan props diteruskan ke ForumPage) ...
   const renderActivePage = () => {
@@ -593,6 +676,7 @@ const AppContent: React.FC = () => {
       case 'forum': {
         let displayMessages: ForumMessageItem[] = []; if (currentRoom) { if (currentRoom.id === 'berita-kripto') displayMessages = newsArticles; else displayMessages = firebaseMessages[currentRoom.id] || []; }
         const messagesToPass = Array.isArray(displayMessages) ? displayMessages : [];
+        console.log(`[Render ForumPage] Passing ${currentTypingUsers.length} typing users to ForumPage for room ${currentRoom?.id}:`, currentTypingUsers); // Log data passed
         return <ForumPage room={currentRoom} messages={messagesToPass} userProfile={currentUser} onSendMessage={handleSendMessage} onLeaveRoom={handleLeaveRoom} onReact={handleReaction} onDeleteMessage={handleDeleteMessage} forumActiveUsers={forumActiveUsers} typingUsers={currentTypingUsers} onStartTyping={handleStartTyping} onStopTyping={handleStopTyping} />;
       }
       case 'about': return <AboutPage />;
@@ -619,6 +703,7 @@ const AppContent: React.FC = () => {
   );
 };
 
+
 // ... (Komponen App wrapper tetap sama) ...
 const App: React.FC = () => {
   const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
@@ -626,6 +711,5 @@ const App: React.FC = () => {
   if (!googleClientId) return (<div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}> <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}> <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Konfigurasi</h1> <p style={{ marginTop: '10px', lineHeight: '1.6' }}> Variabel lingkungan <strong>GOOGLE_CLIENT_ID</strong> tidak ditemukan. </p> </div> </div>);
   return (<GoogleOAuthProvider clientId={googleClientId}> <AppContent /> </GoogleOAuthProvider>);
 };
-
 
 export default App;
