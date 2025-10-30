@@ -247,7 +247,7 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
                     type="text" 
                     value={newRoomName} 
                     onChange={(e) => setNewRoomName(e.target.value)} 
-                    placeholder={userProfile ? "Buat room baru (max 25 huruf)..." : "Login untuk buat room"}
+                    placeholder={userProfile ? "Buat room baru..." : "Login untuk buat room"}
                     className="flex-1 bg-transparent py-1 px-2 text-sm text-white placeholder-gray-500 focus:outline-none" 
                     disabled={!userProfile}
                     maxLength={25}
