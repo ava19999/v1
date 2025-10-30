@@ -247,6 +247,99 @@ const AppContent: React.FC = () => {
     }
   };
 
+  // Process token untuk native auth - DIPERBAIKI
+  const processNativeAuthToken = async (token: string) => {
+    try {
+      const bridgeService = AndroidBridgeService.getInstance();
+      
+      // Coba dengan Android Bridge service terlebih dahulu
+      const result = await bridgeService.handleAndroidAuth(token);
+      
+      if (result.success) {
+        // Clean URL setelah berhasil
+        const cleanUrl = window.location.origin + window.location.pathname;
+        window.history.replaceState({}, document.title, cleanUrl);
+        console.log('🎉 Native app login completed successfully');
+        
+        // Refresh the app to reflect the new user state
+        window.location.reload();
+      } else {
+        console.error('❌ Android auth failed:', result.error);
+        setAuthError(result.error || 'Gagal login dengan aplikasi native');
+        
+        // Fallback: coba proses token langsung tanpa Firebase
+        await processTokenDirectly(token);
+      }
+    } catch (error) {
+      console.error('❌ Native app login failed:', error);
+      
+      // Fallback: coba proses token langsung tanpa Firebase
+      await processTokenDirectly(token);
+    }
+  };
+
+  // Fallback function untuk proses token tanpa Firebase
+  const processTokenDirectly = async (token: string) => {
+    try {
+      console.log('🔄 Trying direct token processing without Firebase...');
+      
+      const decoded: any = jwtDecode(token);
+      const { email, name, picture } = decoded;
+
+      if (!email) {
+        throw new Error('No email found in token');
+      }
+
+      console.log('🔧 Direct token processing for:', email);
+
+      // Cari user di localStorage
+      let user: User | null = null;
+      
+      try {
+        const savedUsers = localStorage.getItem('cryptoUsers');
+        if (savedUsers) {
+          const users = JSON.parse(savedUsers);
+          user = Object.values(users).find((u: any) => u.email === email) as User || null;
+        }
+      } catch (error) {
+        console.error('Error checking existing user:', error);
+      }
+
+      if (!user) {
+        // Buat user baru untuk native app
+        const usernameFromEmail = email.split('@')[0];
+        user = {
+          email,
+          username: usernameFromEmail,
+          googleProfilePicture: picture,
+          createdAt: Date.now()
+        };
+        
+        // Simpan user
+        const savedUsers = localStorage.getItem('cryptoUsers');
+        const updatedUsers = savedUsers ? { ...JSON.parse(savedUsers), [email]: user } : { [email]: user };
+        localStorage.setItem('cryptoUsers', JSON.stringify(updatedUsers));
+        console.log('👤 Created new user for native app:', usernameFromEmail);
+      } else {
+        console.log('👤 Found existing user:', user.username);
+      }
+
+      // Set current user dan simpan
+      setCurrentUser(user);
+      localStorage.setItem('currentUser', JSON.stringify(user));
+      
+      // Clean URL
+      const cleanUrl = window.location.origin + window.location.pathname;
+      window.history.replaceState({}, document.title, cleanUrl);
+      
+      console.log('🎉 Direct token processing completed successfully');
+      
+    } catch (error) {
+      console.error('❌ Direct token processing failed:', error);
+      setAuthError('Gagal memproses token autentikasi: ' + (error instanceof Error ? error.message : 'Unknown error'));
+    }
+  };
+
   // Cek native app dan proses login
   const checkNativeAppLogin = async () => {
     console.log('📱 Native app check:', { 
@@ -286,32 +379,22 @@ const AppContent: React.FC = () => {
       if (success) {
         console.log('✅ Android bridge auth completed');
         return;
+      } else {
+        console.log('❌ Android bridge auth failed, checking for token in bridge...');
+        // Coba ambil token langsung dari bridge
+        const bridgeService = AndroidBridgeService.getInstance();
+        const token = bridgeService.getTokenFromBridge();
+        if (token) {
+          console.log('🔄 Found token in bridge, processing...');
+          await processNativeAuthToken(token);
+          return;
+        }
       }
     }
 
     // Jika kedua metode gagal
     console.log('❌ No authentication method available for native app');
-    setAuthError('Tidak dapat melakukan autentikasi pada aplikasi native');
-  };
-
-  // Process token untuk native auth
-  const processNativeAuthToken = async (token: string) => {
-    try {
-      const bridgeService = AndroidBridgeService.getInstance();
-      const result = await bridgeService.handleAndroidAuth(token);
-      
-      if (result.success) {
-        // Clean URL setelah berhasil
-        const cleanUrl = window.location.origin + window.location.pathname;
-        window.history.replaceState({}, document.title, cleanUrl);
-        console.log('🎉 Native app login completed successfully');
-      } else {
-        setAuthError(result.error || 'Gagal login dengan aplikasi native');
-      }
-    } catch (error) {
-      console.error('❌ Native app login failed:', error);
-      setAuthError('Gagal login dengan aplikasi native');
-    }
+    setAuthError('Tidak dapat melakukan autentikasi pada aplikasi native - tidak ada token yang tersedia');
   };
 
   // Setup Firebase auth listener
@@ -1078,6 +1161,12 @@ const AppContent: React.FC = () => {
             <div className="mt-4 p-3 bg-white/5 rounded-lg text-xs text-left max-w-xs mx-auto">
               <p>Bridge: {bridgeStatus.hasAndroidBridge ? '✅ Tersedia' : '❌ Tidak Tersedia'}</p>
               <p>Status: {authStatus}</p>
+              {bridgeStatus.bridgeMethods && (
+                <>
+                  <p>getAuthToken: {bridgeStatus.bridgeMethods.getAuthToken ? '✅' : '❌'}</p>
+                  <p>showToast: {bridgeStatus.bridgeMethods.showToast ? '✅' : '❌'}</p>
+                </>
+              )}
             </div>
           )}
         </div>
@@ -1238,7 +1327,7 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
+  const googleClientId = process.env.REACT_APP_GOOGLE_CLIENT_ID || '';
   const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
 
   // Check database connection

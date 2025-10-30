@@ -33,7 +33,7 @@ export const useAndroidAuth = () => {
       if (!token) {
         console.log('[HOOK] No token available from Android bridge');
         setAuthStatus('failed');
-        setError('No authentication token available');
+        setError('No authentication token available from Android bridge');
         return false;
       }
 
