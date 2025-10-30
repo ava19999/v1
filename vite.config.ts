@@ -10,12 +10,10 @@ export default defineConfig(({ mode }) => {
     plugins: [react()],
     // Definisikan variabel yang ingin di-expose ke process.env di client-side
     define: {
-      // --- INI KUNCI RAHASIA (SECRET KEY) ---
-      // --- HAPUS BARIS INI! ---
-      // 'process.env.API_KEY': JSON.stringify(env.API_KEY), // <--- BAHAYA! INI YANG BOCOR
-
-      // --- INI KUNCI PUBLIK (PUBLIC KEYS) ---
-      // --- INI AMAN UNTUK TETAP DI SINI ---
+      // 'process.env.API_KEY': JSON.stringify(env.API_KEY), // <--- HAPUS BARIS INI
+      
+      // Kunci-kunci ini (Firebase & Google Client ID) adalah KUNCI PUBLIK.
+      // Aman untuk tetap ada di sini.
       'process.env.GOOGLE_CLIENT_ID': JSON.stringify(env.GOOGLE_CLIENT_ID),
       'process.env.FIREBASE_API_KEY': JSON.stringify(env.FIREBASE_API_KEY),
       'process.env.FIREBASE_AUTH_DOMAIN': JSON.stringify(env.FIREBASE_AUTH_DOMAIN),

@@ -1,21 +1,28 @@
 // services/geminiService.ts
-// Hapus import GoogleGenAI karena tidak lagi digunakan di sisi klien
+
+// HAPUS import GoogleGenAI dan Type, karena sudah pindah ke server
 // import { GoogleGenAI, Type } from "@google/genai"; 
 import type { AnalysisResult } from '../types';
 
-// Skema tidak lagi diperlukan di sini, sudah dipindahkan ke serverless function
+// HAPUS inisialisasi 'ai'
+// const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+
+// HAPUS 'analysisSchema', karena sudah pindah ke server
+// const analysisSchema = { ... };
 
 export const fetchCryptoAnalysis = async (cryptoName: string, currentPrice: number): Promise<AnalysisResult> => {
-  // Tidak perlu lagi memeriksa process.env.API_KEY di sini
-  // if (!process.env.API_KEY) { ... } // HAPUS BLOK INI
+  // HAPUS pengecekan API_KEY di sisi klien
+  // if (!process.env.API_KEY) { ... }
 
   try {
-    // Panggil API endpoint (Serverless Function) yang Anda buat di Vercel
+    // PANGGIL SERVERLESS FUNCTION VERCEL YANG BARU KITA BUAT
+    // Vercel secara otomatis mengarahkan /api/getAnalysis ke file api/getAnalysis.ts
     const response = await fetch('/api/getAnalysis', {
       method: 'POST',
       headers: {
         'Content-Type': 'application/json',
       },
+      // Kirim data yang dibutuhkan oleh function
       body: JSON.stringify({
         cryptoName: cryptoName,
         currentPrice: currentPrice,
@@ -23,12 +30,13 @@ export const fetchCryptoAnalysis = async (cryptoName: string, currentPrice: numb
     });
 
     if (!response.ok) {
-      // Coba baca pesan error dari server jika ada
+      // Jika server function error, tangkap pesannya
       const errorData = await response.json().catch(() => ({})); // Tangkap jika respons bukan JSON
       const errorMessage = errorData.error || `Error: ${response.status} ${response.statusText}`;
       throw new Error(errorMessage);
     }
 
+    // Kembalikan JSON langsung dari server function kita
     const result: AnalysisResult = await response.json();
     return result;
 
