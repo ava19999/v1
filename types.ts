@@ -101,6 +101,20 @@ export interface ChatMessage {
 
 export type ForumMessageItem = NewsArticle | ChatMessage;
 
+// --- Typing Indicator Types ---
+export interface TypingStatus {
+  username: string;
+  userCreationDate: number | null; // Tambahkan ini
+  timestamp: number;
+}
+
+export interface TypingUsersMap {
+  [roomId: string]: {
+    [userId: string]: TypingStatus;
+  };
+}
+
+
 // --- Notification Types ---
 export interface NotificationSettings {
   [roomId: string]: boolean;
@@ -129,30 +143,30 @@ export const isChatMessage = (item: ForumMessageItem | null | undefined): item i
 };
 
 // --- Component Props Interfaces ---
-export interface HeaderProps { 
-  userProfile: User | null; 
-  onLogout: () => void; 
-  activePage: Page; 
-  onNavigate: (page: Page) => void; 
-  currency: Currency; 
-  onCurrencyChange: (currency: Currency) => void; 
-  hotCoin: { name: string; logo: string; price: number; change: number; } | null; 
+export interface HeaderProps {
+  userProfile: User | null;
+  onLogout: () => void;
+  activePage: Page;
+  onNavigate: (page: Page) => void;
+  currency: Currency;
+  onCurrencyChange: (currency: Currency) => void;
+  hotCoin: { name: string; logo: string; price: number; change: number; } | null;
   idrRate: number | null;
 }
 
-export interface HomePageProps { 
-  idrRate: number | null; 
-  isRateLoading: boolean; 
-  currency: Currency; 
-  onIncrementAnalysisCount: (coinId: string) => void; 
-  fullCoinList: CoinListItem[]; 
-  isCoinListLoading: boolean; 
-  coinListError: string | null; 
-  heroCoin: CryptoData | null; 
-  otherTrendingCoins: CryptoData[]; 
-  isTrendingLoading: boolean; 
-  trendingError: string | null; 
-  onSelectCoin: (coinId: string) => void; 
+export interface HomePageProps {
+  idrRate: number | null;
+  isRateLoading: boolean;
+  currency: Currency;
+  onIncrementAnalysisCount: (coinId: string) => void;
+  fullCoinList: CoinListItem[];
+  isCoinListLoading: boolean;
+  coinListError: string | null;
+  heroCoin: CryptoData | null;
+  otherTrendingCoins: CryptoData[];
+  isTrendingLoading: boolean;
+  trendingError: string | null;
+  onSelectCoin: (coinId: string) => void;
   onReloadTrending: () => void;
 }
 
@@ -165,7 +179,12 @@ export interface ForumPageProps {
   onReact: (messageId: string, emoji: string) => void;
   onDeleteMessage: (roomId: string, messageId: string) => void;
   forumActiveUsers?: number;
+  // Tambahkan props untuk typing indicator
+  typingUsers: TypingStatus[];
+  onStartTyping: () => void;
+  onStopTyping: () => void;
 }
+
 
 export interface RoomsListPageProps {
   rooms: Room[];
@@ -196,31 +215,31 @@ export interface RoomListItemProps {
   notificationEnabled: boolean;
 }
 
-export interface HeroCoinProps { 
-  crypto: CryptoData; 
-  onAnalyze: (crypto: CryptoData) => void; 
-  idrRate: number | null; 
+export interface HeroCoinProps {
+  crypto: CryptoData;
+  onAnalyze: (crypto: CryptoData) => void;
+  idrRate: number | null;
   currency: Currency;
 }
 
-export interface CryptoCardProps { 
-  crypto: CryptoData; 
-  onAnalyze: (crypto: CryptoData) => void; 
-  idrRate: number | null; 
+export interface CryptoCardProps {
+  crypto: CryptoData;
+  onAnalyze: (crypto: CryptoData) => void;
+  idrRate: number | null;
   currency: Currency;
 }
 
-export interface AnalysisModalProps { 
-  isOpen: boolean; 
-  onClose: () => void; 
-  crypto: CryptoData; 
-  analysisResult: AnalysisResult | null; 
-  isLoading: boolean; 
-  error: string | null; 
-  exchangeTickers: ExchangeTicker[]; 
-  isTickersLoading: boolean; 
-  tickersError: string | null; 
-  idrRate: number | null; 
+export interface AnalysisModalProps {
+  isOpen: boolean;
+  onClose: () => void;
+  crypto: CryptoData;
+  analysisResult: AnalysisResult | null;
+  isLoading: boolean;
+  error: string | null;
+  exchangeTickers: ExchangeTicker[];
+  isTickersLoading: boolean;
+  tickersError: string | null;
+  idrRate: number | null;
   currency: Currency;
 }
 
@@ -333,7 +352,9 @@ export interface AppState {
   roomUserCounts: RoomUserCounts;
   forumActiveUsers: number;
   userActivities: UserActivityData; // Ditambahkan untuk tracking user aktif per room
+  typingUsers: TypingUsersMap; // Tambahkan state untuk typing users
 }
+
 
 // --- Firebase Types ---
 export interface FirebaseMessageData {
@@ -376,6 +397,13 @@ export interface FirebaseUserActivityData {
   };
 }
 
+export interface FirebaseTypingStatusData {
+  [roomId: string]: {
+    [userId: string]: TypingStatus | null; // Null indicates stopped typing
+  };
+}
+
+
 // --- API Service Types ---
 export interface CacheItem {
   data: any;
@@ -414,7 +442,10 @@ export interface NavigationHandlers {
   onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void;
   onProfileComplete: (username: string, password: string) => Promise<string | void>;
   onUpdateUserActivity?: (roomId: string, userId: string, username: string) => void; // Ditambahkan
+  onStartTyping: () => void; // Tambahkan handler
+  onStopTyping: () => void; // Tambahkan handler
 }
+
 
 // --- Local Storage Types ---
 export interface LocalStorageData {
