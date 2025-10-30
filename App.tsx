@@ -154,7 +154,15 @@ const AppContent: React.FC = () => {
   const userSentMessagesRef = useRef<Set<string>>(new Set());
 
   // PERBAIKAN: State untuk melacak user yang sudah pernah join room (untuk mencegah double counting)
-  const [hasJoinedRoom, setHasJoinedRoom] = useState<{[roomId: string]: boolean}>({});
+  // --- PERBAIKAN DIMULAI: Load state `hasJoinedRoom` dari localStorage ---
+  const [hasJoinedRoom, setHasJoinedRoom] = useState<{[roomId: string]: boolean}>(() => {
+    const saved = localStorage.getItem('hasJoinedRoom');
+    if (saved) {
+      try { return JSON.parse(saved); } catch (e) { console.error('Gagal load hasJoinedRoom', e); }
+    }
+    return {};
+  });
+  // --- PERBAIKAN SELESAI ---
 
   // Initialize lastProcessedTimestampsRef
   useEffect(() => {
@@ -441,6 +449,12 @@ const AppContent: React.FC = () => {
   useEffect(() => { 
     localStorage.setItem('userLastVisit', JSON.stringify(userLastVisit)); 
   }, [userLastVisit]);
+  
+  // --- PERBAIKAN DIMULAI: Simpan state `hasJoinedRoom` ke localStorage ---
+  useEffect(() => {
+    try { localStorage.setItem('hasJoinedRoom', JSON.stringify(hasJoinedRoom)); } catch (e) { console.error('Gagal simpan hasJoinedRoom', e); }
+  }, [hasJoinedRoom]);
+  // --- PERBAIKAN SELESAI ---
   
   useEffect(() => {
     const lastReset = localStorage.getItem('lastAnalysisResetDate');
@@ -815,7 +829,9 @@ const AppContent: React.FC = () => {
     setCurrentRoom(room);
     
     // PERBAIKAN: Cek apakah user sudah pernah join room ini sebelumnya
+    // --- PERBAIKAN DIMULAI: `hasJoinedRoom` kini dibaca dari state yang persisten ---
     const isFirstTimeJoin = !hasJoinedRoom[room.id];
+    // --- PERBAIKAN SELESAI ---
     
     setJoinedRoomIds(prev => new Set(prev).add(room.id));
     setActivePage('forum');
@@ -824,7 +840,7 @@ const AppContent: React.FC = () => {
     if (!room.isDefaultRoom && isFirstTimeJoin) {
       updateRoomUserCount(room.id, true);
       // Tandai bahwa user sudah pernah join room ini
-      setHasJoinedRoom(prev => ({
+      setHasJoinedRoom(prev => ({ // <--- State ini sekarang akan disimpan ke localStorage oleh useEffect
         ...prev,
         [room.id]: true
       }));
@@ -842,7 +858,7 @@ const AppContent: React.FC = () => {
       ...prev,
       [room.id]: currentTime
     }));
-  }, [updateRoomUserCount, hasJoinedRoom]);
+  }, [updateRoomUserCount, hasJoinedRoom]); // <-- hasJoinedRoom (dari state) sudah benar sebagai dependensi
   
   // PERBAIKAN: handleLeaveRoom sekarang menggunakan leaveCurrentRoom yang konsisten
   const handleLeaveRoom = useCallback(() => { 
