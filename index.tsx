@@ -3,11 +3,11 @@ import ReactDOM from 'react-dom/client';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import App from './App';
 
-// --- TAMBAHAN KODE ---
 // Cek apakah variabel global dari Android ada
-// Kita tambahkan 'any' untuk mengakses window
 const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
-// -------------------
+
+// Cek apakah ada token Firebase dari Android
+const hasFirebaseToken = !!(window as any).FIREBASE_AUTH_TOKEN;
 
 const rootElement = document.getElementById('root');
 if (!rootElement) {
@@ -15,36 +15,70 @@ if (!rootElement) {
 }
 
 const googleClientId = process.env.GOOGLE_CLIENT_ID;
-const root = ReactDOM.createRoot(rootElement); // Buat root di sini
+const root = ReactDOM.createRoot(rootElement);
 
-if (!googleClientId) {
-  // Render pesan error jika Client ID tidak ada
+// --- LOGIKA BARU: Hanya izinkan akses jika dari aplikasi Android ---
+if (!isNativeApp && !hasFirebaseToken) {
+  // Jika bukan aplikasi native dan tidak ada token Firebase, tampilkan pesan akses ditolak
+  const AccessDenied = () => (
+    <div style={{ 
+      color: 'white', 
+      backgroundColor: '#0A0A0A', 
+      height: '100vh', 
+      display: 'flex', 
+      alignItems: 'center', 
+      justifyContent: 'center', 
+      padding: '20px', 
+      fontFamily: 'sans-serif' 
+    }}>
+      <div style={{ 
+        border: '1px solid #FF00FF', 
+        padding: '40px', 
+        borderRadius: '12px', 
+        textAlign: 'center', 
+        maxWidth: '500px',
+        background: 'rgba(0, 0, 0, 0.8)'
+      }}>
+        <div style={{ marginBottom: '20px' }}>
+          <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 22C17.5228 22 22 17.5228 22 12C22 6.47715 17.5228 2 12 2C6.47715 2 2 6.47715 2 12C2 17.5228 6.47715 22 12 22Z" stroke="#FF00FF" strokeWidth="2"/>
+            <path d="M12 8V12" stroke="#FF00FF" strokeWidth="2" strokeLinecap="round"/>
+            <path d="M12 16H12.01" stroke="#FF00FF" strokeWidth="2" strokeLinecap="round"/>
+          </svg>
+        </div>
+        <h1 style={{ color: '#FF00FF', fontSize: '28px', marginBottom: '16px' }}>Akses Dibatasi</h1>
+        <p style={{ marginBottom: '8px', lineHeight: '1.6', color: '#CCCCCC' }}>
+          Aplikasi ini hanya dapat diakses melalui <strong>Aplikasi Android RT Crypto</strong>.
+        </p>
+        <p style={{ lineHeight: '1.6', color: '#888888', fontSize: '14px' }}>
+          Silakan download aplikasi resmi dari Play Store untuk melanjutkan.
+        </p>
+      </div>
+    </div>
+  );
+  root.render(<AccessDenied />);
+} else if (!googleClientId) {
+  // Jika Client ID Google tidak ada (untuk fallback)
   const ErrorComponent = () => (
     <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}>
       <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}>
         <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Konfigurasi</h1>
         <p style={{ marginTop: '10px', lineHeight: '1.6' }}>
-            Variabel lingkungan <strong>GOOGLE_CLIENT_ID</strong> tidak ditemukan.
-            Harap konfigurasikan variabel ini di pengaturan situs Netlify Anda atau di dalam file <code>.env</code> lokal Anda untuk mengaktifkan login Google.
+          Variabel lingkungan <strong>GOOGLE_CLIENT_ID</strong> tidak ditemukan.
         </p>
       </div>
     </div>
   );
-  root.render(<ErrorComponent />); // Render komponen error
-  console.error("GOOGLE_CLIENT_ID is not defined...");
-  // Hentikan eksekusi lebih lanjut jika perlu
-  // throw new Error("GOOGLE_CLIENT_ID is not defined.");
+  root.render(<ErrorComponent />);
 } else {
-  // --- PERUBAHAN LOGIKA DI SINI ---
-  // Tentukan apa yang akan di-render berdasarkan Jembatan
+  // Jika dari aplikasi Android atau memiliki token Firebase, render aplikasi normal
   const AppRoot = (
     <React.StrictMode>
       {isNativeApp ? (
         // Jika di app native, JANGAN render GoogleOAuthProvider
-        // Library Firebase (onAuthStateChanged) akan tetap berfungsi
         <App />
       ) : (
-        // Jika di browser web biasa, render seperti biasa
+        // Jika di web dengan token Firebase, gunakan GoogleOAuthProvider sebagai fallback
         <GoogleOAuthProvider clientId={googleClientId as string}>
           <App />
         </GoogleOAuthProvider>
@@ -52,6 +86,5 @@ if (!googleClientId) {
     </React.StrictMode>
   );
   
-  root.render(AppRoot); // Render AppRoot yang sudah benar
-  // ------------------------------
+  root.render(AppRoot);
 }

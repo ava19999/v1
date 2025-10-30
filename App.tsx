@@ -8,6 +8,7 @@ import {
   signOut,
   GoogleAuthProvider,
   signInWithCredential,
+  signInWithCustomToken,
   User as FirebaseUser
 } from 'firebase/auth';
 
@@ -50,6 +51,19 @@ import {
 import { ADMIN_USERNAMES } from './components/UserTag';
 import { database, getDatabaseInstance, testDatabaseConnection } from './services/firebaseService';
 import { ref, set, push, onValue, off, update, get, Database, remove, onDisconnect } from 'firebase/database';
+
+// Interface untuk Android Bridge
+interface AndroidBridge {
+  getAuthToken: () => string;
+}
+
+declare global {
+  interface Window {
+    Android?: AndroidBridge;
+    FIREBASE_AUTH_TOKEN?: string;
+    IS_NATIVE_ANDROID_APP?: boolean;
+  }
+}
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 const TYPING_TIMEOUT = 5000; // 5 detik
@@ -140,7 +154,7 @@ const AppContent: React.FC = () => {
     }
     return new Set(DEFAULT_ROOM_IDS);
   });
-  const [unreadCounts, setUnreadCounts] = useState<{ [key: string]: number }>({});
+  const [unreadCounts, setUnreadCounts] = useState<{ [roomId: string]: number }>({});
   const [firebaseMessages, setFirebaseMessages] = useState<{ [roomId: string]: ForumMessageItem[] }>({});
   const [lastMessageTimestamps, setLastMessageTimestamps] = useState<{ [roomId: string]: number }>({});
   const [userLastVisit, setUserLastVisit] = useState<{ [roomId: string]: number }>({});
@@ -171,6 +185,63 @@ const AppContent: React.FC = () => {
       lastProcessedTimestampsRef.current = {};
     }
   }, []);
+
+  // Effect untuk menangani autentikasi dari Android
+  useEffect(() => {
+    const handleAndroidAuthentication = async () => {
+      try {
+        // Cek apakah ada token Firebase dari Android
+        let firebaseToken: string | null = null;
+        
+        if (window.Android) {
+          // Jika ada Android bridge, ambil token
+          firebaseToken = window.Android.getAuthToken();
+          console.log('Mendapatkan token dari Android bridge');
+        } else if (window.FIREBASE_AUTH_TOKEN) {
+          // Jika token sudah diset di window object
+          firebaseToken = window.FIREBASE_AUTH_TOKEN;
+          console.log('Mendapatkan token dari window.FIREBASE_AUTH_TOKEN');
+        }
+
+        if (firebaseToken && !firebaseUser && !currentUser) {
+          console.log('Menerima token Firebase dari Android:', firebaseToken.substring(0, 20) + '...');
+          
+          const auth = getAuth();
+          
+          // Sign in dengan custom token
+          const userCredential = await signInWithCustomToken(auth, firebaseToken);
+          const user = userCredential.user;
+          
+          console.log('Berhasil login dengan token Android:', user.email);
+          
+          // Set user state
+          setFirebaseUser(user);
+          
+          // Cari atau buat user di local storage
+          const existingAppUser = Object.values(users).find(u => u.email === user.email);
+          if (existingAppUser) {
+            setCurrentUser(existingAppUser);
+          } else if (user.email) {
+            // Buat user baru dari data Firebase
+            const newUser: User = {
+              email: user.email,
+              username: user.displayName || user.email.split('@')[0],
+              googleProfilePicture: user.photoURL || undefined,
+              createdAt: Date.now()
+            };
+            
+            setUsers(prev => ({ ...prev, [newUser.email]: newUser }));
+            setCurrentUser(newUser);
+          }
+        }
+      } catch (error) {
+        console.error('Error dalam autentikasi Android:', error);
+        setAuthError('Gagal melakukan autentikasi dari aplikasi Android');
+      }
+    };
+
+    handleAndroidAuthentication();
+  }, [firebaseUser, currentUser, users]);
 
   useEffect(() => {
     if (!database) {
@@ -1277,7 +1348,6 @@ const AppContent: React.FC = () => {
           onLeaveRoom={handleLeaveRoom} 
           onReact={handleReaction} 
           onDeleteMessage={handleDeleteMessage} 
-          // forumActiveUsers={forumActiveUsers} // <-- DIHAPUS
           typingUsers={currentTypingUsers} 
           onStartTyping={handleStartTyping} 
           onStopTyping={handleStopTyping} 
