@@ -1,6 +1,7 @@
 // components/ForumPage.tsx
 import React, { useState, useEffect, useRef, useMemo, useCallback } from 'react';
 import UserTag, { ADMIN_USERNAMES, getTagInfo } from './UserTag';
+// Hapus forumActiveUsers dari props
 import type { NewsArticle, ChatMessage, ForumPageProps, User, TypingStatus } from '../types';
 import { isNewsArticle, isChatMessage } from '../types';
 
@@ -218,29 +219,26 @@ const TypingIndicator: React.FC<{ typingUsers: TypingStatus[] }> = ({ typingUser
           {index < typingUsers.length - 1 && <span className="text-gray-500">,</span>}
         </React.Fragment>
       ))}
-      {/* Teks "mengetik" */}
       <span className="ml-1">mengetik</span>
-      {/* Animasi titik-titik setelah "mengetik" */}
-      <span className="animate-typing-dots inline-block w-4 overflow-hidden align-bottom ml-0.5"> {/* Tambahkan ml-0.5 */}
+      <span className="animate-typing-dots inline-block w-4 overflow-hidden align-bottom ml-0.5">
         <span className="dot1">.</span><span className="dot2">.</span><span className="dot3">.</span>
       </span>
-      {/* CSS untuk animasi titik-titik (letakkan di <style> utama atau file CSS) */}
-      {/* Pastikan <style> di bawah masih ada */}
     </div>
   );
 };
 
 
-interface ExtendedForumPageProps extends ForumPageProps {
-  forumActiveUsers?: number;
-}
+// Hapus ExtendedForumPageProps
+// interface ExtendedForumPageProps extends ForumPageProps {
+//   forumActiveUsers?: number;
+// }
 
 /* ------------------------- ForumPage Component Utama ------------------------- */
-const ForumPage: React.FC<ExtendedForumPageProps> = ({
-  room, messages = [], userProfile, onSendMessage, onLeaveRoom, onReact, onDeleteMessage, forumActiveUsers = 650,
+// Gunakan ForumPageProps langsung dan hapus forumActiveUsers
+const ForumPage: React.FC<ForumPageProps> = ({
+  room, messages = [], userProfile, onSendMessage, onLeaveRoom, onReact, onDeleteMessage,
   typingUsers, onStartTyping, onStopTyping
 }) => {
-  // ... (state dan refs lainnya tetap sama) ...
   const [newMessage, setNewMessage] = useState('');
   const [attachment, setAttachment] = useState<{ dataUrl: string; name: string } | null>(null);
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -255,9 +253,9 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
   const canSendMessages = !isDefaultRoom || (isAnnouncementRoom && isAdmin);
   const lastTypingCallRef = useRef<number>(0);
 
-  // ... (handlers lainnya tetap sama) ...
   const onImageClick = (url: string) => setPreviewImage(url);
-  const handleMessageClick = (messageId: string) => { /* ... (sama) ... */
+
+  const handleMessageClick = (messageId: string) => {
      setActiveMessageId((currentId) => {
       const isCurrentlyActive = currentId === messageId;
       const nextActiveId = isCurrentlyActive ? null : messageId;
@@ -265,45 +263,46 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
       return nextActiveId;
     });
   };
-  const handleReactButtonClick = (e: React.MouseEvent, messageId: string) => { /* ... (sama) ... */
+  const handleReactButtonClick = (e: React.MouseEvent, messageId: string) => {
      e.stopPropagation(); setShowPickerForMsgId(messageId); if (activeMessageId !== messageId) setActiveMessageId(messageId);
    };
-  const handleChatAreaClick = (e: React.MouseEvent<HTMLDivElement>) => { /* ... (sama) ... */
+  const handleChatAreaClick = (e: React.MouseEvent<HTMLDivElement>) => {
      const targetElement = e.target as Element;
     if (!targetElement.closest('[data-message-interactive="true"]')) { if (activeMessageId !== null) setActiveMessageId(null); if (showPickerForMsgId !== null) setShowPickerForMsgId(null); }
   };
-  const filteredMessages = useMemo(() => { /* ... (sama) ... */
+
+  const filteredMessages = useMemo(() => {
     if (!messages || !Array.isArray(messages)) return []; const seenMessageIds = new Set();
     return messages.filter(message => { if (seenMessageIds.has(message.id)) return false; seenMessageIds.add(message.id); return true; });
   }, [messages]);
   const safeMessages = Array.isArray(filteredMessages) ? filteredMessages : [];
-  const sortedMessages = useMemo(() => [...safeMessages].sort((a, b) => { /* ... (sama) ... */
+  const sortedMessages = useMemo(() => [...safeMessages].sort((a, b) => {
      const timeA = isNewsArticle(a) ? a.published_on * 1000 : isChatMessage(a) ? a.timestamp : 0; const timeB = isNewsArticle(b) ? b.published_on * 1000 : isChatMessage(b) ? b.timestamp : 0;
     if (!timeA && !timeB) return 0; if (!timeA) return 1; if (!timeB) return -1; return timeA - timeB;
   }), [safeMessages]);
+
   useEffect(() => { if (activeMessageId === null && chatEndRef.current) chatEndRef.current.scrollIntoView({ behavior: 'smooth', block: 'end' }); }, [sortedMessages, activeMessageId]);
-  const handleSendMessageSubmit = (e: React.FormEvent<HTMLFormElement>) => { /* ... (sama + onStopTyping) ... */
+
+  const handleSendMessageSubmit = (e: React.FormEvent<HTMLFormElement>) => {
      e.preventDefault(); if (!canSendMessages) { alert('Hanya admin yang dapat mengirim pesan di room Pengumuman & Aturan.'); return; }
     const currentMessageText = newMessage.trim(); const currentAttachment = attachment; if ((!currentMessageText && !currentAttachment) || !username) return;
     const messageData: Partial<ChatMessage> & { type: 'user'; sender: string; timestamp: number; userCreationDate: number } = { type: 'user', sender: username, timestamp: Date.now(), reactions: {}, userCreationDate: userProfile?.createdAt || Date.now(), ...(currentMessageText && { text: currentMessageText }), ...(currentAttachment && { fileURL: currentAttachment.dataUrl, fileName: currentAttachment.name }) };
     onSendMessage(messageData);
-    onStopTyping(); // Panggil onStopTyping saat pesan dikirim
+    onStopTyping();
     setNewMessage(''); setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = '';
    };
-  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => { /* ... (sama + onStartTyping) ... */
+  const handleInputChange = useCallback((e: React.ChangeEvent<HTMLInputElement>) => {
      setNewMessage(e.target.value);
     const now = Date.now();
-    // Throttle: Panggil onStartTyping hanya jika sudah lewat TYPING_INDICATOR_TIMEOUT ms
     if (now - lastTypingCallRef.current > TYPING_INDICATOR_TIMEOUT) {
       onStartTyping();
       lastTypingCallRef.current = now;
     }
    }, [onStartTyping]);
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { /* ... (sama) ... */
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
      if (!canSendMessages) { alert('Hanya admin yang dapat mengirim pesan di room Pengumuman & Aturan.'); return; }
     const file = e.target.files?.[0]; if (file && file.type.startsWith('image/')) { const reader = new FileReader(); reader.onloadend = () => { if (reader.result) setAttachment({ dataUrl: reader.result as string, name: file.name }); }; reader.readAsDataURL(file); } else setAttachment(null);
   };
-
 
   if (!room) return <div className="flex flex-col flex-grow items-center justify-center text-gray-500">Pilih room untuk memulai.</div>;
   const isSendDisabled = (!newMessage.trim() && !attachment) || !username || !canSendMessages;
@@ -313,17 +312,24 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
       <div className="bg-gray-900 border border-white/10 rounded-xl flex flex-col flex-grow overflow-hidden h-full">
         {/* Header Room */}
         <div className="flex-shrink-0 p-2 border-b border-white/10 bg-gray-900">
-           {/* ... (Konten header room tetap sama) ... */}
-           <div className="flex items-center justify-between gap-2 mb-1">
-            <div className={`flex items-center gap-1 ${isDefaultRoom ? 'invisible' : ''}`}> <div className="relative flex h-1.5 w-1.5"> <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-lime opacity-75"></span> <span className="relative inline-flex rounded-full h-1.5 w-1.5 bg-lime"></span> </div> <p className="text-xs font-semibold"> <span className="text-white">{forumActiveUsers.toLocaleString('id-ID')}</span> <span className="text-gray-400 ml-1">Online</span> </p> </div>
-            {isAnnouncementRoom && isAdmin && (<div className="bg-yellow-400/20 text-yellow-400 text-[10px] px-2 py-0.5 rounded-full font-semibold"> Admin Mode </div>)}
-          </div>
+          
+          {/* --- BLOK USER ONLINE DIHAPUS --- */}
+          {/* <div className="flex items-center justify-between gap-2 mb-1"> ... </div> */}
+
+          {/* --- Tampilkan Admin Mode badge jika diperlukan --- */}
+          {isAnnouncementRoom && isAdmin && (
+            <div className="flex items-center justify-end gap-2 mb-1">
+              <div className="bg-yellow-400/20 text-yellow-400 text-[10px] px-2 py-0.5 rounded-full font-semibold">
+                Admin Mode
+              </div>
+            </div>
+          )}
+          
           <div> <h1 className="text-lg font-black tracking-tight bg-gradient-to-r from-electric to-magenta text-transparent bg-clip-text truncate font-heading"> {room.name} </h1> <p className="text-yellow-400 text-[9px] mt-0.5 break-words leading-tight"> ⚠️ Penting Gengs: Jangan ngajak beli suatu koin ygy! Analisis & obrolan di sini cuma buat nambah wawasan, bukan suruhan beli. Market kripto itu ganas 📈📉, risikonya gede. Wajib DYOR (Do Your Own Research) & tanggung jawab sendiri ya! Jangan nelen info bulet-bulet 🙅‍♂️. </p> {isAnnouncementRoom && (<p className="text-electric text-[9px] mt-1 break-words leading-tight"> 🔐 <strong>Room Khusus Admin:</strong> Hanya admin yang dapat mengirim pesan di room ini. </p>)} </div>
         </div>
 
         {/* Area Pesan */}
         <div className="flex-grow overflow-y-auto p-1 custom-scrollbar" onClick={handleChatAreaClick}>
-           {/* ... (Render pesan tetap sama) ... */}
            {sortedMessages.length === 0 ? (<div className="flex items-center justify-center h-full text-gray-500"> <p className="text-sm">Belum ada pesan.</p> </div>) : (sortedMessages.map((item, index) => {
             const isActive = activeMessageId === item.id; const messageKey = item.id || `fallback-${item.type}-${index}`; const showActions = isActive;
             if (isChatMessage(item)) {
@@ -343,14 +349,13 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
 
         {/* Input Area */}
         <div className="p-1.5 bg-gray-900/80 border-t border-white/10 flex-shrink-0">
-          {/* ... (Input form tetap sama) ... */}
            {room.id === 'berita-kripto' ? (<div className="text-center text-xs text-gray-500 py-1 flex items-center justify-center gap-1"> <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /> </svg> Room ini hanya untuk membaca. </div>)
            : isAnnouncementRoom && !isAdmin ? (<div className="text-center text-xs text-gray-500 py-1 flex items-center justify-center gap-1"> <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}> <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" /> </svg> Hanya admin yang dapat mengirim pesan di room ini. </div>)
            : (<div className="space-y-1"> {attachment && (<div className="relative inline-block"> <img src={attachment.dataUrl} alt="Pratinjau" className="max-h-16 rounded-lg" /> <button onClick={() => { setAttachment(null); if (fileInputRef.current) fileInputRef.current.value = ''; }} className="absolute -top-1 -right-1 bg-red-500 text-white rounded-full h-4 w-4 flex items-center justify-center text-[10px] font-bold hover:bg-red-700 transition-colors" title="Hapus lampiran"> × </button> </div>)}
               <form onSubmit={handleSendMessageSubmit} className="flex items-center space-x-1"> <input type="file" ref={fileInputRef} onChange={handleFileChange} accept="image/*" className="hidden" /> <button type="button" onClick={() => { if (!canSendMessages) { alert('Hanya admin yang dapat mengirim pesan di room Pengumuman & Aturan.'); return; } fileInputRef.current?.click(); }} className="text-gray-400 hover:text-electric p-1 rounded-full transition-colors flex-shrink-0" title="Lampirkan gambar" disabled={!canSendMessages}> <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" /> </svg> </button>
                 <div className="relative flex-1">
                   <input type="text" value={newMessage}
-                    onChange={handleInputChange} // Gunakan handler baru
+                    onChange={handleInputChange}
                     placeholder={canSendMessages ? "Ketik pesan Anda..." : "Hanya admin yang dapat mengirim pesan..."}
                     className="w-full bg-gray-800 border border-gray-700 rounded-full py-1.5 pl-3 pr-8 text-xs text-white placeholder-gray-500 focus:outline-none focus:ring-1 focus:ring-electric transition-all"
                     disabled={!username || !canSendMessages} />
@@ -365,34 +370,19 @@ const ForumPage: React.FC<ExtendedForumPageProps> = ({
         <div className="p-2 bg-gray-900/80 border-t border-white/10 flex-shrink-0"> <button onClick={onLeaveRoom} className="flex items-center justify-center gap-2 text-gray-300 hover:text-electric transition-colors text-sm font-medium w-full py-2 rounded-lg bg-gray-800/50 hover:bg-gray-800/70"> <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor"> <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" /> </svg> Kembali </button> </div>
       </div>
 
-      {/* ... (Reaction Picker dan Image Preview tetap sama) ... */}
-       {showPickerForMsgId && (<ReactionPicker onSelect={(emoji) => { onReact(showPickerForMsgId, emoji); setShowPickerForMsgId(null); }} onClose={() => setShowPickerForMsgId(null)} />)}
+      {showPickerForMsgId && (<ReactionPicker onSelect={(emoji) => { onReact(showPickerForMsgId, emoji); setShowPickerForMsgId(null); }} onClose={() => setShowPickerForMsgId(null)} />)}
       {previewImage && (<div className="fixed inset-0 bg-black/80 flex items-center justify-center z-50" onClick={() => setPreviewImage(null)} data-message-interactive="true"> <img src={previewImage} alt="Preview" className="max-h-[90%] max-w-[90%] rounded-lg shadow-2xl" /> </div>)}
 
-
       <style>{`
-        /* ... (styles lain tetap sama) ... */
         .z-10 { z-index: 10; } .z-20 { z-index: 20; } .z-50 { z-index: 50; }
         @keyframes fade-in-fast { from { opacity: 0; transform: scale(0.95); } to { opacity: 1; transform: scale(1); } } .animate-fade-in-fast { animation: fade-in-fast 0.15s ease-out forwards; }
         .custom-scrollbar::-webkit-scrollbar { width: 3px; height: 3px; } .custom-scrollbar::-webkit-scrollbar-track { background: transparent; } .custom-scrollbar::-webkit-scrollbar-thumb { background: rgba(255, 255, 255, 0.2); border-radius: 1.5px; } .custom-scrollbar::-webkit-scrollbar-thumb:hover { background: rgba(0, 191, 255, 0.5); } .custom-scrollbar { scrollbar-width: thin; scrollbar-color: rgba(255, 255, 255, 0.2) transparent; }
         @keyframes fade-in { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } } @keyframes fade-in-up { from { opacity: 0; transform: translateY(15px); } to { opacity: 1; transform: translateY(0); } } .animate-fade-in { animation: fade-in 0.5s ease-out forwards; } .animate-fade-in-up { animation: fade-in-up 0.4s ease-out forwards; }
         @keyframes pulse-notification { 0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(255, 0, 255, 0.7); } 50% { transform: scale(1.05); box-shadow: 0 0 0 5px rgba(255, 0, 255, 0); } } .animate-pulse-notification { animation: pulse-notification 1.5s infinite; }
-
-        /* --- Tambahkan animasi titik-titik --- */
-        @keyframes typing-dots-blink {
-          0% { opacity: .2; }
-          20% { opacity: 1; }
-          100% { opacity: .2; }
-        }
-        .animate-typing-dots span {
-          animation-name: typing-dots-blink;
-          animation-duration: 1.4s;
-          animation-iteration-count: infinite;
-          animation-fill-mode: both;
-        }
+        @keyframes typing-dots-blink { 0% { opacity: .2; } 20% { opacity: 1; } 100% { opacity: .2; } }
+        .animate-typing-dots span { animation-name: typing-dots-blink; animation-duration: 1.4s; animation-iteration-count: infinite; animation-fill-mode: both; }
         .animate-typing-dots .dot2 { animation-delay: .2s; }
         .animate-typing-dots .dot3 { animation-delay: .4s; }
-
       `}</style>
     </div>
   );

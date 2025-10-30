@@ -178,7 +178,7 @@ export interface ForumPageProps {
   onLeaveRoom: () => void;
   onReact: (messageId: string, emoji: string) => void;
   onDeleteMessage: (roomId: string, messageId: string) => void;
-  forumActiveUsers?: number;
+  // forumActiveUsers?: number; // <-- DIHAPUS
   // Tambahkan props untuk typing indicator
   typingUsers: TypingStatus[];
   onStartTyping: () => void;
@@ -350,7 +350,7 @@ export interface AppState {
   newsArticles: NewsArticle[];
   notificationSettings: NotificationSettings;
   roomUserCounts: RoomUserCounts;
-  forumActiveUsers: number;
+  // forumActiveUsers: number; // <-- DIHAPUS
   userActivities: UserActivityData; // Ditambahkan untuk tracking user aktif per room
   typingUsers: TypingUsersMap; // Tambahkan state untuk typing users
 }
@@ -542,7 +542,7 @@ export interface RoomListDisplay {
 
 // --- Extended ForumPageProps untuk menerima forumActiveUsers ---
 export interface ExtendedForumPageProps extends ForumPageProps {
-  forumActiveUsers?: number;
+  // forumActiveUsers?: number; // <-- DIHAPUS
 }
 
 // --- User Count Display Configuration ---
