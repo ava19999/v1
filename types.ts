@@ -354,7 +354,7 @@ export interface AppState {
   roomUserCounts: RoomUserCounts;
   userActivities: UserActivityData;
   typingUsers: TypingUsersMap;
-  nativeAppConfig: NativeAppConfig;
+  nativeAppConfig: NativeAppConfig; // ← TAMBAHAN INI
 }
 
 // --- Firebase Types ---

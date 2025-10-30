@@ -1,11 +1,21 @@
 // LoginPage.tsx
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
 import type { LoginPageProps } from '../types';
 
 const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess }) => {
     const [error, setError] = useState('');
     const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
+
+    // Debug info untuk native app
+    useEffect(() => {
+        if (isNativeApp) {
+            console.log('🔧 LoginPage: Native app detected');
+            const urlParams = new URLSearchParams(window.location.search);
+            const authToken = urlParams.get('authToken');
+            console.log('🔧 LoginPage: Token in URL:', authToken ? '✓ Present' : '✗ Missing');
+        }
+    }, [isNativeApp]);
 
     return (
         <div className="min-h-screen bg-transparent text-white font-sans flex flex-col items-center justify-center p-4">
@@ -26,11 +36,17 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess }) => {
                     Masuk atau daftar untuk bergabung dengan komunitas pejuang cuan.
                 </p>
 
-                {/* Untuk Native App: Tampilkan pesan sedang login */}
+                {/* Untuk Native App: Tampilkan status login */}
                 {isNativeApp ? (
                     <div className="text-center">
                         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-electric mx-auto mb-4"></div>
                         <p className="text-electric">Login melalui aplikasi native...</p>
+                        <p className="text-sm text-gray-400 mt-2">
+                            Memproses autentikasi Google
+                        </p>
+                        <div className="mt-4 p-3 bg-white/5 rounded-lg">
+                            <p className="text-xs text-gray-400">Status: Menunggu token...</p>
+                        </div>
                     </div>
                 ) : (
                     /* Untuk Web: Tampilkan tombol Google Login */
