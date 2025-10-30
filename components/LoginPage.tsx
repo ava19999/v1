@@ -1,27 +1,11 @@
-// LoginPage.tsx
-import React, { useState, useEffect } from 'react';
+// components/LoginPage.tsx
+import React, { useState } from 'react';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
-import type { LoginPageProps } from '../types';
-import { AndroidBridgeService } from '../services/androidBridgeService';
+import type { LoginPageProps } from '../types'; // Pastikan tipe ini sudah diupdate
 
 const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess }) => {
+    // State error hanya untuk Google Login
     const [error, setError] = useState('');
-    const bridgeService = AndroidBridgeService.getInstance();
-    const isNativeApp = bridgeService.isNativeAndroidApp();
-    const hasAndroidBridge = bridgeService.isAndroidBridgeAvailable();
-    const [bridgeStatus, setBridgeStatus] = useState<any>(null);
-    const [authStatus, setAuthStatus] = useState<'idle' | 'checking' | 'success' | 'failed'>('idle');
-
-    useEffect(() => {
-        const status = bridgeService.getBridgeStatus();
-        setBridgeStatus(status);
-        
-        if (isNativeApp) {
-            console.log('🔧 LoginPage: Native app detected', status);
-            console.log('🔧 LoginPage: Authentication should be handled by AppContent');
-            setAuthStatus('checking');
-        }
-    }, [isNativeApp]);
 
     return (
         <div className="min-h-screen bg-transparent text-white font-sans flex flex-col items-center justify-center p-4">
@@ -42,93 +26,24 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess }) => {
                     Masuk atau daftar untuk bergabung dengan komunitas pejuang cuan.
                 </p>
 
-                {/* Untuk Native App */}
-                {isNativeApp ? (
-                    <div className="text-center">
-                        <div className="bg-electric/20 rounded-full h-16 w-16 mx-auto mb-4 flex items-center justify-center">
-                            {hasAndroidBridge ? (
-                                <>
-                                    {authStatus === 'checking' && (
-                                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-electric"></div>
-                                    )}
-                                    {authStatus === 'success' && (
-                                        <svg className="h-8 w-8 text-electric" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
-                                        </svg>
-                                    )}
-                                    {authStatus === 'failed' && (
-                                        <svg className="h-8 w-8 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                        </svg>
-                                    )}
-                                </>
-                            ) : (
-                                <svg className="h-8 w-8 text-yellow-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-2.5L13.732 4c-.77-.833-1.964-.833-2.732 0L4.082 16.5c-.77.833.192 2.5 1.732 2.5z" />
-                                </svg>
-                            )}
-                        </div>
-                        
-                        <p className={`font-semibold ${
-                            hasAndroidBridge 
-                                ? (authStatus === 'success' ? 'text-electric' : authStatus === 'failed' ? 'text-yellow-500' : 'text-electric')
-                                : 'text-yellow-500'
-                        }`}>
-                            {hasAndroidBridge 
-                                ? (authStatus === 'success' ? 'Autentikasi Berhasil' : authStatus === 'failed' ? 'Mencoba Metode Lain...' : 'Autentikasi Android...')
-                                : 'Bridge Tidak Tersedia'
-                            }
-                        </p>
-                        
-                        <p className="text-sm text-gray-400 mt-2">
-                            {hasAndroidBridge 
-                                ? (authStatus === 'failed' ? 'Menggunakan fallback authentication...' : 'Memproses token autentikasi...')
-                                : 'Jembatan Android tidak tersedia. Pastikan aplikasi di-build dengan benar.'
-                            }
-                        </p>
-                        
-                        <div className="mt-4 p-3 bg-white/5 rounded-lg text-left">
-                            <p className="text-xs text-gray-400">
-                                <strong>Status Bridge:</strong> {hasAndroidBridge ? '✅ Tersedia' : '❌ Tidak Tersedia'}
-                            </p>
-                            <p className="text-xs text-gray-400 mt-1">
-                                <strong>Status Auth:</strong> {authStatus}
-                            </p>
-                            {error && (
-                                <p className="text-xs text-red-400 mt-1">
-                                    <strong>Error:</strong> {error}
-                                </p>
-                            )}
-                            {bridgeStatus?.bridgeMethods && (
-                                <>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                        <strong>getAuthToken:</strong> {bridgeStatus.bridgeMethods.getAuthToken ? '✅' : '❌'}
-                                    </p>
-                                    <p className="text-xs text-gray-400 mt-1">
-                                        <strong>showToast:</strong> {bridgeStatus.bridgeMethods.showToast ? '✅' : '❌'}
-                                    </p>
-                                </>
-                            )}
-                        </div>
-                    </div>
-                ) : (
-                    /* Untuk Web: Tampilkan tombol Google Login */
-                    <div className="flex flex-col items-center">
-                        <GoogleLogin
-                            onSuccess={onGoogleRegisterSuccess}
-                            onError={() => {
-                                console.error('Login Google Gagal');
-                                setError('Gagal masuk dengan Google. Silakan coba lagi.');
-                            }}
-                            theme="outline"
-                            text="signup_with"
-                            shape="pill"
-                            width="320px"
-                        />
-                        {error && <p className="text-magenta text-sm text-center mt-4">{error}</p>}
-                    </div>
-                )}
+                {/* Tombol Google Login */}
+                <div className="flex flex-col items-center">
+                   <GoogleLogin
+                        onSuccess={onGoogleRegisterSuccess}
+                        onError={() => {
+                            console.error('Login Google Gagal');
+                            setError('Gagal masuk dengan Google. Silakan coba lagi.');
+                        }}
+                        theme="outline"
+                        text="signup_with" // Atau "signin_with" jika lebih sesuai
+                        shape="pill"
+                        width="320px" // Lebar konsisten
+                    />
+                    {/* Tampilkan error Google Login jika ada */}
+                    {error && <p className="text-magenta text-sm text-center mt-4">{error}</p>}
+                </div>
             </div>
+            {/* Animasi */}
             <style>{`
                 @keyframes fade-in-up {
                     from { opacity: 0; transform: translateY(20px); }
