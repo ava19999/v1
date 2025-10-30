@@ -3,6 +3,12 @@ import ReactDOM from 'react-dom/client';
 import { GoogleOAuthProvider } from '@react-oauth/google';
 import App from './App';
 
+// --- TAMBAHAN KODE ---
+// Cek apakah variabel global dari Android ada
+// Kita tambahkan 'any' untuk mengakses window
+const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
+// -------------------
+
 const rootElement = document.getElementById('root');
 if (!rootElement) {
   throw new Error("Could not find root element to mount to");
@@ -29,13 +35,24 @@ if (!googleClientId) {
   // Hentikan eksekusi lebih lanjut jika perlu
   // throw new Error("GOOGLE_CLIENT_ID is not defined.");
 } else {
-  // Render aplikasi utama HANYA jika googleClientId ada
-  root.render(
+  // --- PERUBAHAN LOGIKA DI SINI ---
+  // Tentukan apa yang akan di-render berdasarkan Jembatan
+  const AppRoot = (
     <React.StrictMode>
-      {/* Type assertion 'as string' memastikan tipe data benar */}
-      <GoogleOAuthProvider clientId={googleClientId as string}>
+      {isNativeApp ? (
+        // Jika di app native, JANGAN render GoogleOAuthProvider
+        // Library Firebase (onAuthStateChanged) akan tetap berfungsi
         <App />
-      </GoogleOAuthProvider>
+      ) : (
+        // Jika di browser web biasa, render seperti biasa
+        <GoogleOAuthProvider clientId={googleClientId as string}>
+          <App />
+        </GoogleOAuthProvider>
+      )}
     </React.StrictMode>
   );
+  
+  root.render(AppRoot); // Render AppRoot yang sudah benar
+  // ------------------------------
 }
+
