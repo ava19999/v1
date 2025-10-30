@@ -2,17 +2,18 @@
 import { initializeApp, FirebaseApp, FirebaseOptions } from "firebase/app";
 import { getDatabase, Database, ref, onValue } from "firebase/database";
 
-// Konfigurasi Firebase
+// Konfigurasi Firebase - Gunakan nilai langsung sebagai fallback
 const getFirebaseConfig = (): FirebaseOptions => {
+  // Prioritaskan environment variables, fallback ke nilai hardcoded untuk development
   const config = {
-    apiKey: process.env.FIREBASE_API_KEY,
-    authDomain: process.env.FIREBASE_AUTH_DOMAIN,
-    databaseURL: process.env.FIREBASE_DATABASE_URL,
-    projectId: process.env.FIREBASE_PROJECT_ID,
-    storageBucket: process.env.FIREBASE_STORAGE_BUCKET,
-    messagingSenderId: process.env.FIREBASE_MESSAGING_SENDER_ID,
-    appId: process.env.FIREBASE_APP_ID,
-    measurementId: process.env.FIREBASE_MEASUREMENT_ID,
+    apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "AIzaSyBrGnNNElUWMCodGOXClccoWPqNJdbgwNE",
+    authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "gen-lang-client-0496903959.firebaseapp.com",
+    databaseURL: process.env.REACT_APP_FIREBASE_DATABASE_URL || "https://gen-lang-client-0496903959-default-rtdb.asia-southeast1.firebasedatabase.app",
+    projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "gen-lang-client-0496903959",
+    storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "gen-lang-client-0496903959.firebasestorage.app",
+    messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "717915454389",
+    appId: process.env.REACT_APP_FIREBASE_APP_ID || "1:717915454389:web:c07f680547fcc1a7f777fc",
+    measurementId: process.env.REACT_APP_FIREBASE_MEASUREMENT_ID || "G-8EFFZB2GSF",
   };
 
   // Debug logging untuk membantu troubleshooting
@@ -20,7 +21,8 @@ const getFirebaseConfig = (): FirebaseOptions => {
     hasApiKey: !!config.apiKey,
     hasDatabaseURL: !!config.databaseURL,
     hasProjectId: !!config.projectId,
-    databaseURL: config.databaseURL ? '***' + config.databaseURL.slice(-20) : 'missing'
+    usingEnvVars: !!(process.env.REACT_APP_FIREBASE_API_KEY),
+    usingHardcoded: !!(config.apiKey && !process.env.REACT_APP_FIREBASE_API_KEY)
   });
 
   return config;
@@ -35,7 +37,7 @@ export const getFirebaseApp = (): FirebaseApp | null => {
   try {
     const firebaseConfig = getFirebaseConfig();
 
-    // Validasi konfigurasi yang lebih ketat
+    // Validasi konfigurasi
     const requiredConfigs = [
       { key: 'apiKey', value: firebaseConfig.apiKey },
       { key: 'databaseURL', value: firebaseConfig.databaseURL },
@@ -47,17 +49,33 @@ export const getFirebaseApp = (): FirebaseApp | null => {
     if (missingConfigs.length > 0) {
       const missingKeys = missingConfigs.map(config => config.key).join(', ');
       console.error('❌ Konfigurasi Firebase tidak lengkap. Missing:', missingKeys);
+      
+      // Untuk native app, kita masih bisa lanjut tanpa Firebase
+      const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
+      if (isNativeApp) {
+        console.warn('⚠️ Native app detected, continuing without Firebase');
+        return null;
+      }
+      
       throw new Error(`Konfigurasi Firebase tidak lengkap! Missing: ${missingKeys}`);
     }
 
     // Inisialisasi Firebase
     app = initializeApp(firebaseConfig);
-    console.log("✅ Firebase initialized successfully.");
+    console.log("✅ Firebase initialized successfully with project:", firebaseConfig.projectId);
     
     return app;
   } catch (error) {
     console.error("❌ Gagal menginisialisasi Firebase:", error);
-    return null;
+    
+    // Untuk native app, jangan throw error, biarkan continue tanpa Firebase
+    const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
+    if (isNativeApp) {
+      console.warn('⚠️ Native app detected, continuing without Firebase');
+      return null;
+    }
+    
+    throw error;
   }
 };
 
@@ -66,7 +84,7 @@ export const getDatabaseInstance = (): Database | null => {
   
   const firebaseApp = getFirebaseApp();
   if (!firebaseApp) {
-    console.error('❌ Tidak dapat mendapatkan Firebase App');
+    console.warn('⚠️ Tidak dapat mendapatkan Firebase App - mungkin di native app');
     return null;
   }
   
@@ -76,7 +94,15 @@ export const getDatabaseInstance = (): Database | null => {
     return database;
   } catch (error) {
     console.error("❌ Gagal mendapatkan instance database:", error);
-    return null;
+    
+    // Untuk native app, jangan throw error
+    const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
+    if (isNativeApp) {
+      console.warn('⚠️ Native app detected, continuing without database');
+      return null;
+    }
+    
+    throw error;
   }
 };
 
@@ -85,7 +111,7 @@ export const testDatabaseConnection = async (): Promise<boolean> => {
   try {
     const db = getDatabaseInstance();
     if (!db) {
-      console.error('❌ Database instance tidak tersedia');
+      console.warn('⚠️ Database instance tidak tersedia - mungkin di native app');
       return false;
     }
     
@@ -115,7 +141,7 @@ export const monitorConnection = (callback: (connected: boolean) => void): (() =
   try {
     const db = getDatabaseInstance();
     if (!db) {
-      console.error('❌ Tidak dapat memonitor koneksi: database tidak tersedia');
+      console.warn('⚠️ Tidak dapat memonitor koneksi: database tidak tersedia - mungkin di native app');
       return () => {};
     }
 
@@ -136,19 +162,25 @@ export const monitorConnection = (callback: (connected: boolean) => void): (() =
 // Inisialisasi otomatis saat module dimuat
 console.log('🚀 Initializing Firebase...');
 try {
-  getFirebaseApp();
-  getDatabaseInstance();
+  const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
   
-  // Test koneksi secara asynchronous
-  setTimeout(() => {
-    testDatabaseConnection().then(connected => {
-      if (connected) {
-        console.log('🎉 Firebase berhasil diinisialisasi dan terhubung!');
-      } else {
-        console.warn('⚠️ Firebase diinisialisasi tetapi koneksi bermasalah');
-      }
-    });
-  }, 1000);
+  if (isNativeApp) {
+    console.log('📱 Native app detected, Firebase initialization will be lazy');
+  } else {
+    getFirebaseApp();
+    getDatabaseInstance();
+    
+    // Test koneksi secara asynchronous
+    setTimeout(() => {
+      testDatabaseConnection().then(connected => {
+        if (connected) {
+          console.log('🎉 Firebase berhasil diinisialisasi dan terhubung!');
+        } else {
+          console.warn('⚠️ Firebase diinisialisasi tetapi koneksi bermasalah');
+        }
+      });
+    }, 1000);
+  }
   
 } catch (error) {
   console.error("❌ Automatic initialization failed:", error);

@@ -1,4 +1,4 @@
-// App.tsx - Versi Lengkap dengan Native App Support
+// App.tsx - Versi Lengkap dengan Android Bridge Support
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -49,6 +49,10 @@ import {
 } from './services/mockData';
 import { database } from './services/firebaseService';
 import { ref, set, push, onValue, off, get, remove, onDisconnect } from 'firebase/database';
+
+// Import Android Bridge
+import { useAndroidAuth } from './hooks/useAndroidAuth';
+import { AndroidBridgeService } from './services/androidBridgeService';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 const TYPING_TIMEOUT = 5000;
@@ -145,9 +149,13 @@ const AppContent: React.FC = () => {
   const userSentMessagesRef = useRef<Set<string>>(new Set());
   const nativeAuthProcessed = useRef(false);
 
+  // Android Bridge Hook
+  const { isChecking, authStatus, error, checkAndroidAuth, isNativeApp, hasAndroidBridge, bridgeStatus } = useAndroidAuth();
+
   // **INISIALISASI APLIKASI - EFEK UTAMA**
   useEffect(() => {
     console.log('🚀 Initializing application...');
+    console.log('📱 Android Bridge Status:', bridgeStatus);
     
     const initializeApp = async () => {
       try {
@@ -241,83 +249,65 @@ const AppContent: React.FC = () => {
 
   // Cek native app dan proses login
   const checkNativeAppLogin = async () => {
-    const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
-    console.log('📱 Native app detected:', isNativeApp);
+    console.log('📱 Native app check:', { 
+      isNativeApp, 
+      hasAndroidBridge,
+      urlToken: !!new URLSearchParams(window.location.search).get('authToken')
+    });
 
-    if (!isNativeApp) return;
-
-    const urlParams = new URLSearchParams(window.location.search);
-    const authToken = urlParams.get('authToken');
-    console.log('🔐 Auth token from URL:', authToken ? 'YES' : 'NO');
-
-    if (!authToken) {
-      console.warn('⚠️ Native app detected but no auth token found');
+    if (!isNativeApp) {
+      console.log('🔄 Not a native app, skipping Android auth');
       return;
     }
 
+    const urlParams = new URLSearchParams(window.location.search);
+    const authToken = urlParams.get('authToken');
+
+    // Jika sudah diproses, skip
     if (nativeAuthProcessed.current) {
       console.log('⏭️ Native auth already processed, skipping');
       return;
     }
 
-    console.log('🚀 Processing native app login...');
+    console.log('🚀 Starting native app login process...');
     nativeAuthProcessed.current = true;
 
+    // Prioritas 1: Token dari URL (deep link)
+    if (authToken) {
+      console.log('🔐 Using auth token from URL');
+      await processNativeAuthToken(authToken);
+      return;
+    }
+
+    // Prioritas 2: Token dari Android Bridge
+    if (hasAndroidBridge) {
+      console.log('🌉 Using Android bridge for authentication');
+      const success = await checkAndroidAuth();
+      if (success) {
+        console.log('✅ Android bridge auth completed');
+        return;
+      }
+    }
+
+    // Jika kedua metode gagal
+    console.log('❌ No authentication method available for native app');
+    setAuthError('Tidak dapat melakukan autentikasi pada aplikasi native');
+  };
+
+  // Process token untuk native auth
+  const processNativeAuthToken = async (token: string) => {
     try {
-      const auth = getAuth();
-      const credential = GoogleAuthProvider.credential(authToken);
-      const userCredential = await signInWithCredential(auth, credential);
-      const firebaseUser = userCredential.user;
+      const bridgeService = AndroidBridgeService.getInstance();
+      const result = await bridgeService.handleAndroidAuth(token);
       
-      console.log('✅ Firebase login successful:', firebaseUser.email);
-
-      // Decode token untuk mendapatkan user info
-      const decoded: { email: string; name: string; picture: string } = jwtDecode(authToken) as any;
-      const { email, name, picture } = decoded;
-
-      // Cari atau buat user
-      let user: User | null = null;
-      
-      try {
-        const savedUsers = localStorage.getItem('cryptoUsers');
-        if (savedUsers) {
-          const users = JSON.parse(savedUsers);
-          user = Object.values(users).find((u: any) => u.email === email) as User || null;
-        }
-
-        if (!user) {
-          // Buat user baru untuk native app
-          const usernameFromEmail = email.split('@')[0];
-          user = {
-            email,
-            username: usernameFromEmail,
-            googleProfilePicture: picture,
-            createdAt: Date.now()
-          };
-          
-          // Simpan user
-          const updatedUsers = savedUsers ? { ...JSON.parse(savedUsers), [email]: user } : { [email]: user };
-          localStorage.setItem('cryptoUsers', JSON.stringify(updatedUsers));
-          console.log('👤 Created new user for native app:', usernameFromEmail);
-        } else {
-          console.log('👤 Found existing user:', user.username);
-        }
-
-        // Set current user dan simpan
-        setCurrentUser(user);
-        localStorage.setItem('currentUser', JSON.stringify(user));
-        
-        // Clean URL
+      if (result.success) {
+        // Clean URL setelah berhasil
         const cleanUrl = window.location.origin + window.location.pathname;
         window.history.replaceState({}, document.title, cleanUrl);
-        
         console.log('🎉 Native app login completed successfully');
-
-      } catch (storageError) {
-        console.error('❌ Error handling user storage:', storageError);
-        setAuthError('Gagal menyimpan data user');
+      } else {
+        setAuthError(result.error || 'Gagal login dengan aplikasi native');
       }
-      
     } catch (error) {
       console.error('❌ Native app login failed:', error);
       setAuthError('Gagal login dengan aplikasi native');
@@ -338,7 +328,7 @@ const AppContent: React.FC = () => {
       setFirebaseUser(user);
 
       // Skip processing untuk native app yang sudah login
-      if ((window as any).IS_NATIVE_ANDROID_APP === true && nativeAuthProcessed.current) {
+      if (isNativeApp && nativeAuthProcessed.current) {
         console.log('🔄 Skipping Firebase auth processing for native app');
         return;
       }
@@ -361,7 +351,7 @@ const AppContent: React.FC = () => {
         }
       } else {
         // Reset hanya untuk web (bukan native app)
-        if (!(window as any).IS_NATIVE_ANDROID_APP) {
+        if (!isNativeApp) {
           setCurrentUser(null);
           setPendingGoogleUser(null);
         }
@@ -488,7 +478,7 @@ const AppContent: React.FC = () => {
   // Google Login untuk web
   const handleGoogleRegisterSuccess = async (credentialResponse: CredentialResponse) => {
     // Skip untuk native app
-    if ((window as any).IS_NATIVE_ANDROID_APP === true) {
+    if (isNativeApp) {
       console.log('🔄 Skipping web Google OAuth for native app');
       return;
     }
@@ -1068,17 +1058,28 @@ const AppContent: React.FC = () => {
   }, [hasJoinedRoom]);
 
   // Loading state
-  if (isLoading) {
+  if (isLoading || (isNativeApp && isChecking)) {
     return (
       <div className="min-h-screen bg-transparent text-white flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-electric mx-auto"></div>
           <p className="mt-4">
-            {(window as any).IS_NATIVE_ANDROID_APP === true 
-              ? 'Menyiapkan aplikasi...' 
+            {isNativeApp 
+              ? `Autentikasi Android... (${authStatus})` 
               : 'Memuat aplikasi...'
             }
           </p>
+          {error && (
+            <p className="text-magenta text-sm mt-2 max-w-xs mx-auto">
+              Error: {error}
+            </p>
+          )}
+          {isNativeApp && bridgeStatus && (
+            <div className="mt-4 p-3 bg-white/5 rounded-lg text-xs text-left max-w-xs mx-auto">
+              <p>Bridge: {bridgeStatus.hasAndroidBridge ? '✅ Tersedia' : '❌ Tidak Tersedia'}</p>
+              <p>Status: {authStatus}</p>
+            </div>
+          )}
         </div>
       </div>
     );

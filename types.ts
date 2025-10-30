@@ -1,6 +1,20 @@
 // types.ts
 import type { CredentialResponse } from '@react-oauth/google';
 
+// --- Native Android Bridge Types ---
+export interface AndroidBridge {
+  getAuthToken: () => string;
+  showToast: (message: string) => void;
+  onAuthSuccess: () => void;
+  onAuthFailed: (error: string) => void;
+}
+
+declare global {
+  interface Window {
+    Android?: AndroidBridge;
+  }
+}
+
 // --- Basic Types ---
 export type Page = 'home' | 'rooms' | 'forum' | 'about';
 export type Currency = 'usd' | 'idr';
@@ -354,7 +368,7 @@ export interface AppState {
   roomUserCounts: RoomUserCounts;
   userActivities: UserActivityData;
   typingUsers: TypingUsersMap;
-  nativeAppConfig: NativeAppConfig; // ← TAMBAHAN INI
+  nativeAppConfig: NativeAppConfig;
 }
 
 // --- Firebase Types ---
