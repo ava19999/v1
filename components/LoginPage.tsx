@@ -1,11 +1,11 @@
-// components/LoginPage.tsx
+// LoginPage.tsx
 import React, { useState } from 'react';
 import { GoogleLogin, CredentialResponse } from '@react-oauth/google';
-import type { LoginPageProps } from '../types'; // Pastikan tipe ini sudah diupdate
+import type { LoginPageProps } from '../types';
 
 const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess }) => {
-    // State error hanya untuk Google Login
     const [error, setError] = useState('');
+    const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
 
     return (
         <div className="min-h-screen bg-transparent text-white font-sans flex flex-col items-center justify-center p-4">
@@ -26,24 +26,30 @@ const LoginPage: React.FC<LoginPageProps> = ({ onGoogleRegisterSuccess }) => {
                     Masuk atau daftar untuk bergabung dengan komunitas pejuang cuan.
                 </p>
 
-                {/* Tombol Google Login */}
-                <div className="flex flex-col items-center">
-                   <GoogleLogin
-                        onSuccess={onGoogleRegisterSuccess}
-                        onError={() => {
-                            console.error('Login Google Gagal');
-                            setError('Gagal masuk dengan Google. Silakan coba lagi.');
-                        }}
-                        theme="outline"
-                        text="signup_with" // Atau "signin_with" jika lebih sesuai
-                        shape="pill"
-                        width="320px" // Lebar konsisten
-                    />
-                    {/* Tampilkan error Google Login jika ada */}
-                    {error && <p className="text-magenta text-sm text-center mt-4">{error}</p>}
-                </div>
+                {/* Untuk Native App: Tampilkan pesan sedang login */}
+                {isNativeApp ? (
+                    <div className="text-center">
+                        <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-electric mx-auto mb-4"></div>
+                        <p className="text-electric">Login melalui aplikasi native...</p>
+                    </div>
+                ) : (
+                    /* Untuk Web: Tampilkan tombol Google Login */
+                    <div className="flex flex-col items-center">
+                        <GoogleLogin
+                            onSuccess={onGoogleRegisterSuccess}
+                            onError={() => {
+                                console.error('Login Google Gagal');
+                                setError('Gagal masuk dengan Google. Silakan coba lagi.');
+                            }}
+                            theme="outline"
+                            text="signup_with"
+                            shape="pill"
+                            width="320px"
+                        />
+                        {error && <p className="text-magenta text-sm text-center mt-4">{error}</p>}
+                    </div>
+                )}
             </div>
-            {/* Animasi */}
             <style>{`
                 @keyframes fade-in-up {
                     from { opacity: 0; transform: translateY(20px); }

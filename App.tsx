@@ -37,7 +37,8 @@ import type {
   RoomUserCounts,
   TypingStatus,
   TypingUsersMap,
-  FirebaseTypingStatusData
+  FirebaseTypingStatusData,
+  NativeAppConfig
 } from './types';
 import { isNewsArticle, isChatMessage } from './types';
 import {
@@ -165,6 +166,88 @@ const AppContent: React.FC = () => {
   const roomListenersRef = useRef<{ [roomId: string]: () => void }>({});
   const lastProcessedTimestampsRef = useRef<{ [roomId: string]: number }>({});
   const userSentMessagesRef = useRef<Set<string>>(new Set());
+
+  // Tambahan: State untuk native app config
+  const [nativeAppConfig, setNativeAppConfig] = useState<NativeAppConfig>({
+    isNativeAndroidApp: false,
+    authToken: null
+  });
+
+  // Deteksi native app dan token saat component mount
+  useEffect(() => {
+    const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
+    
+    if (isNativeApp) {
+      console.log('📱 Native Android app detected');
+      
+      // Ambil token dari URL parameters
+      const urlParams = new URLSearchParams(window.location.search);
+      const authToken = urlParams.get('authToken');
+      
+      setNativeAppConfig({
+        isNativeAndroidApp: true,
+        authToken: authToken
+      });
+
+      if (authToken) {
+        console.log('🔐 Auth token received from native app');
+        handleNativeAppLogin(authToken);
+      } else {
+        console.warn('⚠️ Native app detected but no auth token found');
+      }
+    }
+  }, []);
+
+  // Fungsi untuk handle login dari native app
+  const handleNativeAppLogin = useCallback(async (idToken: string) => {
+    if (!idToken) {
+      console.error('❌ No ID token provided for native app login');
+      return;
+    }
+
+    try {
+      const auth = getAuth();
+      const credential = GoogleAuthProvider.credential(idToken);
+      
+      console.log('🔄 Attempting Firebase sign-in with native app token...');
+      
+      const userCredential = await signInWithCredential(auth, credential);
+      const firebaseUser = userCredential.user;
+      
+      console.log('✅ Native app login successful:', firebaseUser.email);
+      
+      // Decode token untuk mendapatkan profile Google
+      const decoded: { email: string; name: string; picture: string } = jwtDecode(idToken) as any;
+      const { email, name, picture } = decoded;
+      
+      // Cari user di local storage atau buat baru jika belum ada
+      const existingAppUser = Object.values(users).find(u => u.email === email);
+      
+      if (existingAppUser) {
+        setCurrentUser(existingAppUser);
+        console.log('✅ Existing user found and logged in');
+      } else {
+        // Untuk native app, buat user otomatis dengan username dari email
+        const usernameFromEmail = email.split('@')[0];
+        const newUser: User = {
+          email,
+          username: usernameFromEmail,
+          googleProfilePicture: picture,
+          createdAt: Date.now()
+        };
+        
+        setUsers(prev => ({ ...prev, [newUser.email]: newUser }));
+        setCurrentUser(newUser);
+        console.log('✅ New user created automatically for native app');
+      }
+      
+      setPendingGoogleUser(null);
+      
+    } catch (error) {
+      console.error('❌ Native app login failed:', error);
+      setAuthError('Gagal login dengan aplikasi native. Silakan coba lagi.');
+    }
+  }, [users]);
 
   useEffect(() => {
     if (!lastProcessedTimestampsRef.current) {
@@ -730,13 +813,24 @@ const AppContent: React.FC = () => {
 
 
   const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => {
+    // Skip Google OAuth flow jika di native app
+    if (nativeAppConfig.isNativeAndroidApp) {
+      console.log('🔄 Skipping web Google OAuth - using native app auth');
+      return;
+    }
+
     setAuthError(null);
-    if (!credentialResponse.credential) { setAuthError('Credential Google tidak ditemukan.'); return; }
+    if (!credentialResponse.credential) { 
+      setAuthError('Credential Google tidak ditemukan.'); 
+      return; 
+    }
+    
     try {
       const decoded: { email: string; name: string; picture: string } = jwtDecode(credentialResponse.credential) as any;
       const { email, name, picture } = decoded;
       const auth = getAuth();
       const googleCredential = GoogleAuthProvider.credential(credentialResponse.credential);
+      
       signInWithCredential(auth, googleCredential)
         .then((userCredential) => {
           const existingAppUser = Object.values(users).find(u => u.email === email);
@@ -761,7 +855,7 @@ const AppContent: React.FC = () => {
       setAuthError('Error memproses login Google.');
       if (currentUser) setCurrentUser(null);
     }
-  }, [users, currentUser]);
+  }, [users, currentUser, nativeAppConfig.isNativeAndroidApp]);
 
   const handleProfileComplete = useCallback(async (username: string, password: string): Promise<string | void> => {
     setAuthError(null);
@@ -1277,7 +1371,6 @@ const AppContent: React.FC = () => {
           onLeaveRoom={handleLeaveRoom} 
           onReact={handleReaction} 
           onDeleteMessage={handleDeleteMessage} 
-          // forumActiveUsers={forumActiveUsers} // <-- DIHAPUS
           typingUsers={currentTypingUsers} 
           onStartTyping={handleStartTyping} 
           onStopTyping={handleStopTyping} 
@@ -1289,6 +1382,18 @@ const AppContent: React.FC = () => {
         return <HomePage idrRate={idrRate} isRateLoading={isRateLoading} currency={currency} onIncrementAnalysisCount={handleIncrementAnalysisCount} fullCoinList={fullCoinList} isCoinListLoading={isCoinListLoading} coinListError={coinListError} heroCoin={heroCoin} otherTrendingCoins={otherTrendingCoins} isTrendingLoading={isTrendingLoading} trendingError={trendingError} onSelectCoin={handleSelectCoin} onReloadTrending={handleResetToTrending} />;
     }
   };
+
+  // Tampilkan loading khusus untuk native app saat auth loading
+  if (isAuthLoading && nativeAppConfig.isNativeAndroidApp) {
+    return (
+      <div className="min-h-screen bg-transparent text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-electric mx-auto"></div>
+          <p className="mt-4">Menyiapkan sesi dari aplikasi...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (isAuthLoading) {
     return <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Memverifikasi sesi Anda...</div>;
@@ -1339,21 +1444,22 @@ const AppContent: React.FC = () => {
 
 const App: React.FC = () => {
   const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
+  const isNativeApp = (window as any).IS_NATIVE_ANDROID_APP === true;
 
-  if (!database && googleClientId) {
+  if (!database && !isNativeApp) {
     return (
       <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}>
         <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}>
           <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Koneksi Database</h1>
           <p style={{ marginTop: '10px', lineHeight: '1.6' }}>
-            Gagal terhubung ke Firebase Realtime Database. Periksa konfigurasi Firebase Anda (terutama <code>FIREBASE_DATABASE_URL</code>) dan koneksi internet.
+            Gagal terhubung ke Firebase Realtime Database.
           </p>
         </div>
       </div>
     );
   }
 
-  if (!googleClientId) {
+  if (!googleClientId && !isNativeApp) {
     return (
       <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}>
         <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}>
@@ -1366,9 +1472,21 @@ const App: React.FC = () => {
     );
   }
 
+  // Untuk native app, tidak perlu GoogleOAuthProvider
+  if (isNativeApp) {
+    return (
+      <React.StrictMode>
+        <AppContent />
+      </React.StrictMode>
+    );
+  }
+
+  // Untuk web, gunakan GoogleOAuthProvider seperti biasa
   return (
     <GoogleOAuthProvider clientId={googleClientId}>
-      <AppContent />
+      <React.StrictMode>
+        <AppContent />
+      </React.StrictMode>
     </GoogleOAuthProvider>
   );
 };

@@ -20,6 +20,12 @@ export interface User {
   createdAt: number;
 }
 
+// --- Native App Configuration ---
+export interface NativeAppConfig {
+  isNativeAndroidApp: boolean;
+  authToken: string | null;
+}
+
 // --- Crypto Data Types ---
 export interface CryptoData {
   id: string;
@@ -71,7 +77,7 @@ export interface Room {
   name: string;
   userCount: number;
   createdBy?: string;
-  isDefaultRoom?: boolean; // Ditambahkan untuk identifikasi room default
+  isDefaultRoom?: boolean;
 }
 
 export interface NewsArticle {
@@ -104,7 +110,7 @@ export type ForumMessageItem = NewsArticle | ChatMessage;
 // --- Typing Indicator Types ---
 export interface TypingStatus {
   username: string;
-  userCreationDate: number | null; // Tambahkan ini
+  userCreationDate: number | null;
   timestamp: number;
 }
 
@@ -113,7 +119,6 @@ export interface TypingUsersMap {
     [userId: string]: TypingStatus;
   };
 }
-
 
 // --- Notification Types ---
 export interface NotificationSettings {
@@ -178,13 +183,10 @@ export interface ForumPageProps {
   onLeaveRoom: () => void;
   onReact: (messageId: string, emoji: string) => void;
   onDeleteMessage: (roomId: string, messageId: string) => void;
-  // forumActiveUsers?: number; // <-- DIHAPUS
-  // Tambahkan props untuk typing indicator
   typingUsers: TypingStatus[];
   onStartTyping: () => void;
   onStopTyping: () => void;
 }
-
 
 export interface RoomsListPageProps {
   rooms: Room[];
@@ -350,11 +352,10 @@ export interface AppState {
   newsArticles: NewsArticle[];
   notificationSettings: NotificationSettings;
   roomUserCounts: RoomUserCounts;
-  // forumActiveUsers: number; // <-- DIHAPUS
-  userActivities: UserActivityData; // Ditambahkan untuk tracking user aktif per room
-  typingUsers: TypingUsersMap; // Tambahkan state untuk typing users
+  userActivities: UserActivityData;
+  typingUsers: TypingUsersMap;
+  nativeAppConfig: NativeAppConfig;
 }
-
 
 // --- Firebase Types ---
 export interface FirebaseMessageData {
@@ -399,10 +400,9 @@ export interface FirebaseUserActivityData {
 
 export interface FirebaseTypingStatusData {
   [roomId: string]: {
-    [userId: string]: TypingStatus | null; // Null indicates stopped typing
+    [userId: string]: TypingStatus | null;
   };
 }
-
 
 // --- API Service Types ---
 export interface CacheItem {
@@ -441,11 +441,10 @@ export interface NavigationHandlers {
   onCurrencyChange: (currency: Currency) => void;
   onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void;
   onProfileComplete: (username: string, password: string) => Promise<string | void>;
-  onUpdateUserActivity?: (roomId: string, userId: string, username: string) => void; // Ditambahkan
-  onStartTyping: () => void; // Tambahkan handler
-  onStopTyping: () => void; // Tambahkan handler
+  onUpdateUserActivity?: (roomId: string, userId: string, username: string) => void;
+  onStartTyping: () => void;
+  onStopTyping: () => void;
 }
-
 
 // --- Local Storage Types ---
 export interface LocalStorageData {
@@ -540,10 +539,8 @@ export interface RoomListDisplay {
   filteredRooms: Room[];
 }
 
-// --- Extended ForumPageProps untuk menerima forumActiveUsers ---
-export interface ExtendedForumPageProps extends ForumPageProps {
-  // forumActiveUsers?: number; // <-- DIHAPUS
-}
+// --- Extended ForumPageProps ---
+export interface ExtendedForumPageProps extends ForumPageProps {}
 
 // --- User Count Display Configuration ---
 export interface UserCountDisplayConfig {
@@ -556,9 +553,9 @@ export interface UserCountDisplayConfig {
 
 // Default configuration
 export const DEFAULT_USER_COUNT_CONFIG: UserCountDisplayConfig = {
-  showForDefaultRooms: false, // Room default tidak menampilkan user count
-  showForCustomRooms: true,   // Room custom menampilkan user count
-  updateInterval: 30000,      // 30 detik
-  minUsers: 1,                // Minimum 1 user
-  maxUsers: 1000              // Maximum 1000 user
+  showForDefaultRooms: false,
+  showForCustomRooms: true,
+  updateInterval: 30000,
+  minUsers: 1,
+  maxUsers: 1000
 };
