@@ -55,4 +55,12 @@ if (!googleClientId) {
   root.render(AppRoot); // Render AppRoot yang sudah benar
   // ------------------------------
 }
+```eof
 
+### Langkah Anda Berikutnya (SANGAT PENTING):
+
+1.  Gunakan kode di atas untuk menggantikan file `index.tsx` di **proyek React (web)** Anda.
+2.  **DEPLOY ULANG** aplikasi Vercel Anda dengan file `index.tsx` yang baru ini.
+3.  Setelah Vercel selesai men-deploy, **Jalankan ulang aplikasi Android (▶️ hijau)** di Android Studio (yang masih memiliki kode `MainActivity.kt (Final + Jembatan JS)` dari sebelumnya).
+
+Sekarang, layar putih itu seharusnya hilang, dan aplikasi Anda akan berfungsi!
