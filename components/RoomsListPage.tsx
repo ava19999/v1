@@ -178,19 +178,42 @@ const RoomsListPage: React.FC<ExtendedRoomsListPageProps> = ({
         const filtered = searchQuery
             ? rooms.filter((room) => room.name.toLowerCase().includes(lowercasedQuery))
             : rooms;
+
+        // --- PERBAIKAN LOGIKA SORTIR DIMULAI ---
         const myRoomsList = filtered
             .filter((r) => joinedRoomIds.has(r.id))
             .sort((a, b) => {
                 const unreadA = unreadCounts[a.id] || 0;
                 const unreadB = unreadCounts[b.id] || 0;
-                if (unreadB !== unreadA) return unreadB - unreadA;
+
+                // 1. Urutkan berdasarkan pesan belum dibaca (terbanyak di atas)
+                if (unreadB !== unreadA) {
+                    return unreadB - unreadA;
+                }
+
+                // 2. Jika sama (misal 0), urutkan berdasarkan jumlah user (terbanyak di atas)
+                const userCountA = a.userCount || 0;
+                const userCountB = b.userCount || 0;
+                if (userCountB !== userCountA) {
+                    return userCountB - userCountA;
+                }
+
+                // 3. Fallback: Urutkan berdasarkan room default
                 const isADefault = DEFAULT_ROOM_IDS.includes(a.id) || a.isDefaultRoom;
                 const isBDefault = DEFAULT_ROOM_IDS.includes(b.id) || b.isDefaultRoom;
                 if (isADefault && !isBDefault) return -1;
                 if (!isADefault && isBDefault) return 1;
+
+                // 4. Fallback: Urutkan berdasarkan nama
                 return a.name.localeCompare(b.name);
             });
-        const publicRoomsList = filtered.filter((r) => !joinedRoomIds.has(r.id));
+            
+        // Urutkan juga room publik berdasarkan jumlah user
+        const publicRoomsList = filtered
+            .filter((r) => !joinedRoomIds.has(r.id))
+            .sort((a, b) => (b.userCount || 0) - (a.userCount || 0)); // Sort by user count descending
+        // --- PERBAIKAN LOGIKA SORTIR SELESAI ---
+
         return { myRooms: myRoomsList, publicRooms: publicRoomsList };
     }, [rooms, searchQuery, joinedRoomIds, unreadCounts]);
 
