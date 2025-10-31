@@ -1,6 +1,15 @@
 // types.ts
 import type { CredentialResponse } from '@react-oauth/google';
 
+// [FIX] Impor tipe Json dari types_db.ts
+export type Json =
+  | string
+  | number
+  | boolean
+  | null
+  | { [key: string]: Json | undefined }
+  | Json[]
+
 // --- Basic Types ---
 export type Page = 'home' | 'rooms' | 'forum' | 'about';
 export type Currency = 'usd' | 'idr';
@@ -78,7 +87,8 @@ export interface NewsArticle {
   published_on: number;
   source: string;
   body: string;
-  reactions?: { [key: string]: string[] };
+  // [FIX] Izinkan tipe 'Json' dari database selain tipe aplikasi
+  reactions?: { [key: string]: string[] } | Json;
 }
 
 export interface ChatMessage {
@@ -90,7 +100,8 @@ export interface ChatMessage {
   timestamp: number;
   fileURL?: string;
   fileName?: string;
-  reactions?: { [key: string]: string[] };
+  // [FIX] Izinkan tipe 'Json' dari database selain tipe aplikasi
+  reactions?: { [key: string]: string[] } | Json;
   userCreationDate?: number;
 }
 

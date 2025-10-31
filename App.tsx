@@ -28,7 +28,8 @@ import type {
   NotificationSettings,
   RoomUserCounts,
   TypingStatus,
-  TypingUsersMap
+  TypingUsersMap,
+  Json // [FIX] Impor tipe Json
 } from './types';
 import { isNewsArticle, isChatMessage } from './types';
 import {
@@ -47,12 +48,39 @@ import type {
   MessageInsert,
   MessageUpdate
 } from './supabaseTypes';
-import type { Database } from './types_db'; // Impor Database untuk cast yang lebih baik jika perlu
+// import type { Database } from './types_db'; // Tidak perlu jika kita mendefinisikan secara lokal
 
-// [FIX] Hapus definisi tipe lokal yang konflik
-// interface SupabaseProfile { ... }
-// interface SupabaseRoom { ... }
-// interface SupabaseMessage { ... }
+// [FIX] Kembalikan definisi tipe lokal untuk hasil SELECT
+// Ini diperlukan karena inferensi tipe global dari createClient<Database> tampaknya gagal
+interface SupabaseProfile {
+  id: string;
+  username: string | null;
+  google_profile_picture: string | null;
+  created_at: string;
+}
+
+interface SupabaseRoom {
+  id: number; // Ini adalah PK (number)
+  room_id: string; // Ini adalah ID publik (string)
+  name: string;
+  created_by: string | null;
+  is_default_room: boolean;
+}
+
+interface SupabaseMessage {
+  id: number;
+  room_id: number; // Ini adalah FK ke rooms.id (number)
+  user_id: string | null;
+  sender_username: string;
+  user_creation_date: string | null;
+  type: 'user' | 'system';
+  text: string | null;
+  file_url: string | null;
+  file_name: string | null;
+  reactions: Json; // Tipe dari DB adalah Json
+  created_at: string;
+}
+
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 const TYPING_TIMEOUT = 5000;
@@ -92,12 +120,6 @@ const Particles: React.FC = () => (
     `}</style>
   </div>
 );
-
-// Tipe helper untuk Row dari types_db.ts
-type SupabaseProfile = Database['public']['Tables']['profiles']['Row'];
-type SupabaseRoom = Database['public']['Tables']['rooms']['Row'];
-type SupabaseMessage = Database['public']['Tables']['messages']['Row'];
-
 
 const App: React.FC = () => {
   // State Halaman & UI
@@ -157,11 +179,12 @@ const App: React.FC = () => {
       setSession(session);
       setSupabaseUser(session?.user ?? null);
       if (session) {
+        // [FIX] Gunakan cast manual untuk SELECT
         const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single(); // [FIX] Hapus cast
+          .single() as { data: SupabaseProfile | null; error: any };
           
         if (error) {
           console.error('Error fetching profile:', error);
@@ -191,13 +214,14 @@ const App: React.FC = () => {
         setSupabaseUser(session?.user ?? null);
         
         if (session) {
+          // [FIX] Gunakan cast manual untuk SELECT
           const { data: profile, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
-            .single(); // [FIX] Hapus cast
+            .single() as { data: SupabaseProfile | null; error: any };
 
-          if (error) {
+          if (error && error.code !== 'PGRST116') { // Abaikan error "no rows"
             console.error('Error fetching profile:', error);
           } else if (profile && profile.username) {
             setCurrentUser({
@@ -211,7 +235,8 @@ const App: React.FC = () => {
             setPendingGoogleUser({
                email: session.user.email || '',
                name: session.user.user_metadata?.full_name || 'User',
-               picture: session.user.user_metadata?.picture || profile?.google_profile_picture || ''
+               // [FIX] Tambahkan pengecekan null untuk profile
+               picture: session.user.user_metadata?.picture || (profile ? profile.google_profile_picture : '') || ''
             });
             setCurrentUser(null);
           }
@@ -229,9 +254,10 @@ const App: React.FC = () => {
   // --- EFEK DATA ROOMS (REALTIME) ---
   useEffect(() => {
     const fetchRooms = async () => {
+      // [FIX] Gunakan cast manual untuk SELECT
       const { data, error } = await supabase
         .from('rooms')
-        .select('*'); // [FIX] Hapus cast
+        .select('*') as { data: SupabaseRoom[] | null; error: any };
         
       if (error) {
         console.error("Gagal mengambil rooms:", error);
@@ -290,11 +316,12 @@ const App: React.FC = () => {
     let channel: RealtimeChannel | null = null;
     
     const setupMessageListener = async () => {
+      // [FIX] Gunakan cast manual untuk SELECT
       const { data: roomData, error: roomError } = await supabase
         .from('rooms')
         .select('id')
         .eq('room_id', currentRoom.id)
-        .single(); // [FIX] Hapus cast
+        .single() as { data: { id: number } | null; error: any };
         
       if (roomError || !roomData) {
         console.error(`Tidak dapat menemukan PK untuk room_id: ${currentRoom.id}`, roomError);
@@ -303,11 +330,12 @@ const App: React.FC = () => {
       
       const roomPk = roomData.id;
 
+      // [FIX] Gunakan cast manual untuk SELECT
       const { data: messagesData, error } = await supabase
         .from('messages')
         .select('*')
         .eq('room_id', roomPk)
-        .order('created_at', { ascending: true }); // [FIX] Hapus cast
+        .order('created_at', { ascending: true }) as { data: SupabaseMessage[] | null; error: any };
 
       if (error) {
         console.error(`Gagal mengambil pesan untuk room ${currentRoom.id}:`, error);
@@ -324,7 +352,8 @@ const App: React.FC = () => {
           timestamp: new Date(msg.created_at).getTime(),
           fileURL: msg.file_url || undefined,
           fileName: msg.file_name || undefined,
-          reactions: msg.reactions || {},
+          // [FIX] Cast 'reactions' dari Json ke tipe yang diharapkan
+          reactions: (msg.reactions as { [key: string]: string[] }) || {},
           userCreationDate: msg.user_creation_date ? new Date(msg.user_creation_date).getTime() : undefined,
         }));
         setChatMessages(prev => ({ ...prev, [currentRoom.id!]: mappedMessages }));
@@ -351,7 +380,8 @@ const App: React.FC = () => {
                 timestamp: new Date(msg.created_at).getTime(),
                 fileURL: msg.file_url || undefined,
                 fileName: msg.file_name || undefined,
-                reactions: msg.reactions || {},
+                // [FIX] Cast 'reactions' dari Json ke tipe yang diharapkan
+                reactions: (msg.reactions as { [key: string]: string[] }) || {},
                 userCreationDate: msg.user_creation_date ? new Date(msg.user_creation_date).getTime() : undefined,
               };
               setChatMessages(prev => ({
@@ -368,7 +398,8 @@ const App: React.FC = () => {
                       ...prev,
                       [currentRoom.id!]: roomMessages.map(m => 
                           m.id === updatedMsg.id.toString() 
-                          ? { ...m, reactions: updatedMsg.reactions || {}, text: updatedMsg.text || undefined }
+                          // [FIX] Cast 'reactions' dari Json ke tipe yang diharapkan
+                          ? { ...m, reactions: (updatedMsg.reactions as { [key: string]: string[] }) || {}, text: updatedMsg.text || undefined }
                           : m
                       )
                   };
@@ -471,11 +502,12 @@ const App: React.FC = () => {
       for (const roomId of joinedRoomIds) {
         if (roomId === currentRoom?.id || roomId === 'berita-kripto') continue;
 
+        // [FIX] Gunakan cast manual untuk SELECT
         const { data: roomData, error } = await supabase
           .from('rooms')
           .select('id')
           .eq('room_id', roomId)
-          .single(); // [FIX] Hapus cast
+          .single() as { data: { id: number } | null; error: any };
         
         if (error || !roomData) continue;
         const roomPk = roomData.id;
@@ -623,11 +655,12 @@ const App: React.FC = () => {
       setAuthError(msg); return msg;
     }
     
+    // [FIX] Gunakan cast manual untuk SELECT
     const { data: existingUser, error: checkError } = await supabase
       .from('profiles')
       .select('id')
       .eq('username', username)
-      .single(); // [FIX] Hapus cast
+      .single() as { data: SupabaseProfile | null; error: any };
     
     if (checkError && checkError.code !== 'PGRST116') {
       console.error('Error checking username:', checkError);
@@ -644,12 +677,13 @@ const App: React.FC = () => {
       google_profile_picture: pendingGoogleUser.picture
     };
 
+    // [FIX] Gunakan cast manual untuk SELECT
     const { data, error } = await supabase
       .from('profiles')
       .update(updateData)
       .eq('id', session.user.id)
       .select()
-      .single(); // [FIX] Hapus cast
+      .single() as { data: SupabaseProfile | null; error: any };
 
     if (error) {
       setAuthError(error.message); return error.message;
@@ -764,11 +798,12 @@ const App: React.FC = () => {
       is_default_room: false
     };
 
+    // [FIX] Gunakan cast manual untuk SELECT
     const { data, error } = await supabase
       .from('rooms')
       .insert(newRoomData)
       .select()
-      .single(); // [FIX] Hapus cast
+      .single() as { data: SupabaseRoom | null; error: any };
 
     if (error) {
       console.error('Gagal buat room:', error);
@@ -793,6 +828,7 @@ const App: React.FC = () => {
     if (!roomToDelete || roomToDelete.isDefaultRoom) return;
 
     const isAdmin = ADMIN_USERNAMES.includes(currentUser.username);
+    // [FIX] Cek created_by (string) dengan user.id (string)
     const isCreator = roomToDelete.createdBy === supabaseUser.id;
 
     if (!isAdmin && !isCreator) {
@@ -800,17 +836,19 @@ const App: React.FC = () => {
     }
     
     if (window.confirm(`Yakin ingin menghapus room "${roomToDelete.name}"? Ini akan menghapus semua pesan di dalamnya.`)) {
+      // [FIX] Gunakan cast manual untuk SELECT
       const { data: roomData, error: roomError } = await supabase
         .from('rooms')
         .select('id')
         .eq('room_id', roomId)
-        .single(); // [FIX] Hapus cast
+        .single() as { data: { id: number } | null; error: any };
       
       if (roomError || !roomData) { 
         alert('Room tidak ditemukan untuk dihapus.'); 
         return; 
       }
       
+      // [FIX] Hapus cast
       const { error } = await supabase.from('rooms').delete().eq('id', roomData.id); 
       
       if (error) { 
@@ -828,11 +866,12 @@ const App: React.FC = () => {
     const room = rooms.find(r => r.id === currentRoom.id);
     if (!room) return;
 
+    // [FIX] Gunakan cast manual untuk SELECT
     const { data: roomData, error: roomError } = await supabase
       .from('rooms')
       .select('id') // Ini adalah PK (number)
       .eq('room_id', room.id) // room.id adalah room_id (string)
-      .single(); // [FIX] Hapus cast
+      .single() as { data: { id: number } | null; error: any };
     
     if (roomError || !roomData) {
       console.error('Gagal menemukan ID room (PK):', roomError);
@@ -849,12 +888,13 @@ const App: React.FC = () => {
       text: message.text?.trim() || null,
       file_url: message.fileURL || null,
       file_name: message.fileName || null,
-      reactions: {}
+      reactions: {} // Tipe Json default
     };
 
+    // [FIX] Hapus cast
     const { error } = await supabase
       .from('messages')
-      .insert(messageToSend); // [FIX] Hapus cast
+      .insert(messageToSend);
 
     if (error) {
       console.error("Gagal kirim pesan:", error);
@@ -869,15 +909,16 @@ const App: React.FC = () => {
     const messagePk = parseInt(messageId, 10);
     if (isNaN(messagePk)) return;
 
+    // [FIX] Gunakan cast manual untuk SELECT
     const { data, error } = await supabase
       .from('messages')
       .select('reactions')
       .eq('id', messagePk)
-      .single(); // [FIX] Hapus cast
+      .single() as { data: { reactions: Json } | null; error: any };
     
     if (error || !data) return;
 
-    const currentReactions = data.reactions || {};
+    const currentReactions = (data.reactions as { [key: string]: string[] }) || {};
     const usersForEmoji: string[] = currentReactions[emoji] || [];
     let updatedUsers: string[];
 
@@ -895,23 +936,25 @@ const App: React.FC = () => {
 
     // [FIX] Terapkan tipe MessageUpdate
     const updateData: MessageUpdate = {
-      reactions: currentReactions
+      reactions: currentReactions // Ini sesuai dengan tipe Json
     };
 
+    // [FIX] Hapus cast
     await supabase
       .from('messages')
       .update(updateData)
-      .eq('id', messagePk); // [FIX] Hapus cast
+      .eq('id', messagePk);
   }, [currentRoom, currentUser]);
   
   const handleDeleteMessage = useCallback(async (roomId: string, messageId: string) => {
     const messagePk = parseInt(messageId, 10);
     if (isNaN(messagePk)) return;
 
+    // [FIX] Hapus cast
     const { error } = await supabase
       .from('messages')
       .delete()
-      .eq('id', messagePk); // [FIX] Hapus cast
+      .eq('id', messagePk);
       
     if (error) {
       alert(`Gagal menghapus pesan: ${error.message}`);
@@ -1039,11 +1082,13 @@ const App: React.FC = () => {
         </>
       );
     } else {
+      // [FIX] Periksa profile yang mungkin null saat membuat pendingGoogleUser
+      const profilePicture = session.user.user_metadata?.picture || '';
       if (session.user.email) {
          contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={{
             email: session.user.email,
             name: session.user.user_metadata?.full_name || 'User',
-            picture: session.user.user_metadata?.picture || ''
+            picture: profilePicture
          }} />;
       } else {
         contentToRender = <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Sinkronisasi akun...</div>;
