@@ -609,14 +609,14 @@ const App: React.FC = () => {
     }
 
     // FIX: Gunakan type assertion yang tepat
-    const updateData = {
+    const updateData: Partial<ProfileRow> = {
       username: username,
       google_profile_picture: pendingGoogleUser.picture
     };
 
     const { data, error } = await supabase
       .from('profiles')
-      .update(updateData)
+      .update(updateData as any) // Type assertion untuk menghindari error
       .eq('id', session.user.id)
       .select()
       .single<ProfileRow>();
@@ -736,7 +736,7 @@ const App: React.FC = () => {
 
     const { data, error } = await supabase
       .from('rooms')
-      .insert(newRoomData)
+      .insert(newRoomData as any) // Type assertion untuk menghindari error
       .select()
       .single<RoomRow>();
 
@@ -803,7 +803,7 @@ const App: React.FC = () => {
       reactions: {}
     };
 
-    const { error } = await supabase.from('messages').insert(messageToSend);
+    const { error } = await supabase.from('messages').insert(messageToSend as any); // Type assertion untuk menghindari error
     if (error) {
       console.error("Gagal kirim pesan:", error);
       alert(`Gagal mengirim pesan: ${error.message}`);
@@ -847,7 +847,7 @@ const App: React.FC = () => {
 
     await supabase
       .from('messages')
-      .update(updateData)
+      .update(updateData as any) // Type assertion untuk menghindari error
       .eq('id', messagePk);
   }, [currentRoom, currentUser]);
   

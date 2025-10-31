@@ -12,6 +12,12 @@ export default defineConfig(({ mode }) => {
     },
     build: {
       chunkSizeWarningLimit: 1000,
+      rollupOptions: {
+        onwarn(warning, warn) {
+          if (warning.code === 'THIS_IS_UNDEFINED') return;
+          warn(warning);
+        },
+      },
     },
   }
 })
