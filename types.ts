@@ -114,6 +114,7 @@ export interface TypingUsersMap {
   };
 }
 
+
 // --- Notification Types ---
 export interface NotificationSettings {
   [roomId: string]: boolean;
@@ -184,6 +185,7 @@ export interface ForumPageProps {
   onStopTyping: () => void;
 }
 
+
 export interface RoomsListPageProps {
   rooms: Room[];
   onJoinRoom: (room: Room) => void;
@@ -243,7 +245,6 @@ export interface AnalysisModalProps {
 
 export interface LoginPageProps {
   onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void;
-  isNativeApp?: boolean; // Tambahkan properti opsional untuk Android
 }
 
 export interface CreateIdPageProps {
@@ -354,6 +355,7 @@ export interface AppState {
   typingUsers: TypingUsersMap; // Tambahkan state untuk typing users
 }
 
+
 // --- Firebase Types ---
 export interface FirebaseMessageData {
   [key: string]: {
@@ -401,6 +403,7 @@ export interface FirebaseTypingStatusData {
   };
 }
 
+
 // --- API Service Types ---
 export interface CacheItem {
   data: any;
@@ -442,6 +445,7 @@ export interface NavigationHandlers {
   onStartTyping: () => void; // Tambahkan handler
   onStopTyping: () => void; // Tambahkan handler
 }
+
 
 // --- Local Storage Types ---
 export interface LocalStorageData {
@@ -558,16 +562,3 @@ export const DEFAULT_USER_COUNT_CONFIG: UserCountDisplayConfig = {
   minUsers: 1,                // Minimum 1 user
   maxUsers: 1000              // Maximum 1000 user
 };
-
-// --- Android Bridge Types ---
-export interface AndroidBridge {
-  getAuthToken: () => string;
-}
-
-declare global {
-  interface Window {
-    Android?: AndroidBridge;
-    FIREBASE_AUTH_TOKEN?: string;
-    IS_NATIVE_ANDROID_APP?: boolean;
-  }
-}

@@ -1,4 +1,4 @@
-// App.tsx - Fix autentikasi Android
+// App.tsx - Volume notifikasi Web API diatur ke 80%
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { GoogleOAuthProvider, CredentialResponse } from '@react-oauth/google';
 import { jwtDecode } from 'jwt-decode';
@@ -8,7 +8,6 @@ import {
   signOut,
   GoogleAuthProvider,
   signInWithCredential,
-  signInWithCustomToken,
   User as FirebaseUser
 } from 'firebase/auth';
 
@@ -52,20 +51,6 @@ import { ADMIN_USERNAMES } from './components/UserTag';
 import { database, getDatabaseInstance, testDatabaseConnection } from './services/firebaseService';
 import { ref, set, push, onValue, off, update, get, Database, remove, onDisconnect } from 'firebase/database';
 
-// Interface untuk Android Bridge
-interface AndroidBridge {
-  getAuthToken: () => string;
-}
-
-declare global {
-  interface Window {
-    Android?: AndroidBridge;
-    FIREBASE_AUTH_TOKEN?: string;
-    IS_NATIVE_ANDROID_APP?: boolean;
-    onFirebaseTokenReady?: (token: string) => void;
-  }
-}
-
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 const TYPING_TIMEOUT = 5000; // 5 detik
 
@@ -90,7 +75,10 @@ const playNotificationSound = () => {
     oscillator.frequency.value = 800;
     oscillator.type = 'sine';
     
-    gainNode.gain.value = 0.8;
+    // --- PERUBAHAN VOLUME ---
+    // Diubah dari 0.5 (50%) menjadi 0.8 (80%)
+    gainNode.gain.value = 0.8; 
+    // --- AKHIR PERUBAHAN ---
     
     oscillator.start();
     gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
@@ -117,90 +105,6 @@ const Particles: React.FC = () => (
     `}</style>
   </div>
 );
-
-// Custom hook untuk menangani autentikasi Android
-const useAndroidAuth = () => {
-  const [isAuthenticating, setIsAuthenticating] = useState(false);
-  const [authError, setAuthError] = useState<string | null>(null);
-
-  const authenticateWithAndroid = useCallback(async (): Promise<boolean> => {
-    console.log('🟡 Memulai autentikasi Android...');
-    setIsAuthenticating(true);
-    setAuthError(null);
-
-    try {
-      // Tunggu sebentar untuk memastikan variabel global sudah ter-set
-      await new Promise(resolve => setTimeout(resolve, 1000));
-
-      let firebaseToken: string | null = null;
-      
-      // Coba beberapa metode untuk mendapatkan token
-      if (window.Android && typeof window.Android.getAuthToken === 'function') {
-        console.log('🔵 Menggunakan Android bridge...');
-        firebaseToken = window.Android.getAuthToken();
-      } else if (window.FIREBASE_AUTH_TOKEN) {
-        console.log('🔵 Menggunakan window.FIREBASE_AUTH_TOKEN...');
-        firebaseToken = window.FIREBASE_AUTH_TOKEN;
-      } else {
-        // Coba dari localStorage sebagai fallback
-        try {
-          const storedToken = localStorage.getItem('FIREBASE_AUTH_TOKEN');
-          if (storedToken) {
-            console.log('🔵 Menggunakan token dari localStorage...');
-            firebaseToken = storedToken;
-          }
-        } catch (e) {
-          console.log('LocalStorage tidak tersedia');
-        }
-      }
-
-      console.log('📝 Token yang diterima:', firebaseToken ? `${firebaseToken.substring(0, 20)}...` : 'NULL');
-
-      if (!firebaseToken) {
-        throw new Error('Token Firebase tidak ditemukan. Pastikan aplikasi Android sudah login.');
-      }
-
-      if (firebaseToken.length < 50) {
-        throw new Error('Token Firebase tidak valid (terlalu pendek)');
-      }
-
-      const auth = getAuth();
-      console.log('🟡 Melakukan signInWithCustomToken...');
-      
-      const userCredential = await signInWithCustomToken(auth, firebaseToken);
-      const user = userCredential.user;
-      
-      // FIX: Hapus token dari localStorage setelah berhasil digunakan
-      // Ini mencegah penggunaan ulang token custom yang mungkin sudah kadaluarsa/sekali pakai
-      if (localStorage.getItem('FIREBASE_AUTH_TOKEN')) {
-          localStorage.removeItem('FIREBASE_AUTH_TOKEN');
-          console.log('🧹 Menghapus token dari localStorage setelah berhasil login.');
-      }
-      
-      console.log('✅ Berhasil login dengan token Android:', user.email);
-      return true;
-
-    } catch (error: any) {
-      console.error('❌ Error autentikasi Android:', error);
-      
-      let errorMessage = 'Gagal melakukan autentikasi dari aplikasi Android.';
-      if (error.code === 'auth/invalid-custom-token') {
-        errorMessage = 'Token tidak valid. Pastikan konfigurasi Firebase sama antara Android dan web.';
-      } else if (error.code === 'auth/custom-token-mismatch') {
-        errorMessage = 'Token tidak cocok. Pastikan Anda login dengan akun yang benar.';
-      } else if (error.message) {
-        errorMessage += ` Detail: ${error.message}`;
-      }
-      
-      setAuthError(errorMessage);
-      return false;
-    } finally {
-      setIsAuthenticating(false);
-    }
-  }, []);
-
-  return { authenticateWithAndroid, isAuthenticating, authError };
-};
 
 const AppContent: React.FC = () => {
   const [activePage, setActivePage] = useState<Page>('home');
@@ -236,7 +140,7 @@ const AppContent: React.FC = () => {
     }
     return new Set(DEFAULT_ROOM_IDS);
   });
-  const [unreadCounts, setUnreadCounts] = useState<{ [roomId: string]: number }>({});
+  const [unreadCounts, setUnreadCounts] = useState<{ [key: string]: number }>({});
   const [firebaseMessages, setFirebaseMessages] = useState<{ [roomId: string]: ForumMessageItem[] }>({});
   const [lastMessageTimestamps, setLastMessageTimestamps] = useState<{ [roomId: string]: number }>({});
   const [userLastVisit, setUserLastVisit] = useState<{ [roomId: string]: number }>({});
@@ -258,178 +162,16 @@ const AppContent: React.FC = () => {
 
   const prevTotalUnreadRef = useRef<number>(0);
   const lastSoundPlayTimeRef = useRef<number>(0);
-  // FIX 1: Initialize useRef with empty object to prevent 'undefined' error
-  const roomListenersRef = useRef<{ [roomId: string]: () => void }>({}); 
-  const lastProcessedTimestampsRef = useRef<{ [roomId: string]: number }>();
+  const roomListenersRef = useRef<{ [roomId: string]: () => void }>({});
+  const lastProcessedTimestampsRef = useRef<{ [roomId: string]: number }>({});
   const userSentMessagesRef = useRef<Set<string>>(new Set());
-
-  // Custom hook untuk autentikasi Android
-  const { authenticateWithAndroid, isAuthenticating, authError: androidAuthError } = useAndroidAuth();
 
   useEffect(() => {
     if (!lastProcessedTimestampsRef.current) {
       lastProcessedTimestampsRef.current = {};
     }
-    // FIX 2: Remove redundant initialization check, as roomListenersRef is now initialized.
-    // The previous check here caused the TS error when accessed outside this effect.
   }, []);
 
-  // Setup event listener untuk token ready dari Android
-  useEffect(() => {
-    const handleTokenReady = (token: string) => {
-      console.log('🎯 Event onFirebaseTokenReady diterima:', token.substring(0, 20) + '...');
-      if (!firebaseUser && !currentUser) {
-        console.log('🚀 Memulai autentikasi dari event...');
-        authenticateWithAndroid();
-      }
-    };
-
-    window.onFirebaseTokenReady = handleTokenReady;
-
-    return () => {
-      window.onFirebaseTokenReady = undefined;
-    };
-  }, [authenticateWithAndroid, firebaseUser, currentUser]);
-
-  // Effect untuk menangani autentikasi Android - DIPERBAIKI
-  useEffect(() => {
-    const handleAndroidAuth = async () => {
-      const isNativeApp = window.IS_NATIVE_ANDROID_APP === true;
-      const hasFirebaseToken = !!window.FIREBASE_AUTH_TOKEN;
-      const hasAndroidBridge = !!window.Android;
-
-      console.log('🔍 Status Autentikasi Android:', {
-        isNativeApp,
-        hasFirebaseToken,
-        hasAndroidBridge,
-        firebaseUser: !!firebaseUser,
-        currentUser: !!currentUser
-      });
-
-      // Hanya jalankan jika ini aplikasi native DAN belum ada user yang login
-      if ((isNativeApp || hasFirebaseToken || hasAndroidBridge) && !firebaseUser && !currentUser) {
-        console.log('🚀 Memulai autentikasi Android...');
-        
-        // Tunggu lebih lama untuk memastikan token tersedia
-        setTimeout(async () => {
-          try {
-            const success = await authenticateWithAndroid();
-            if (success) {
-              console.log('✅ Autentikasi Android berhasil!');
-            } else {
-              console.log('❌ Autentikasi Android gagal, coba lagi dalam 3 detik...');
-              // Coba lagi setelah 3 detik
-              setTimeout(() => {
-                if (!firebaseUser && !currentUser) {
-                  authenticateWithAndroid();
-                }
-              }, 3000);
-            }
-          } catch (error) {
-            console.error('❌ Autentikasi Android gagal:', error);
-          }
-        }, 2000); // Tunggu 2 detik untuk memastikan token ter-inject
-      } else {
-        console.log('⏩ Skip autentikasi Android:', {
-          reason: !isNativeApp ? 'Bukan native app' : 
-                  firebaseUser ? 'Sudah ada firebaseUser' : 
-                  currentUser ? 'Sudah ada currentUser' : 'Kondisi tidak terpenuhi'
-        });
-        setIsAuthLoading(false);
-      }
-    };
-
-    handleAndroidAuth();
-  }, [authenticateWithAndroid, firebaseUser, currentUser]);
-
-  // Effect untuk Firebase Auth State Listener - DIPERBAIKI
-  useEffect(() => {
-    if (!database) {
-      console.warn('Firebase Auth listener skipped: Database not initialized.');
-      setIsAuthLoading(false);
-      return;
-    }
-
-    const auth = getAuth();
-    setIsAuthLoading(true);
-    
-    console.log('👂 Mendaftarkan Firebase Auth listener...');
-    
-    const unsubscribe = onAuthStateChanged(auth, (user) => {
-      console.log('🔄 Firebase Auth State Changed:', user ? `User: ${user.email}` : 'No user');
-      setFirebaseUser(user);
-      
-      if (user) {
-        const appUser = Object.values(users).find(u => u.email === user.email);
-        if (appUser) {
-          if (!currentUser || currentUser.email !== appUser.email) {
-            console.log('✅ User ditemukan di local storage:', appUser.username);
-            setCurrentUser(appUser);
-            setPendingGoogleUser(null);
-            
-            // Set onDisconnect untuk typing status
-            if (database && currentRoom?.id) {
-              try {
-                const typingRef = safeRef(`typing/${currentRoom.id}/${user.uid}`);
-                onDisconnect(typingRef).remove();
-                console.log(`[AUTH] onDisconnect set for typing status in room ${currentRoom.id}`);
-              } catch(e) { 
-                console.error("[AUTH] Error setting onDisconnect for typing status:", e); 
-              }
-            }
-          }
-        } else if (!pendingGoogleUser) {
-          console.warn('⚠️ Firebase user exists but no matching app user found');
-          // Untuk Android, buat user otomatis dari data Firebase
-          if (user.email) {
-            console.log('🔄 Membuat user otomatis dari data Firebase...');
-            const newUser: User = {
-              email: user.email,
-              username: user.displayName || user.email.split('@')[0],
-              // Tambahkan photoURL dari FirebaseUser, jika ada
-              googleProfilePicture: user.photoURL || undefined, 
-              createdAt: Date.now()
-            };
-            
-            // Periksa apakah user yang sama sudah login tanpa username (setelah google login tapi belum buat ID)
-            const existingUserByEmail = users[user.email];
-            if (existingUserByEmail && !existingUserByEmail.username) {
-                 // Update data yang hilang dengan data dari Firebase
-                 const updatedUser = { ...existingUserByEmail, ...newUser };
-                 setUsers(prev => ({ ...prev, [updatedUser.email]: updatedUser }));
-                 setCurrentUser(updatedUser);
-            } else {
-                 setUsers(prev => ({ ...prev, [newUser.email]: newUser }));
-                 setCurrentUser(newUser);
-            }
-          }
-        }
-      } else {
-        console.log('👤 No Firebase user');
-        if (currentUser !== null) setCurrentUser(null);
-        setPendingGoogleUser(null);
-      }
-      
-      setIsAuthLoading(false);
-    }, (error) => {
-      console.error('❌ Firebase Auth listener error:', error);
-      setIsAuthLoading(false);
-    });
-
-    return () => {
-      console.log('🧹 Membersihkan Firebase Auth listener');
-      unsubscribe();
-    };
-  }, [users, currentUser, pendingGoogleUser, database, currentRoom]);
-
-  // Gabungkan error dari Android auth dan regular auth
-  useEffect(() => {
-    if (androidAuthError) {
-      setAuthError(androidAuthError);
-    }
-  }, [androidAuthError]);
-
-  // Effect untuk rooms listener
   useEffect(() => {
     if (!database) {
       console.warn('Firebase rooms listener skipped: Database not initialized.');
@@ -609,6 +351,42 @@ const AppContent: React.FC = () => {
       if (u) setUsers(JSON.parse(u));
     } catch (e) { console.error('Gagal load users', e); }
   }, []);
+
+  useEffect(() => {
+    if (!database) {
+      console.warn('Firebase Auth listener skipped: Database not initialized.');
+      setIsAuthLoading(false);
+      return;
+    }
+    const auth = getAuth();
+    setIsAuthLoading(true);
+    const unsubscribe = onAuthStateChanged(auth, (user) => {
+      setFirebaseUser(user);
+      if (user) {
+        const appUser = Object.values(users).find(u => u.email === user.email);
+        if (appUser) {
+          if (!currentUser || currentUser.email !== appUser.email) {
+            setCurrentUser(appUser);
+            setPendingGoogleUser(null);
+             if (database && currentRoom?.id) {
+               try {
+                 const typingRef = safeRef(`typing/${currentRoom.id}/${user.uid}`);
+                 onDisconnect(typingRef).remove();
+                 console.log(`[AUTH] onDisconnect set for typing status in room ${currentRoom.id}`);
+               } catch(e) { console.error("[AUTH] Error setting onDisconnect for typing status:", e); }
+             }
+          }
+        } else if (!pendingGoogleUser) {
+          console.warn('Auth listener: Firebase user exists but no matching app user found and not pending.');
+        }
+      } else {
+        if (currentUser !== null) setCurrentUser(null);
+        setPendingGoogleUser(null);
+      }
+      setIsAuthLoading(false);
+    });
+    return () => unsubscribe();
+  }, [users, currentUser, pendingGoogleUser, database, currentRoom]);
 
   useEffect(() => {
     try { localStorage.setItem('cryptoUsers', JSON.stringify(users)); } catch (e) { console.error('Gagal simpan users', e); }
@@ -808,7 +586,6 @@ const AppContent: React.FC = () => {
   useEffect(() => {
     if (!database) return;
 
-    // FIX 4: Accessing .current is safe now, no need for the extra guard on roomListenersRef.current
     Object.values(roomListenersRef.current).forEach(unsubscribe => {
       if (typeof unsubscribe === 'function') {
         unsubscribe();
@@ -865,13 +642,10 @@ const AppContent: React.FC = () => {
         console.error(`Listener error untuk room ${roomId}:`, error);
       });
 
-      roomListenersRef.current[roomId] = () => {
-         if (database) off(messagesRef, 'value', listener);
-      };
+      roomListenersRef.current[roomId] = () => off(messagesRef, 'value', listener);
     });
 
     return () => {
-      // FIX 5: Simplified cleanup and access. .current is guaranteed.
       Object.values(roomListenersRef.current).forEach(unsubscribe => {
         if (typeof unsubscribe === 'function') {
           unsubscribe();
@@ -1120,7 +894,6 @@ const AppContent: React.FC = () => {
     setUserLastVisit(prev => { const newVisits = { ...prev }; delete newVisits[roomId]; return newVisits; });
     setNotificationSettings(prev => { const newSettings = { ...prev }; delete newSettings[roomId]; return newSettings; });
     
-    // FIX 6: Access roomListenersRef.current safely
     if (roomListenersRef.current[roomId]) {
       roomListenersRef.current[roomId]();
       delete roomListenersRef.current[roomId];
@@ -1504,6 +1277,7 @@ const AppContent: React.FC = () => {
           onLeaveRoom={handleLeaveRoom} 
           onReact={handleReaction} 
           onDeleteMessage={handleDeleteMessage} 
+          // forumActiveUsers={forumActiveUsers} // <-- DIHAPUS
           typingUsers={currentTypingUsers} 
           onStartTyping={handleStartTyping} 
           onStopTyping={handleStopTyping} 
@@ -1516,19 +1290,8 @@ const AppContent: React.FC = () => {
     }
   };
 
-  // TAMPILAN LOADING YANG LEBIH INFORMATIF
-  if (isAuthLoading || isAuthenticating) {
-    return (
-      <div className="min-h-screen bg-transparent text-white flex items-center justify-center flex-col">
-        <div className="animate-spin rounded-full h-16 w-16 border-b-2 border-electric mb-4"></div>
-        <p className="text-electric text-lg font-semibold">
-          {isAuthenticating ? 'Melakukan autentikasi dengan Android...' : 'Memverifikasi sesi Anda...'}
-        </p>
-        <p className="text-gray-400 text-sm mt-2">
-          {isAuthenticating ? 'Mengambil token dari aplikasi...' : 'Memuat data pengguna...'}
-        </p>
-      </div>
-    );
+  if (isAuthLoading) {
+    return <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Memverifikasi sesi Anda...</div>;
   }
 
   let contentToRender;
@@ -1566,24 +1329,8 @@ const AppContent: React.FC = () => {
       <Particles />
       {contentToRender}
       {authError && (
-        <div className="fixed bottom-4 right-4 bg-red-600 text-white p-4 rounded-lg shadow-lg z-50 max-w-md">
-          <div className="flex items-start">
-            <div className="flex-shrink-0">
-              <svg className="h-5 w-5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-              </svg>
-            </div>
-            <div className="ml-3">
-              <p className="text-sm font-medium">Error Autentikasi</p>
-              <p className="mt-1 text-sm opacity-90">{authError}</p>
-            </div>
-            <button 
-              onClick={() => setAuthError(null)} 
-              className="ml-auto text-sm underline hover:no-underline"
-            >
-              Tutup
-            </button>
-          </div>
+        <div className="fixed bottom-4 right-4 bg-red-600 text-white p-3 rounded-lg shadow-lg z-50">
+          Error: {authError} <button onClick={() => setAuthError(null)} className="ml-2 text-sm underline">Tutup</button>
         </div>
       )}
     </div>
@@ -1599,7 +1346,7 @@ const App: React.FC = () => {
         <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}>
           <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Koneksi Database</h1>
           <p style={{ marginTop: '10px', lineHeight: '1.6' }}>
-            Gagal terhubung ke Firebase Realtime Database.
+            Gagal terhubung ke Firebase Realtime Database. Periksa konfigurasi Firebase Anda (terutama <code>FIREBASE_DATABASE_URL</code>) dan koneksi internet.
           </p>
         </div>
       </div>
@@ -1612,7 +1359,7 @@ const App: React.FC = () => {
         <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}>
           <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Konfigurasi</h1>
           <p style={{ marginTop: '10px', lineHeight: '1.6' }}>
-            Variabel lingkungan GOOGLE_CLIENT_ID tidak ditemukan.
+            Variabel lingkungan <strong>GOOGLE_CLIENT_ID</strong> tidak ditemukan.
           </p>
         </div>
       </div>
