@@ -1,14 +1,7 @@
 // types.ts
 import type { CredentialResponse } from '@react-oauth/google';
-
-// [FIX] Impor tipe Json dari types_db.ts
-export type Json =
-  | string
-  | number
-  | boolean
-  | null
-  | { [key: string]: Json | undefined }
-  | Json[]
+// [FIX] Impor tipe Json yang BENAR dari types_db, jangan definisikan ulang
+import type { Json } from './types_db';
 
 // --- Basic Types ---
 export type Page = 'home' | 'rooms' | 'forum' | 'about';

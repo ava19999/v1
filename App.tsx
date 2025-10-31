@@ -29,7 +29,7 @@ import type {
   RoomUserCounts,
   TypingStatus,
   TypingUsersMap,
-  Json // [FIX] Impor tipe Json
+  Json // Tipe Json sekarang diimpor dari types.ts
 } from './types';
 import { isNewsArticle, isChatMessage } from './types';
 import {
@@ -41,17 +41,15 @@ import {
 } from './services/mockData';
 import { ADMIN_USERNAMES } from './components/UserTag';
 
-// [FIX] Impor tipe-tipe yang benar dari Supabase
+// Impor tipe-tipe Supabase untuk Insert/Update
 import type {
   ProfileUpdate,
   RoomInsert,
   MessageInsert,
   MessageUpdate
 } from './supabaseTypes';
-// import type { Database } from './types_db'; // Tidak perlu jika kita mendefinisikan secara lokal
 
-// [FIX] Kembalikan definisi tipe lokal untuk hasil SELECT
-// Ini diperlukan karena inferensi tipe global dari createClient<Database> tampaknya gagal
+// [FIX] Definisikan tipe lokal untuk hasil SELECT
 interface SupabaseProfile {
   id: string;
   username: string | null;
@@ -186,7 +184,7 @@ const App: React.FC = () => {
           .eq('id', session.user.id)
           .single() as { data: SupabaseProfile | null; error: any };
           
-        if (error) {
+        if (error && error.code !== 'PGRST116') {
           console.error('Error fetching profile:', error);
         } else if (profile && !profile.username) {
           setPendingGoogleUser({
@@ -680,7 +678,7 @@ const App: React.FC = () => {
     // [FIX] Gunakan cast manual untuk SELECT
     const { data, error } = await supabase
       .from('profiles')
-      .update(updateData)
+      .update(updateData) // Tipe 'never' error terjadi di sini
       .eq('id', session.user.id)
       .select()
       .single() as { data: SupabaseProfile | null; error: any };
@@ -801,7 +799,7 @@ const App: React.FC = () => {
     // [FIX] Gunakan cast manual untuk SELECT
     const { data, error } = await supabase
       .from('rooms')
-      .insert(newRoomData)
+      .insert(newRoomData) // Tipe 'never' error terjadi di sini
       .select()
       .single() as { data: SupabaseRoom | null; error: any };
 
@@ -892,9 +890,9 @@ const App: React.FC = () => {
     };
 
     // [FIX] Hapus cast
-    const { error } = await supabase
+    const { error }_ = await supabase
       .from('messages')
-      .insert(messageToSend);
+      .insert(messageToSend); // Tipe 'never' error terjadi di sini
 
     if (error) {
       console.error("Gagal kirim pesan:", error);
@@ -910,7 +908,7 @@ const App: React.FC = () => {
     if (isNaN(messagePk)) return;
 
     // [FIX] Gunakan cast manual untuk SELECT
-    const { data, error } = await supabase
+    const { data, error }_ = await supabase
       .from('messages')
       .select('reactions')
       .eq('id', messagePk)
@@ -942,7 +940,7 @@ const App: React.FC = () => {
     // [FIX] Hapus cast
     await supabase
       .from('messages')
-      .update(updateData)
+      .update(updateData) // Tipe 'never' error terjadi di sini
       .eq('id', messagePk);
   }, [currentRoom, currentUser]);
   
@@ -951,7 +949,7 @@ const App: React.FC = () => {
     if (isNaN(messagePk)) return;
 
     // [FIX] Hapus cast
-    const { error } = await supabase
+    const { error }_ = await supabase
       .from('messages')
       .delete()
       .eq('id', messagePk);
