@@ -889,8 +889,8 @@ const App: React.FC = () => {
       reactions: {} // Tipe Json default
     };
 
-    // [FIX] Hapus cast
-    const { error }_ = await supabase
+    // [FIX] Hapus typo underscore
+    const { error } = await supabase
       .from('messages')
       .insert(messageToSend); // Tipe 'never' error terjadi di sini
 
@@ -908,7 +908,7 @@ const App: React.FC = () => {
     if (isNaN(messagePk)) return;
 
     // [FIX] Gunakan cast manual untuk SELECT
-    const { data, error }_ = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .select('reactions')
       .eq('id', messagePk)
@@ -937,7 +937,7 @@ const App: React.FC = () => {
       reactions: currentReactions // Ini sesuai dengan tipe Json
     };
 
-    // [FIX] Hapus cast
+    // [FIX] Hapus typo underscore
     await supabase
       .from('messages')
       .update(updateData) // Tipe 'never' error terjadi di sini
@@ -948,8 +948,8 @@ const App: React.FC = () => {
     const messagePk = parseInt(messageId, 10);
     if (isNaN(messagePk)) return;
 
-    // [FIX] Hapus cast
-    const { error }_ = await supabase
+    // [FIX] Hapus typo underscore
+    const { error } = await supabase
       .from('messages')
       .delete()
       .eq('id', messagePk);
