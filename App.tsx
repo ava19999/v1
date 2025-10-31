@@ -39,10 +39,6 @@ import {
   fetchCoinDetails
 } from './services/mockData';
 import { ADMIN_USERNAMES } from './components/UserTag';
-// Hapus semua impor firebase
-// import { getAuth, ... } from 'firebase/auth';
-// import { database, ... } from './services/firebaseService';
-// import { ref, set, ... } from 'firebase/database';
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 const TYPING_TIMEOUT = 5000; // 5 detik
@@ -674,6 +670,11 @@ const App: React.FC = () => {
     });
   }, [roomChannel]);
 
+  const handleResetToTrending = useCallback(() => {
+    setSearchedCoin(null);
+    fetchTrendingData(true);
+  }, [fetchTrendingData]);
+  
   const handleNavigate = useCallback((page: Page) => {
     if (currentRoom && (page !== 'forum' || activePage !== 'forum')) {
       if (roomChannel) {
@@ -868,7 +869,7 @@ const App: React.FC = () => {
   const handleStartTyping = useCallback(() => {
     if (!roomChannel || !currentUser) return;
     const now = Date.now();
-    // Kirim event typing jika sudah lewat 5 detik
+    // Kirim event typing jika sudah lewat 3 detik
     if (now - lastTypingCallRef.current > 3000) { 
       roomChannel.send({
         type: 'broadcast',
@@ -918,10 +919,6 @@ const App: React.FC = () => {
     setNotificationSettings(prev => ({ ...prev, [roomId]: enabled }));
   }, []);
   
-  const handleResetToTrending = useCallback(() => {
-    setSearchedCoin(null);
-    fetchTrendingData(true);
-  }, [fetchTrendingData]);
 
   // --- DATA UNTUK RENDER ---
   const updatedRooms = useMemo(() => {
@@ -1012,11 +1009,20 @@ const App: React.FC = () => {
         </>
       );
     } else {
-      // State aneh, user auth tapi data lokal tidak sinkron. Coba muat ulang.
-      console.warn("State tidak sinkron: Ada sesi Supabase tapi tidak ada currentUser atau pendingGoogleUser. Coba muat ulang...");
-      contentToRender = <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Sinkronisasi akun...</div>;
-      // Coba paksa logout jika state membingungkan
-      if (!isAuthLoading) setTimeout(handleLogout, 2000);
+      // State aneh, user auth tapi data lokal tidak sinkron.
+      console.warn("State tidak sinkron: Ada sesi Supabase tapi tidak ada currentUser atau pendingGoogleUser.");
+      // Tampilkan halaman CreateIdPage jika data pending bisa dibuat
+      if (session.user.email) {
+         contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={{
+            email: session.user.email,
+            name: session.user.user_metadata?.full_name || 'User',
+            picture: session.user.user_metadata?.picture || ''
+         }} />;
+      } else {
+        // Jika state benar-benar rusak, paksa logout
+        contentToRender = <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Sinkronisasi akun...</div>;
+        if (!isAuthLoading) setTimeout(handleLogout, 2000);
+      }
     }
   } else {
     // Tidak ada sesi, tampilkan halaman login
