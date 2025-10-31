@@ -670,11 +670,27 @@ const App: React.FC = () => {
     });
   }, [roomChannel]);
 
+  // PERBAIKAN: Pindahkan handleStopTyping SEBELUM handleSendMessage
+  const handleStopTyping = useCallback(() => {
+    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
+    if (!roomChannel || !currentUser) return;
+    
+    roomChannel.send({
+      type: 'broadcast',
+      event: 'typing',
+      payload: { 
+        username: currentUser.username,
+        isTyping: false 
+      },
+    });
+  }, [roomChannel, currentUser]);
+  
+  // PERBAIKAN: Pindahkan handleResetToTrending SEBELUM handleNavigate
   const handleResetToTrending = useCallback(() => {
     setSearchedCoin(null);
     fetchTrendingData(true);
   }, [fetchTrendingData]);
-  
+
   const handleNavigate = useCallback((page: Page) => {
     if (currentRoom && (page !== 'forum' || activePage !== 'forum')) {
       if (roomChannel) {
@@ -882,20 +898,6 @@ const App: React.FC = () => {
       });
       lastTypingCallRef.current = now;
     }
-  }, [roomChannel, currentUser]);
-  
-  const handleStopTyping = useCallback(() => {
-    if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
-    if (!roomChannel || !currentUser) return;
-    
-    roomChannel.send({
-      type: 'broadcast',
-      event: 'typing',
-      payload: { 
-        username: currentUser.username,
-        isTyping: false 
-      },
-    });
   }, [roomChannel, currentUser]);
   
   // --- HANDLER LAIN (SAMA) ---
