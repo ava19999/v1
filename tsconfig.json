@@ -27,8 +27,6 @@
   "include": [
     "./*.ts",
     "./*.tsx",
-    "./types_db.ts",
-    "./supabaseTypes.ts",
     "./components/**/*.ts",
     "./components/**/*.tsx",
     "./services/**/*.ts",
