@@ -1,19 +1,11 @@
 // functions/api/getAnalysis.ts
-// TIDAK perlu import VercelRequest/VercelResponse
+// Ditulis ulang untuk Vercel Serverless Functions
 import { GoogleGenAI, Type } from "@google/genai";
-// Path ini mungkin perlu disesuaikan tergantung struktur Anda, 
-// tapi jika 'types.ts' ada di root, ini mungkin perlu diubah.
-// Asumsi 'types.ts' ada di 'src/types.ts' atau './types.ts' di root
-// Mari kita asumsikan path-nya relatif dari root:
 import type { AnalysisResult } from '../../types'; 
 
-// 1. Definisikan Tipe untuk Environment Variables di Cloudflare
-interface Env {
-  API_KEY: string;
-  // Tambahkan variabel Firebase Anda di sini jika fungsi ini membutuhkannya
-  // (Saat ini tidak, tapi ini cara melakukannya)
-  // FIREBASE_API_KEY: string; 
-}
+// 1. Definisikan tipe untuk Vercel Request & Response
+// (Ini menggantikan PagesFunction)
+import type { VercelRequest, VercelResponse } from '@vercel/node';
 
 // 2. Salin skema yang sama
 const analysisSchema = {
@@ -47,25 +39,28 @@ const analysisSchema = {
   required: ['position', 'entryPrice', 'stopLoss', 'takeProfit', 'confidence', 'reasoning'],
 };
 
-// 3. Buat handler untuk Cloudflare Pages
-// Ini adalah pengganti dari "export default async function handler(...)"
-export const onRequestPost: PagesFunction<Env> = async (context) => {
+// 3. Buat handler untuk Vercel
+export default async function handler(
+  request: VercelRequest,
+  response: VercelResponse
+) {
+  // Hanya izinkan metode POST
+  if (request.method !== 'POST') {
+    return response.status(405).json({ error: 'Method Not Allowed' });
+  }
+
   try {
-    // 4. Ambil data dari body permintaan (cara Cloudflare)
-    const { cryptoName, currentPrice } = await context.request.json<{ cryptoName: string, currentPrice: number }>();
+    // 4. Ambil data dari body permintaan Vercel
+    const { cryptoName, currentPrice } = request.body;
 
     if (!cryptoName || currentPrice === undefined) {
-      const errorResponse = { error: 'cryptoName dan currentPrice diperlukan' };
-      return new Response(JSON.stringify(errorResponse), {
-        status: 400,
-        headers: { 'Content-Type': 'application/json' },
-      });
+      return response.status(400).json({ error: 'cryptoName dan currentPrice diperlukan' });
     }
 
-    // 5. Ambil API Key dari Cloudflare Environment (context.env)
-    const apiKey = context.env.API_KEY;
+    // 5. Ambil API Key dari Vercel Environment Variables
+    const apiKey = process.env.API_KEY;
     if (!apiKey) {
-      throw new Error("Kunci API Gemini tidak dikonfigurasi di Cloudflare.");
+      throw new Error("Kunci API Gemini tidak dikonfigurasi di Vercel.");
     }
     
     // Inisialisasi AI di dalam handler
@@ -91,7 +86,7 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
     `;
 
     // 7. Panggil API Gemini
-    const response = await ai.models.generateContent({
+    const genAIResponse = await ai.models.generateContent({
       model: 'gemini-flash-latest',
       contents: prompt,
       config: {
@@ -101,26 +96,19 @@ export const onRequestPost: PagesFunction<Env> = async (context) => {
       },
     });
 
-    const jsonString = (response.text ?? '').trim();
+    const jsonString = (genAIResponse.text ?? '').trim();
     if (!jsonString) {
       throw new Error("Respons AI kosong.");
     }
     
     const result = JSON.parse(jsonString) as AnalysisResult;
 
-    // 8. Kembalikan hasil (cara Cloudflare)
-    return new Response(JSON.stringify(result), {
-      status: 200,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    // 8. Kembalikan hasil (cara Vercel)
+    return response.status(200).json(result);
 
   } catch (error) {
-    console.error("Error di Cloudflare function:", error);
+    console.error("Error di Vercel function:", error);
     const message = error instanceof Error ? error.message : "Gagal mendapatkan analisis dari AI.";
-    const errorResponse = { error: message };
-    return new Response(JSON.stringify(errorResponse), {
-      status: 500,
-      headers: { 'Content-Type': 'application/json' },
-    });
+    return response.status(500).json({ error: message });
   }
 }
