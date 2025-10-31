@@ -1,11 +1,9 @@
-// ava19999/v1/v1-1e0a8198e325d409dd8ea26e029e0b4dd5c5e986/components/CreateIdPage.tsx
+// components/CreateIdPage.tsx
 import React, { useState } from 'react';
 import type { CreateIdPageProps } from '../types';
 
 const CreateIdPage: React.FC<CreateIdPageProps> = ({ onProfileComplete, googleProfile }) => {
     const [username, setUsername] = useState('');
-    // Hapus state password
-    // const [password, setPassword] = useState(''); 
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -13,7 +11,6 @@ const CreateIdPage: React.FC<CreateIdPageProps> = ({ onProfileComplete, googlePr
         e.preventDefault();
         const trimmedUsername = username.trim();
 
-        // Hapus validasi password
         if (!trimmedUsername) {
             setError('Username tidak boleh kosong.');
             return;
@@ -30,11 +27,9 @@ const CreateIdPage: React.FC<CreateIdPageProps> = ({ onProfileComplete, googlePr
             setError('Username hanya boleh berisi huruf, angka, dan garis bawah (_).');
             return;
         }
-        // Hapus validasi password.length < 6
         
         setError('');
         setIsLoading(true);
-        // Kirim HANYA username. Password tidak ada di alur OAuth
         const result = await onProfileComplete(trimmedUsername);
         if (result) {
             setError(result);
@@ -66,12 +61,11 @@ const CreateIdPage: React.FC<CreateIdPageProps> = ({ onProfileComplete, googlePr
                             maxLength={15}
                         />
                     </div>
-                     {/* HAPUS INPUT PASSWORD */}
                     {error && <p className="text-magenta text-sm mt-2">{error}</p>}
                     <button
                         type="submit"
                         className="w-full bg-electric hover:bg-electric/80 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-electric disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center"
-                        disabled={!username.trim() || isLoading} // Hapus cek password
+                        disabled={!username.trim() || isLoading}
                     >
                         {isLoading ? (
                             <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

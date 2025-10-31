@@ -11,14 +11,14 @@ export interface Database {
     Tables: {
       profiles: {
         Row: {
-          id: string // uuid
-          username: string | null // Dibuat nullable
+          id: string
+          username: string | null
           google_profile_picture: string | null
           created_at: string
         }
         Insert: {
-          id: string // uuid
-          username?: string | null // Dibuat nullable
+          id: string
+          username?: string | null
           google_profile_picture?: string | null
           created_at?: string
         }
@@ -31,10 +31,10 @@ export interface Database {
       }
       rooms: {
         Row: {
-          id: number // bigint PK
-          room_id: string // text UNIQUE
+          id: number
+          room_id: string
           name: string
-          created_by: string | null // uuid
+          created_by: string | null
           is_default_room: boolean | null
           created_at: string
         }
@@ -57,9 +57,9 @@ export interface Database {
       }
       messages: {
         Row: {
-          id: number // bigint PK
-          room_id: number // bigint FK
-          user_id: string | null // uuid FK
+          id: number
+          room_id: number
+          user_id: string | null
           sender_username: string
           user_creation_date: string | null
           type: string
@@ -71,8 +71,8 @@ export interface Database {
         }
         Insert: {
           id?: number
-          room_id: number // FK
-          user_id?: string | null // FK
+          room_id: number
+          user_id?: string | null
           sender_username: string
           user_creation_date?: string | null
           type?: string
@@ -83,8 +83,17 @@ export interface Database {
           created_at?: string
         }
         Update: {
+          id?: number
+          room_id?: number
+          user_id?: string | null
+          sender_username?: string
+          user_creation_date?: string | null
+          type?: string
+          text?: string | null
+          file_url?: string | null
+          file_name?: string | null
           reactions?: Json
-          text?: string
+          created_at?: string
         }
       }
     }

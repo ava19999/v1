@@ -1,7 +1,7 @@
-// ava19999/v1/v1-1e0a8198e325d409dd8ea26e029e0b4dd5c5e986/App.tsx
+// App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Session, User as SupabaseUser, RealtimeChannel } from '@supabase/supabase-js';
-import { supabase } from './services/supabaseService'; // Import client Supabase baru
+import { supabase } from './services/supabaseService';
 
 // Impor Komponen
 import Header from './components/Header';
@@ -23,13 +23,14 @@ import type {
   Page,
   Currency,
   NewsArticle,
-  User, // Tipe User lokal kita
+  User,
   GoogleProfile,
   NotificationSettings,
   RoomUserCounts,
   TypingStatus,
   TypingUsersMap
 } from './types';
+import type { Database } from './types_db';
 import { isNewsArticle, isChatMessage } from './types';
 import {
   fetchIdrRate,
@@ -40,10 +41,14 @@ import {
 } from './services/mockData';
 import { ADMIN_USERNAMES } from './components/UserTag';
 
-const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
-const TYPING_TIMEOUT = 5000; // 5 detik
+// Tipe untuk rows database
+type ProfileRow = Database['public']['Tables']['profiles']['Row'];
+type RoomRow = Database['public']['Tables']['rooms']['Row'];
+type MessageRow = Database['public']['Tables']['messages']['Row'];
 
-// Sound notification
+const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
+const TYPING_TIMEOUT = 5000;
+
 const playNotificationSound = () => {
   try {
     const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
@@ -53,7 +58,7 @@ const playNotificationSound = () => {
     gainNode.connect(audioContext.destination);
     oscillator.frequency.value = 800;
     oscillator.type = 'sine';
-    gainNode.gain.value = 0.8; // Volume 80%
+    gainNode.gain.value = 0.8;
     oscillator.start();
     gainNode.gain.exponentialRampToValueAtTime(0.001, audioContext.currentTime + 0.3);
     oscillator.stop(audioContext.currentTime + 0.3);
@@ -80,7 +85,6 @@ const Particles: React.FC = () => (
   </div>
 );
 
-// Ganti AppContent menjadi App
 const App: React.FC = () => {
   // State Halaman & UI
   const [activePage, setActivePage] = useState<Page>('home');
@@ -91,7 +95,7 @@ const App: React.FC = () => {
   // State Auth Supabase
   const [session, setSession] = useState<Session | null>(null);
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
-  const [currentUser, setCurrentUser] = useState<User | null>(null); // Tipe User lokal kita
+  const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [pendingGoogleUser, setPendingGoogleUser] = useState<GoogleProfile | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -116,7 +120,6 @@ const App: React.FC = () => {
     return saved ? new Set(JSON.parse(saved)) : new Set(DEFAULT_ROOM_IDS);
   });
   const [unreadCounts, setUnreadCounts] = useState<{ [key: string]: number }>({});
-  // Ganti nama state dari firebaseMessages ke chatMessages
   const [chatMessages, setChatMessages] = useState<{ [roomId: string]: ForumMessageItem[] }>({});
   const [userLastVisit, setUserLastVisit] = useState<{ [roomId: string]: number }>({});
   const [newsArticles, setNewsArticles] = useState<NewsArticle[]>([]);
@@ -131,25 +134,22 @@ const App: React.FC = () => {
   // Refs
   const prevTotalUnreadRef = useRef<number>(0);
   const lastSoundPlayTimeRef = useRef<number>(0);
-  const roomListenersRef = useRef<{ [roomId: string]: RealtimeChannel }>({}); // Simpan channel, bukan fungsi
+  const roomListenersRef = useRef<{ [roomId: string]: RealtimeChannel }>({});
 
   // --- EFEK AUTH SUPABASE ---
   useEffect(() => {
     setIsAuthLoading(true);
-    // 1. Cek sesi awal
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setSupabaseUser(session?.user ?? null);
       if (session) {
-        // 2. Jika ada sesi, ambil profil
         const { data: profile } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single();
+          .single<ProfileRow>();
           
         if (profile && !profile.username) {
-          // User baru (username masih null), perlu set username
           setPendingGoogleUser({
             email: session.user.email || '',
             name: session.user.user_metadata?.full_name || 'User',
@@ -157,10 +157,9 @@ const App: React.FC = () => {
           });
           setCurrentUser(null);
         } else if (profile) {
-          // User sudah ada dan punya username
           setCurrentUser({
               email: session.user.email || '',
-              username: profile.username,
+              username: profile.username!,
               googleProfilePicture: profile.google_profile_picture || undefined,
               createdAt: new Date(profile.created_at).getTime()
           });
@@ -170,7 +169,6 @@ const App: React.FC = () => {
       setIsAuthLoading(false);
     });
 
-    // 3. Dengarkan perubahan auth (login/logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
@@ -181,10 +179,9 @@ const App: React.FC = () => {
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
-            .single();
+            .single<ProfileRow>();
 
           if (profile && profile.username) {
-            // User ada dan lengkap
             setCurrentUser({
                 email: session.user.email || '',
                 username: profile.username,
@@ -193,7 +190,6 @@ const App: React.FC = () => {
             });
             setPendingGoogleUser(null);
           } else if (session.user) {
-            // User baru, perlu set username
             setPendingGoogleUser({
                email: session.user.email || '',
                name: session.user.user_metadata?.full_name || 'User',
@@ -202,7 +198,6 @@ const App: React.FC = () => {
             setCurrentUser(null);
           }
         } else {
-          // Logout
           setCurrentUser(null);
           setPendingGoogleUser(null);
         }
@@ -215,11 +210,11 @@ const App: React.FC = () => {
 
   // --- EFEK DATA ROOMS (REALTIME) ---
   useEffect(() => {
-    // 1. Ambil data awal
     const fetchRooms = async () => {
       const { data, error } = await supabase
         .from('rooms')
-        .select('*');
+        .select('*')
+        .returns<RoomRow[]>();
         
       if (error) {
         console.error("Gagal mengambil rooms:", error);
@@ -228,14 +223,13 @@ const App: React.FC = () => {
         
       if (data) {
         const mappedRooms: Room[] = data.map(r => ({
-          id: r.room_id, // Gunakan room_id string sebagai ID di aplikasi
+          id: r.room_id,
           name: r.name,
-          userCount: roomUserCounts[r.room_id] || 0, // Diisi oleh Presence
-          createdBy: r.created_by || undefined, // Ini adalah uuid
+          userCount: roomUserCounts[r.room_id] || 0,
+          createdBy: r.created_by || undefined,
           isDefaultRoom: r.is_default_room || false
         }));
         
-        // Pastikan room default ada di list
         const defaultRooms: Room[] = [];
         if (!mappedRooms.find(r => r.id === 'berita-kripto')) {
           defaultRooms.push({ id: 'berita-kripto', name: 'Berita Kripto', userCount: 0, isDefaultRoom: true });
@@ -250,30 +244,27 @@ const App: React.FC = () => {
     
     fetchRooms();
 
-    // 2. Dengarkan perubahan (INSERT, UPDATE, DELETE)
     const channel = supabase.channel('public:rooms')
       .on('postgres_changes', {
-          event: '*', // Dengarkan semua event
+          event: '*',
           schema: 'public',
           table: 'rooms'
       }, 
       (payload) => {
           console.log('Perubahan data rooms terdeteksi, mengambil ulang...', payload);
-          fetchRooms(); // Ambil ulang semua data
+          fetchRooms();
       })
       .subscribe();
       
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [roomUserCounts]); // Ambil ulang jika user count berubah
+  }, [roomUserCounts]);
 
   // --- EFEK DATA PESAN (REALTIME) ---
   useEffect(() => {
-    // Berhenti jika tidak ada room
     if (!currentRoom?.id) return;
     
-    // Jangan ambil pesan untuk 'berita-kripto' (ditangani oleh state News)
     if (currentRoom.id === 'berita-kripto') {
       setChatMessages(prev => ({ ...prev, [currentRoom.id!]: [] }));
       return;
@@ -282,26 +273,25 @@ const App: React.FC = () => {
     let channel: RealtimeChannel | null = null;
     
     const setupMessageListener = async () => {
-      // 1. Dapatkan PK (Primary Key) dari room_id string
       const { data: roomData } = await supabase
         .from('rooms')
-        .select('id') // Ambil 'id' (bigint)
-        .eq('room_id', currentRoom.id) // Gunakan 'room_id' (text)
-        .single();
+        .select('id')
+        .eq('room_id', currentRoom.id)
+        .single<RoomRow>();
         
       if (!roomData) {
         console.error(`Tidak dapat menemukan PK untuk room_id: ${currentRoom.id}`);
         return;
       }
       
-      const roomPk = roomData.id; // Ini adalah room_id (bigint) untuk foreign key
+      const roomPk = roomData.id;
 
-      // 2. Ambil semua pesan awal
       const { data: messagesData, error } = await supabase
         .from('messages')
         .select('*')
         .eq('room_id', roomPk)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true })
+        .returns<MessageRow[]>();
 
       if (error) {
         console.error(`Gagal mengambil pesan untuk room ${currentRoom.id}:`, error);
@@ -310,7 +300,7 @@ const App: React.FC = () => {
 
       if (messagesData) {
         const mappedMessages: ChatMessage[] = messagesData.map(msg => ({
-          id: msg.id.toString(), // Gunakan ID pesan (PK)
+          id: msg.id.toString(),
           type: msg.type as 'user' | 'system',
           uid: msg.user_id || undefined,
           text: msg.text || undefined,
@@ -324,7 +314,6 @@ const App: React.FC = () => {
         setChatMessages(prev => ({ ...prev, [currentRoom.id!]: mappedMessages }));
       }
       
-      // 3. Dengarkan perubahan realtime
       channel = supabase.channel(`public:messages:room_id=eq.${roomPk}`)
         .on('postgres_changes', {
             event: '*',
@@ -336,7 +325,7 @@ const App: React.FC = () => {
             console.log('Perubahan pesan terdeteksi!', payload);
             
             if (payload.eventType === 'INSERT') {
-              const msg = payload.new as any;
+              const msg = payload.new as MessageRow;
               const newMessage: ChatMessage = {
                 id: msg.id.toString(),
                 type: msg.type as 'user' | 'system',
@@ -356,7 +345,7 @@ const App: React.FC = () => {
             }
             
             else if (payload.eventType === 'UPDATE') {
-              const updatedMsg = payload.new as any;
+              const updatedMsg = payload.new as MessageRow;
               setChatMessages(prev => {
                   const roomMessages = prev[currentRoom.id!] || [];
                   return {
@@ -371,7 +360,7 @@ const App: React.FC = () => {
             }
             
             else if (payload.eventType === 'DELETE') {
-              const deletedMsgId = (payload.old as any).id.toString();
+              const deletedMsgId = (payload.old as MessageRow).id.toString();
               setChatMessages(prev => ({
                   ...prev,
                   [currentRoom.id!]: (prev[currentRoom.id!] || []).filter(m => m.id !== deletedMsgId)
@@ -392,7 +381,6 @@ const App: React.FC = () => {
 
   // --- EFEK UNTUK PRESENCE & TYPING ---
   useEffect(() => {
-    // Keluar jika channel lama masih ada atau jika user/room tidak ada
     if (roomChannel) {
       supabase.removeChannel(roomChannel);
       setRoomChannel(null);
@@ -407,10 +395,9 @@ const App: React.FC = () => {
       },
     });
 
-    // 1. Dengarkan event typing
     newChannel.on('broadcast', { event: 'typing' }, ({ payload }) => {
       const { username, userCreationDate, isTyping } = payload;
-      if (username === currentUser.username) return; // Abaikan event sendiri
+      if (username === currentUser.username) return;
       
       setTypingUsers(prev => {
         const roomTyping = { ...(prev[currentRoom.id!] || {}) };
@@ -423,7 +410,6 @@ const App: React.FC = () => {
       });
     });
     
-    // 2. Dengarkan perubahan presence (user join/leave)
     newChannel.on('presence', { event: 'sync' }, () => {
       try {
         const presenceState = newChannel.presenceState();
@@ -435,7 +421,6 @@ const App: React.FC = () => {
       }
     });
 
-    // 3. Subscribe ke channel
     newChannel.subscribe(async (status) => {
       if (status === 'SUBSCRIBED') {
         try {
@@ -461,9 +446,8 @@ const App: React.FC = () => {
 
   }, [currentRoom, currentUser, supabaseUser]);
 
-  // --- EFEK UNREAD COUNT (HANYA UNTUK ROOM YANG DIIKUTI TAPI TIDAK DIBUKA) ---
+  // --- EFEK UNREAD COUNT ---
   useEffect(() => {
-    // Hapus semua listener lama
     Object.values(roomListenersRef.current).forEach(channel => supabase.removeChannel(channel));
     roomListenersRef.current = {};
 
@@ -471,7 +455,7 @@ const App: React.FC = () => {
       for (const roomId of joinedRoomIds) {
         if (roomId === currentRoom?.id || roomId === 'berita-kripto') continue;
 
-        const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', roomId).single();
+        const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', roomId).single<RoomRow>();
         if (!roomData) continue;
         const roomPk = roomData.id;
 
@@ -482,9 +466,8 @@ const App: React.FC = () => {
               table: 'messages',
               filter: `room_id=eq.${roomPk}`
           }, (payload) => {
-            const newMessage = payload.new as any;
+            const newMessage = payload.new as MessageRow;
             const lastVisit = userLastVisit[roomId] || 0;
-            // Cek jika pesan baru & bukan dari user saat ini
             if (newMessage.created_at && (new Date(newMessage.created_at).getTime() > lastVisit) && newMessage.user_id !== supabaseUser?.id) {
               setUnreadCounts(prev => ({
                 ...prev,
@@ -506,8 +489,7 @@ const App: React.FC = () => {
     };
   }, [joinedRoomIds, currentRoom, supabaseUser, userLastVisit]);
 
-
-  // --- EFEK DATA LAIN (TIDAK BERUBAH) ---
+  // --- EFEK DATA LAIN ---
   useEffect(() => {
     const getRate = async () => { 
       setIsRateLoading(true);
@@ -567,7 +549,7 @@ const App: React.FC = () => {
     return () => clearInterval(newsInterval);
   }, [fetchAndStoreNews]);
 
-  // --- EFEK LOCAL STORAGE (SAMA) ---
+  // --- EFEK LOCAL STORAGE ---
   useEffect(() => { localStorage.setItem('joinedRoomIds', JSON.stringify(Array.from(joinedRoomIds))); }, [joinedRoomIds]);
   useEffect(() => { 
     const saved = localStorage.getItem('unreadCounts'); 
@@ -597,7 +579,7 @@ const App: React.FC = () => {
   }, []);
   useEffect(() => { localStorage.setItem('roomNotificationSettings', JSON.stringify(notificationSettings)); }, [notificationSettings]);
 
-  // --- EFEK SUARA NOTIFIKASI (SAMA) ---
+  // --- EFEK SUARA NOTIFIKASI ---
   useEffect(() => {
     const currentTotal = Object.entries(unreadCounts).reduce((total, [roomId, count]) => {
       if (notificationSettings[roomId] !== false && roomId !== currentRoom?.id) return total + count;
@@ -612,17 +594,15 @@ const App: React.FC = () => {
     prevTotalUnreadRef.current = currentTotal;
   }, [unreadCounts, notificationSettings, currentRoom]);
 
-
-  // --- HANDLER FUNGSI (VERSI SUPABASE) ---
-
+  // --- HANDLER FUNGSI ---
   const handleProfileComplete = useCallback(async (username: string): Promise<string | void> => {
     setAuthError(null);
     if (!pendingGoogleUser || !session) {
       const msg = 'Sesi tidak valid untuk melengkapi profil.';
       setAuthError(msg); return msg;
     }
-    // Cek dulu apakah username sudah ada
-    const { data: existingUser } = await supabase.from('profiles').select('id').eq('username', username).single();
+    
+    const { data: existingUser } = await supabase.from('profiles').select('id').eq('username', username).single<ProfileRow>();
     if (existingUser) {
       const msg = 'Username sudah digunakan. Pilih username lain.';
       setAuthError(msg); return msg;
@@ -636,7 +616,7 @@ const App: React.FC = () => {
       })
       .eq('id', session.user.id)
       .select()
-      .single();
+      .single<ProfileRow>();
 
     if (error) {
       setAuthError(error.message); return error.message;
@@ -644,7 +624,7 @@ const App: React.FC = () => {
     if (data) {
       setCurrentUser({
         email: session.user.email || '',
-        username: data.username!, // Kita tahu ini tidak null karena kita baru set
+        username: data.username!,
         googleProfilePicture: data.google_profile_picture || undefined,
         createdAt: new Date(data.created_at).getTime()
       });
@@ -664,13 +644,11 @@ const App: React.FC = () => {
       setActivePage('home');
     }).catch((error) => {
       console.error('Gagal logout:', error);
-      // Force logout di sisi client
       setCurrentUser(null); setSession(null); setSupabaseUser(null);
       setActivePage('home');
     });
   }, [roomChannel]);
 
-  // PERBAIKAN: Pindahkan handleStopTyping SEBELUM handleSendMessage
   const handleStopTyping = useCallback(() => {
     if (typingTimeoutRef.current) clearTimeout(typingTimeoutRef.current);
     if (!roomChannel || !currentUser) return;
@@ -685,7 +663,6 @@ const App: React.FC = () => {
     });
   }, [roomChannel, currentUser]);
   
-  // PERBAIKAN: Pindahkan handleResetToTrending SEBELUM handleNavigate
   const handleResetToTrending = useCallback(() => {
     setSearchedCoin(null);
     fetchTrendingData(true);
@@ -754,7 +731,7 @@ const App: React.FC = () => {
         is_default_room: false
       })
       .select()
-      .single();
+      .single<RoomRow>();
 
     if (error) {
       console.error('Gagal buat room:', error);
@@ -778,7 +755,6 @@ const App: React.FC = () => {
     const roomToDelete = rooms.find(r => r.id === roomId);
     if (!roomToDelete || roomToDelete.isDefaultRoom) return;
 
-    // Cek admin atau kreator
     const isAdmin = ADMIN_USERNAMES.includes(currentUser.username);
     const isCreator = roomToDelete.createdBy === supabaseUser.id;
 
@@ -787,11 +763,9 @@ const App: React.FC = () => {
     }
     
     if (window.confirm(`Yakin ingin menghapus room "${roomToDelete.name}"? Ini akan menghapus semua pesan di dalamnya.`)) {
-      // Dapatkan PK room dulu
-      const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', roomId).single();
+      const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', roomId).single<RoomRow>();
       if (!roomData) { alert('Room tidak ditemukan untuk dihapus.'); return; }
       
-      // Hapus room. Pesan akan terhapus otomatis (ON DELETE CASCADE)
       const { error } = await supabase.from('rooms').delete().eq('id', roomData.id); 
       
       if (error) { alert(`Gagal menghapus room: ${error.message}`); }
@@ -806,8 +780,7 @@ const App: React.FC = () => {
     const room = rooms.find(r => r.id === currentRoom.id);
     if (!room) return;
 
-    // Dapatkan PK (bigint) dari room
-    const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', room.id).single();
+    const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', room.id).single<RoomRow>();
     if (!roomData) return;
 
     const messageToSend = {
@@ -822,12 +795,12 @@ const App: React.FC = () => {
       reactions: {}
     };
 
-    const { error } = await supabase.from('messages').insert(messageToSend);
+    const { error } = await supabase.from('messages').insert(messageToSend).returns<MessageRow>();
     if (error) {
       console.error("Gagal kirim pesan:", error);
       alert(`Gagal mengirim pesan: ${error.message}`);
     }
-    handleStopTyping(); // Panggil stop typing setelah mengirim
+    handleStopTyping();
   }, [currentRoom, currentUser, session, rooms, handleStopTyping]);
 
   const handleReaction = useCallback(async (messageId: string, emoji: string) => {
@@ -836,12 +809,11 @@ const App: React.FC = () => {
     const messagePk = parseInt(messageId, 10);
     if (isNaN(messagePk)) return;
 
-    // 1. Ambil reaksi saat ini
     const { data } = await supabase
       .from('messages')
       .select('reactions')
       .eq('id', messagePk)
-      .single();
+      .single<MessageRow>();
     if (!data) return;
 
     const currentReactions = (data.reactions as { [key: string]: string[] }) || {};
@@ -860,7 +832,6 @@ const App: React.FC = () => {
       currentReactions[emoji] = updatedUsers;
     }
 
-    // 2. Update reaksi
     await supabase
       .from('messages')
       .update({ reactions: currentReactions })
@@ -881,11 +852,9 @@ const App: React.FC = () => {
     }
   }, []);
 
-  // --- HANDLER TYPING (SUPABASE) ---
   const handleStartTyping = useCallback(() => {
     if (!roomChannel || !currentUser) return;
     const now = Date.now();
-    // Kirim event typing jika sudah lewat 3 detik
     if (now - lastTypingCallRef.current > 3000) { 
       roomChannel.send({
         type: 'broadcast',
@@ -900,7 +869,6 @@ const App: React.FC = () => {
     }
   }, [roomChannel, currentUser]);
   
-  // --- HANDLER LAIN (SAMA) ---
   const handleIncrementAnalysisCount = useCallback((coinId: string) => {
     setAnalysisCounts(prev => {
       const current = prev[coinId] || baseAnalysisCount;
@@ -920,7 +888,6 @@ const App: React.FC = () => {
   const handleToggleNotification = useCallback((roomId: string, enabled: boolean) => {
     setNotificationSettings(prev => ({ ...prev, [roomId]: enabled }));
   }, []);
-  
 
   // --- DATA UNTUK RENDER ---
   const updatedRooms = useMemo(() => {
@@ -935,15 +902,13 @@ const App: React.FC = () => {
   const otherTrendingCoins = useMemo(() => searchedCoin ? [] : trendingCoins.slice(1), [searchedCoin, trendingCoins]);
   const hotCoinForHeader = useMemo(() => trendingCoins.length > 1 ? { name: trendingCoins[1].name, logo: trendingCoins[1].image, price: trendingCoins[1].price, change: trendingCoins[1].change } : null, [trendingCoins]);
   
-  // Ambil data typing untuk room saat ini
   const currentTypingUsers = useMemo(() => {
     const currentRoomId = currentRoom?.id;
     if (!currentRoomId || !typingUsers[currentRoomId]) return [];
     const now = Date.now();
     return Object.values(typingUsers[currentRoomId])
-      .filter(status => status.username !== currentUser?.username && (now - status.timestamp < (TYPING_TIMEOUT + 2000))); // beri jeda
+      .filter(status => status.username !== currentUser?.username && (now - status.timestamp < (TYPING_TIMEOUT + 2000)));
   }, [typingUsers, currentRoom, currentUser]);
-
 
   const renderActivePage = () => {
     switch (activePage) {
@@ -969,7 +934,7 @@ const App: React.FC = () => {
         let displayMessages: ForumMessageItem[] = [];
         if (currentRoom) {
           if (currentRoom.id === 'berita-kripto') displayMessages = newsArticles;
-          else displayMessages = chatMessages[currentRoom.id] || []; // Ganti ke chatMessages
+          else displayMessages = chatMessages[currentRoom.id] || [];
         }
         return <ForumPage 
           room={currentRoom} 
@@ -991,7 +956,6 @@ const App: React.FC = () => {
     }
   };
 
-  // --- LOGIKA RENDER UTAMA ---
   if (isAuthLoading) {
     return <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Memverifikasi sesi Anda...</div>;
   }
@@ -999,10 +963,8 @@ const App: React.FC = () => {
   let contentToRender;
   if (session && supabaseUser) {
     if (pendingGoogleUser) {
-      // User sudah auth, tapi belum punya username
       contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
     } else if (currentUser && currentUser.username) {
-      // User sudah auth dan punya username
       contentToRender = (
         <>
           <Header userProfile={currentUser} onLogout={handleLogout} activePage={activePage} onNavigate={handleNavigate} currency={currency} onCurrencyChange={setCurrency} hotCoin={hotCoinForHeader} idrRate={idrRate} />
@@ -1011,9 +973,6 @@ const App: React.FC = () => {
         </>
       );
     } else {
-      // State aneh, user auth tapi data lokal tidak sinkron.
-      console.warn("State tidak sinkron: Ada sesi Supabase tapi tidak ada currentUser atau pendingGoogleUser.");
-      // Tampilkan halaman CreateIdPage jika data pending bisa dibuat
       if (session.user.email) {
          contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={{
             email: session.user.email,
@@ -1021,13 +980,11 @@ const App: React.FC = () => {
             picture: session.user.user_metadata?.picture || ''
          }} />;
       } else {
-        // Jika state benar-benar rusak, paksa logout
         contentToRender = <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Sinkronisasi akun...</div>;
         if (!isAuthLoading) setTimeout(handleLogout, 2000);
       }
     }
   } else {
-    // Tidak ada sesi, tampilkan halaman login
     contentToRender = <LoginPage />;
   }
 

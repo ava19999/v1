@@ -1,7 +1,7 @@
-// ava19999/v1/v1-1e0a8198e325d409dd8ea26e029e0b4dd5c5e986/components/LoginPage.tsx
+// components/LoginPage.tsx
 import React, { useState } from 'react';
 import { supabase } from '../services/supabaseService';
-import type { LoginPageProps } from '../types'; // Prop sekarang kosong
+import type { LoginPageProps } from '../types';
 
 const LoginPage: React.FC<LoginPageProps> = () => {
     const [error, setError] = useState('');
@@ -13,7 +13,6 @@ const LoginPage: React.FC<LoginPageProps> = () => {
       const { error } = await supabase.auth.signInWithOAuth({
         provider: 'google',
         options: {
-          // Arahkan kembali ke URL di mana aplikasi Anda di-host
           redirectTo: window.location.origin 
         }
       });
@@ -22,13 +21,11 @@ const LoginPage: React.FC<LoginPageProps> = () => {
         setError(error.message);
         setIsLoading(false);
       }
-      // Jika berhasil, browser akan me-redirect ke halaman Google
     };
 
     return (
         <div className="min-h-screen bg-transparent text-white font-sans flex flex-col items-center justify-center p-4">
             <div className="w-full max-w-sm text-center animate-fade-in-up">
-                {/* Header Aplikasi */}
                 <div className="flex items-center justify-center space-x-3 mb-4">
                     <svg className="h-12 w-12 text-electric" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
                         <path d="M8 6L5 3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round"/>
@@ -44,7 +41,6 @@ const LoginPage: React.FC<LoginPageProps> = () => {
                     Masuk atau daftar untuk bergabung dengan komunitas pejuang cuan.
                 </p>
 
-                {/* Tombol Google Login (Supabase) */}
                 <div className="flex flex-col items-center">
                    <button
                         onClick={handleGoogleLogin}
@@ -69,7 +65,6 @@ const LoginPage: React.FC<LoginPageProps> = () => {
                    {error && <p className="text-magenta text-sm text-center mt-4">{error}</p>}
                 </div>
             </div>
-            {/* Animasi */}
             <style>{`
                 @keyframes fade-in-up {
                     from { opacity: 0; transform: translateY(20px); }

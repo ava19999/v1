@@ -1,4 +1,3 @@
-// ava19999/v1/v1-1e0a8198e325d409dd8ea26e029e0b4dd5c5e986/types.ts
 // types.ts
 import type { CredentialResponse } from '@react-oauth/google';
 
@@ -16,8 +15,6 @@ export interface GoogleProfile {
 export interface User {
   email: string;
   username: string;
-  // Hapus password, ditangani oleh Supabase Auth
-  // password?: string;
   googleProfilePicture?: string;
   createdAt: number;
 }
@@ -65,16 +62,15 @@ export interface MarketDominance {
 
 // --- Forum Types (Disesuaikan) ---
 export interface Room {
-  // id (string) sekarang adalah room_id unik kita, bukan PK
-  id: string; // misal: 'berita-kripto' atau 'room-12345'
+  id: string;
   name: string;
-  userCount: number; // Ini akan di-supply oleh Supabase Presence
-  createdBy?: string; // Ini adalah UUID dari tabel profiles
+  userCount: number;
+  createdBy?: string;
   isDefaultRoom?: boolean;
 }
 
 export interface NewsArticle {
-  id: string; // Akan diisi dengan URL
+  id: string;
   type: 'news';
   title: string;
   url: string;
@@ -86,11 +82,11 @@ export interface NewsArticle {
 }
 
 export interface ChatMessage {
-  id: string; // Ini adalah PK (bigint) dari tabel, di-cast ke string
+  id: string;
   type: 'user' | 'system';
-  uid?: string; // Ini adalah UUID user dari auth.users
+  uid?: string;
   text?: string;
-  sender: string; // username
+  sender: string;
   timestamp: number;
   fileURL?: string;
   fileName?: string;
@@ -109,7 +105,7 @@ export interface TypingStatus {
 
 export interface TypingUsersMap {
   [roomId: string]: {
-    [username: string]: TypingStatus; // Gunakan username sebagai key
+    [username: string]: TypingStatus;
   };
 }
 
@@ -130,9 +126,6 @@ export const isChatMessage = (item: ForumMessageItem | null | undefined): item i
 };
 
 // --- Component Props Interfaces (Disesuaikan) ---
-
-// HeaderProps, HomePageProps, dll. tetap sama karena App.tsx akan
-// memformat data dari Supabase agar sesuai dengan prop ini.
 export interface HeaderProps {
   userProfile: User | null;
   onLogout: () => void;
@@ -223,19 +216,13 @@ export interface AnalysisModalProps {
   currency: Currency;
 }
 
-// Prop LoginPage diubah. Tidak perlu callback.
-export interface LoginPageProps {
-  // Kosong, karena Supabase menangani redirect
-}
+export interface LoginPageProps {}
 
-// Prop CreateIdPage diubah.
 export interface CreateIdPageProps {
-  // Hanya butuh username. Password tidak ada di alur OAuth.
   onProfileComplete: (username: string) => Promise<string | void>;
   googleProfile: GoogleProfile;
 }
 
-// --- Tipe sisanya tidak berubah ---
 export interface ReactionPickerProps {
   onSelect: (emoji: string) => void;
   onClose: () => void;
