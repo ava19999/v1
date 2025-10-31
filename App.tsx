@@ -40,35 +40,19 @@ import {
 } from './services/mockData';
 import { ADMIN_USERNAMES } from './components/UserTag';
 
-// Tipe untuk data dari Supabase
-interface SupabaseProfile {
-  id: string;
-  username: string | null;
-  google_profile_picture: string | null;
-  created_at: string;
-}
+// [FIX] Impor tipe-tipe yang benar dari Supabase
+import type {
+  ProfileUpdate,
+  RoomInsert,
+  MessageInsert,
+  MessageUpdate
+} from './supabaseTypes';
+import type { Database } from './types_db'; // Impor Database untuk cast yang lebih baik jika perlu
 
-interface SupabaseRoom {
-  id: string;
-  room_id: string;
-  name: string;
-  created_by: string | null;
-  is_default_room: boolean;
-}
-
-interface SupabaseMessage {
-  id: number;
-  room_id: string;
-  user_id: string | null;
-  sender_username: string;
-  user_creation_date: string | null;
-  type: 'user' | 'system';
-  text: string | null;
-  file_url: string | null;
-  file_name: string | null;
-  reactions: any;
-  created_at: string;
-}
+// [FIX] Hapus definisi tipe lokal yang konflik
+// interface SupabaseProfile { ... }
+// interface SupabaseRoom { ... }
+// interface SupabaseMessage { ... }
 
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 const TYPING_TIMEOUT = 5000;
@@ -108,6 +92,12 @@ const Particles: React.FC = () => (
     `}</style>
   </div>
 );
+
+// Tipe helper untuk Row dari types_db.ts
+type SupabaseProfile = Database['public']['Tables']['profiles']['Row'];
+type SupabaseRoom = Database['public']['Tables']['rooms']['Row'];
+type SupabaseMessage = Database['public']['Tables']['messages']['Row'];
+
 
 const App: React.FC = () => {
   // State Halaman & UI
@@ -171,7 +161,7 @@ const App: React.FC = () => {
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single() as { data: SupabaseProfile | null; error: any };
+          .single(); // [FIX] Hapus cast
           
         if (error) {
           console.error('Error fetching profile:', error);
@@ -205,7 +195,7 @@ const App: React.FC = () => {
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
-            .single() as { data: SupabaseProfile | null; error: any };
+            .single(); // [FIX] Hapus cast
 
           if (error) {
             console.error('Error fetching profile:', error);
@@ -241,7 +231,7 @@ const App: React.FC = () => {
     const fetchRooms = async () => {
       const { data, error } = await supabase
         .from('rooms')
-        .select('*') as { data: SupabaseRoom[] | null; error: any };
+        .select('*'); // [FIX] Hapus cast
         
       if (error) {
         console.error("Gagal mengambil rooms:", error);
@@ -304,7 +294,7 @@ const App: React.FC = () => {
         .from('rooms')
         .select('id')
         .eq('room_id', currentRoom.id)
-        .single() as { data: SupabaseRoom | null; error: any };
+        .single(); // [FIX] Hapus cast
         
       if (roomError || !roomData) {
         console.error(`Tidak dapat menemukan PK untuk room_id: ${currentRoom.id}`, roomError);
@@ -317,7 +307,7 @@ const App: React.FC = () => {
         .from('messages')
         .select('*')
         .eq('room_id', roomPk)
-        .order('created_at', { ascending: true }) as { data: SupabaseMessage[] | null; error: any };
+        .order('created_at', { ascending: true }); // [FIX] Hapus cast
 
       if (error) {
         console.error(`Gagal mengambil pesan untuk room ${currentRoom.id}:`, error);
@@ -485,7 +475,7 @@ const App: React.FC = () => {
           .from('rooms')
           .select('id')
           .eq('room_id', roomId)
-          .single() as { data: SupabaseRoom | null; error: any };
+          .single(); // [FIX] Hapus cast
         
         if (error || !roomData) continue;
         const roomPk = roomData.id;
@@ -637,7 +627,7 @@ const App: React.FC = () => {
       .from('profiles')
       .select('id')
       .eq('username', username)
-      .single() as { data: SupabaseProfile | null; error: any };
+      .single(); // [FIX] Hapus cast
     
     if (checkError && checkError.code !== 'PGRST116') {
       console.error('Error checking username:', checkError);
@@ -648,7 +638,8 @@ const App: React.FC = () => {
       setAuthError(msg); return msg;
     }
 
-    const updateData = {
+    // [FIX] Terapkan tipe ProfileUpdate
+    const updateData: ProfileUpdate = {
       username: username,
       google_profile_picture: pendingGoogleUser.picture
     };
@@ -658,7 +649,7 @@ const App: React.FC = () => {
       .update(updateData)
       .eq('id', session.user.id)
       .select()
-      .single() as { data: SupabaseProfile | null; error: any };
+      .single(); // [FIX] Hapus cast
 
     if (error) {
       setAuthError(error.message); return error.message;
@@ -765,7 +756,8 @@ const App: React.FC = () => {
 
     const newRoomIdString = `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    const newRoomData = {
+    // [FIX] Terapkan tipe RoomInsert
+    const newRoomData: RoomInsert = {
       room_id: newRoomIdString,
       name: trimmedName,
       created_by: supabaseUser.id,
@@ -776,7 +768,7 @@ const App: React.FC = () => {
       .from('rooms')
       .insert(newRoomData)
       .select()
-      .single() as { data: SupabaseRoom | null; error: any };
+      .single(); // [FIX] Hapus cast
 
     if (error) {
       console.error('Gagal buat room:', error);
@@ -812,7 +804,7 @@ const App: React.FC = () => {
         .from('rooms')
         .select('id')
         .eq('room_id', roomId)
-        .single() as { data: SupabaseRoom | null; error: any };
+        .single(); // [FIX] Hapus cast
       
       if (roomError || !roomData) { 
         alert('Room tidak ditemukan untuk dihapus.'); 
@@ -838,14 +830,18 @@ const App: React.FC = () => {
 
     const { data: roomData, error: roomError } = await supabase
       .from('rooms')
-      .select('id')
-      .eq('room_id', room.id)
-      .single() as { data: SupabaseRoom | null; error: any };
+      .select('id') // Ini adalah PK (number)
+      .eq('room_id', room.id) // room.id adalah room_id (string)
+      .single(); // [FIX] Hapus cast
     
-    if (roomError || !roomData) return;
+    if (roomError || !roomData) {
+      console.error('Gagal menemukan ID room (PK):', roomError);
+      return;
+    }
 
-    const messageToSend = {
-      room_id: roomData.id,
+    // [FIX] Terapkan tipe MessageInsert
+    const messageToSend: MessageInsert = {
+      room_id: roomData.id, // roomData.id sekarang adalah number (PK)
       user_id: session.user.id,
       sender_username: currentUser.username,
       user_creation_date: new Date(currentUser.createdAt).toISOString(),
@@ -858,7 +854,7 @@ const App: React.FC = () => {
 
     const { error } = await supabase
       .from('messages')
-      .insert(messageToSend) as { error: any };
+      .insert(messageToSend); // [FIX] Hapus cast
 
     if (error) {
       console.error("Gagal kirim pesan:", error);
@@ -877,7 +873,7 @@ const App: React.FC = () => {
       .from('messages')
       .select('reactions')
       .eq('id', messagePk)
-      .single() as { data: SupabaseMessage | null; error: any };
+      .single(); // [FIX] Hapus cast
     
     if (error || !data) return;
 
@@ -897,14 +893,15 @@ const App: React.FC = () => {
       currentReactions[emoji] = updatedUsers;
     }
 
-    const updateData = {
+    // [FIX] Terapkan tipe MessageUpdate
+    const updateData: MessageUpdate = {
       reactions: currentReactions
     };
 
     await supabase
       .from('messages')
       .update(updateData)
-      .eq('id', messagePk) as { error: any };
+      .eq('id', messagePk); // [FIX] Hapus cast
   }, [currentRoom, currentUser]);
   
   const handleDeleteMessage = useCallback(async (roomId: string, messageId: string) => {
@@ -914,7 +911,7 @@ const App: React.FC = () => {
     const { error } = await supabase
       .from('messages')
       .delete()
-      .eq('id', messagePk) as { error: any };
+      .eq('id', messagePk); // [FIX] Hapus cast
       
     if (error) {
       alert(`Gagal menghapus pesan: ${error.message}`);
