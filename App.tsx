@@ -46,6 +46,12 @@ type ProfileRow = Database['public']['Tables']['profiles']['Row'];
 type RoomRow = Database['public']['Tables']['rooms']['Row'];
 type MessageRow = Database['public']['Tables']['messages']['Row'];
 
+// Tipe untuk insert operations
+type ProfileInsert = Database['public']['Tables']['profiles']['Insert'];
+type RoomInsert = Database['public']['Tables']['rooms']['Insert'];
+type MessageInsert = Database['public']['Tables']['messages']['Insert'];
+type MessageUpdate = Database['public']['Tables']['messages']['Update'];
+
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 const TYPING_TIMEOUT = 5000;
 
@@ -608,12 +614,15 @@ const App: React.FC = () => {
       setAuthError(msg); return msg;
     }
 
+    // PERBAIKAN: Gunakan tipe yang tepat untuk update
+    const updateData = {
+      username: username,
+      google_profile_picture: pendingGoogleUser.picture
+    };
+
     const { data, error } = await supabase
       .from('profiles')
-      .update({
-        username: username,
-        google_profile_picture: pendingGoogleUser.picture
-      })
+      .update(updateData)
       .eq('id', session.user.id)
       .select()
       .single<ProfileRow>();
@@ -722,14 +731,18 @@ const App: React.FC = () => {
     }
 
     const newRoomIdString = `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    
+    // PERBAIKAN: Gunakan tipe yang tepat untuk insert
+    const newRoomData: RoomInsert = {
+      room_id: newRoomIdString,
+      name: trimmedName,
+      created_by: supabaseUser.id,
+      is_default_room: false
+    };
+
     const { data, error } = await supabase
       .from('rooms')
-      .insert({
-        room_id: newRoomIdString,
-        name: trimmedName,
-        created_by: supabaseUser.id,
-        is_default_room: false
-      })
+      .insert(newRoomData)
       .select()
       .single<RoomRow>();
 
@@ -741,7 +754,7 @@ const App: React.FC = () => {
         id: data.room_id,
         name: data.name,
         userCount: 0,
-        createdBy: data.created_by,
+        createdBy: data.created_by || undefined, // PERBAIKAN: Handle null case
         isDefaultRoom: data.is_default_room || false
       };
       handleJoinRoom(newRoom);
@@ -783,19 +796,20 @@ const App: React.FC = () => {
     const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', room.id).single<RoomRow>();
     if (!roomData) return;
 
-    const messageToSend = {
+    // PERBAIKAN: Gunakan tipe yang tepat untuk insert
+    const messageToSend: MessageInsert = {
       room_id: roomData.id,
       user_id: session.user.id,
       sender_username: currentUser.username,
       user_creation_date: new Date(currentUser.createdAt).toISOString(),
-      type: 'user' as const,
+      type: 'user',
       text: message.text?.trim() || null,
       file_url: message.fileURL || null,
       file_name: message.fileName || null,
       reactions: {}
     };
 
-    const { error } = await supabase.from('messages').insert(messageToSend).returns<MessageRow>();
+    const { error } = await supabase.from('messages').insert(messageToSend);
     if (error) {
       console.error("Gagal kirim pesan:", error);
       alert(`Gagal mengirim pesan: ${error.message}`);
@@ -832,9 +846,14 @@ const App: React.FC = () => {
       currentReactions[emoji] = updatedUsers;
     }
 
+    // PERBAIKAN: Gunakan tipe yang tepat untuk update
+    const updateData: MessageUpdate = {
+      reactions: currentReactions
+    };
+
     await supabase
       .from('messages')
-      .update({ reactions: currentReactions })
+      .update(updateData)
       .eq('id', messagePk);
   }, [currentRoom, currentUser]);
   
