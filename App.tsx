@@ -40,6 +40,36 @@ import {
 } from './services/mockData';
 import { ADMIN_USERNAMES } from './components/UserTag';
 
+// Tipe untuk data dari Supabase
+interface SupabaseProfile {
+  id: string;
+  username: string | null;
+  google_profile_picture: string | null;
+  created_at: string;
+}
+
+interface SupabaseRoom {
+  id: string;
+  room_id: string;
+  name: string;
+  created_by: string | null;
+  is_default_room: boolean;
+}
+
+interface SupabaseMessage {
+  id: number;
+  room_id: string;
+  user_id: string | null;
+  sender_username: string;
+  user_creation_date: string | null;
+  type: 'user' | 'system';
+  text: string | null;
+  file_url: string | null;
+  file_name: string | null;
+  reactions: any;
+  created_at: string;
+}
+
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 const TYPING_TIMEOUT = 5000;
 
@@ -133,19 +163,19 @@ const App: React.FC = () => {
   // --- EFEK AUTH SUPABASE ---
   useEffect(() => {
     setIsAuthLoading(true);
-    // @ts-ignore
     supabase.auth.getSession().then(async ({ data: { session } }) => {
       setSession(session);
       setSupabaseUser(session?.user ?? null);
       if (session) {
-        // @ts-ignore
-        const { data: profile } = await supabase
+        const { data: profile, error } = await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
-          .single();
+          .single() as { data: SupabaseProfile | null; error: any };
           
-        if (profile && !profile.username) {
+        if (error) {
+          console.error('Error fetching profile:', error);
+        } else if (profile && !profile.username) {
           setPendingGoogleUser({
             email: session.user.email || '',
             name: session.user.user_metadata?.full_name || 'User',
@@ -155,7 +185,7 @@ const App: React.FC = () => {
         } else if (profile) {
           setCurrentUser({
               email: session.user.email || '',
-              username: profile.username,
+              username: profile.username!,
               googleProfilePicture: profile.google_profile_picture || undefined,
               createdAt: new Date(profile.created_at).getTime()
           });
@@ -165,21 +195,21 @@ const App: React.FC = () => {
       setIsAuthLoading(false);
     });
 
-    // @ts-ignore
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
         setSession(session);
         setSupabaseUser(session?.user ?? null);
         
         if (session) {
-          // @ts-ignore
-          const { data: profile } = await supabase
+          const { data: profile, error } = await supabase
             .from('profiles')
             .select('*')
             .eq('id', session.user.id)
-            .single();
+            .single() as { data: SupabaseProfile | null; error: any };
 
-          if (profile && profile.username) {
+          if (error) {
+            console.error('Error fetching profile:', error);
+          } else if (profile && profile.username) {
             setCurrentUser({
                 email: session.user.email || '',
                 username: profile.username,
@@ -209,10 +239,9 @@ const App: React.FC = () => {
   // --- EFEK DATA ROOMS (REALTIME) ---
   useEffect(() => {
     const fetchRooms = async () => {
-      // @ts-ignore
       const { data, error } = await supabase
         .from('rooms')
-        .select('*');
+        .select('*') as { data: SupabaseRoom[] | null; error: any };
         
       if (error) {
         console.error("Gagal mengambil rooms:", error);
@@ -220,7 +249,7 @@ const App: React.FC = () => {
       }
         
       if (data) {
-        const mappedRooms: Room[] = data.map((r: any) => ({
+        const mappedRooms: Room[] = data.map((r: SupabaseRoom) => ({
           id: r.room_id,
           name: r.name,
           userCount: roomUserCounts[r.room_id] || 0,
@@ -242,7 +271,6 @@ const App: React.FC = () => {
     
     fetchRooms();
 
-    // @ts-ignore
     const channel = supabase.channel('public:rooms')
       .on('postgres_changes', {
           event: '*',
@@ -265,29 +293,31 @@ const App: React.FC = () => {
     if (!currentRoom?.id) return;
     
     if (currentRoom.id === 'berita-kripto') {
-      setChatMessages(prev => ({ ...prev, [currentRoom.id!]: [] }));
+      setChatMessages(prev => ({ ...prev, [currentRoom.id]: [] }));
       return;
     }
 
     let channel: RealtimeChannel | null = null;
     
     const setupMessageListener = async () => {
-      // @ts-ignore
-      const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', currentRoom.id).single();
+      const { data: roomData, error: roomError } = await supabase
+        .from('rooms')
+        .select('id')
+        .eq('room_id', currentRoom.id)
+        .single() as { data: SupabaseRoom | null; error: any };
         
-      if (!roomData) {
-        console.error(`Tidak dapat menemukan PK untuk room_id: ${currentRoom.id}`);
+      if (roomError || !roomData) {
+        console.error(`Tidak dapat menemukan PK untuk room_id: ${currentRoom.id}`, roomError);
         return;
       }
       
       const roomPk = roomData.id;
 
-      // @ts-ignore
       const { data: messagesData, error } = await supabase
         .from('messages')
         .select('*')
         .eq('room_id', roomPk)
-        .order('created_at', { ascending: true });
+        .order('created_at', { ascending: true }) as { data: SupabaseMessage[] | null; error: any };
 
       if (error) {
         console.error(`Gagal mengambil pesan untuk room ${currentRoom.id}:`, error);
@@ -295,7 +325,7 @@ const App: React.FC = () => {
       }
 
       if (messagesData) {
-        const mappedMessages: ChatMessage[] = messagesData.map((msg: any) => ({
+        const mappedMessages: ChatMessage[] = messagesData.map((msg: SupabaseMessage) => ({
           id: msg.id.toString(),
           type: msg.type as 'user' | 'system',
           uid: msg.user_id || undefined,
@@ -310,7 +340,6 @@ const App: React.FC = () => {
         setChatMessages(prev => ({ ...prev, [currentRoom.id!]: mappedMessages }));
       }
       
-      // @ts-ignore
       channel = supabase.channel(`public:messages:room_id=eq.${roomPk}`)
         .on('postgres_changes', {
             event: '*',
@@ -322,7 +351,7 @@ const App: React.FC = () => {
             console.log('Perubahan pesan terdeteksi!', payload);
             
             if (payload.eventType === 'INSERT') {
-              const msg = payload.new;
+              const msg = payload.new as SupabaseMessage;
               const newMessage: ChatMessage = {
                 id: msg.id.toString(),
                 type: msg.type as 'user' | 'system',
@@ -342,7 +371,7 @@ const App: React.FC = () => {
             }
             
             else if (payload.eventType === 'UPDATE') {
-              const updatedMsg = payload.new;
+              const updatedMsg = payload.new as SupabaseMessage;
               setChatMessages(prev => {
                   const roomMessages = prev[currentRoom.id!] || [];
                   return {
@@ -357,7 +386,7 @@ const App: React.FC = () => {
             }
             
             else if (payload.eventType === 'DELETE') {
-              const deletedMsgId = payload.old.id.toString();
+              const deletedMsgId = (payload.old as SupabaseMessage).id.toString();
               setChatMessages(prev => ({
                   ...prev,
                   [currentRoom.id!]: (prev[currentRoom.id!] || []).filter(m => m.id !== deletedMsgId)
@@ -397,13 +426,13 @@ const App: React.FC = () => {
       if (username === currentUser.username) return;
       
       setTypingUsers(prev => {
-        const roomTyping = { ...(prev[currentRoom.id!] || {}) };
+        const roomTyping = { ...(prev[currentRoom.id] || {}) };
         if (isTyping) {
           roomTyping[username] = { username, userCreationDate, timestamp: Date.now() };
         } else {
           delete roomTyping[username];
         }
-        return { ...prev, [currentRoom.id!]: roomTyping };
+        return { ...prev, [currentRoom.id]: roomTyping };
       });
     });
     
@@ -412,7 +441,7 @@ const App: React.FC = () => {
         const presenceState = newChannel.presenceState();
         const userCount = Object.keys(presenceState).length;
         console.log(`Presence sync room ${currentRoom.id}: ${userCount} users`, presenceState);
-        setRoomUserCounts(prev => ({ ...prev, [currentRoom.id!]: userCount }));
+        setRoomUserCounts(prev => ({ ...prev, [currentRoom.id]: userCount }));
       } catch (error) {
         console.error("Error saat sync presence:", error);
       }
@@ -452,12 +481,15 @@ const App: React.FC = () => {
       for (const roomId of joinedRoomIds) {
         if (roomId === currentRoom?.id || roomId === 'berita-kripto') continue;
 
-        // @ts-ignore
-        const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', roomId).single();
-        if (!roomData) continue;
+        const { data: roomData, error } = await supabase
+          .from('rooms')
+          .select('id')
+          .eq('room_id', roomId)
+          .single() as { data: SupabaseRoom | null; error: any };
+        
+        if (error || !roomData) continue;
         const roomPk = roomData.id;
 
-        // @ts-ignore
         const channel = supabase.channel(`public:messages:room_id=eq.${roomPk}:unread`)
           .on('postgres_changes', {
               event: 'INSERT',
@@ -465,7 +497,7 @@ const App: React.FC = () => {
               table: 'messages',
               filter: `room_id=eq.${roomPk}`
           }, (payload) => {
-            const newMessage = payload.new;
+            const newMessage = payload.new as SupabaseMessage;
             const lastVisit = userLastVisit[roomId] || 0;
             if (newMessage.created_at && (new Date(newMessage.created_at).getTime() > lastVisit) && newMessage.user_id !== supabaseUser?.id) {
               setUnreadCounts(prev => ({
@@ -601,8 +633,16 @@ const App: React.FC = () => {
       setAuthError(msg); return msg;
     }
     
-    // @ts-ignore
-    const { data: existingUser } = await supabase.from('profiles').select('id').eq('username', username).single();
+    const { data: existingUser, error: checkError } = await supabase
+      .from('profiles')
+      .select('id')
+      .eq('username', username)
+      .single() as { data: SupabaseProfile | null; error: any };
+    
+    if (checkError && checkError.code !== 'PGRST116') {
+      console.error('Error checking username:', checkError);
+    }
+    
     if (existingUser) {
       const msg = 'Username sudah digunakan. Pilih username lain.';
       setAuthError(msg); return msg;
@@ -613,13 +653,12 @@ const App: React.FC = () => {
       google_profile_picture: pendingGoogleUser.picture
     };
 
-    // @ts-ignore
     const { data, error } = await supabase
       .from('profiles')
       .update(updateData)
       .eq('id', session.user.id)
       .select()
-      .single();
+      .single() as { data: SupabaseProfile | null; error: any };
 
     if (error) {
       setAuthError(error.message); return error.message;
@@ -627,7 +666,7 @@ const App: React.FC = () => {
     if (data) {
       setCurrentUser({
         email: session.user.email || '',
-        username: data.username,
+        username: data.username!,
         googleProfilePicture: data.google_profile_picture || undefined,
         createdAt: new Date(data.created_at).getTime()
       });
@@ -733,12 +772,11 @@ const App: React.FC = () => {
       is_default_room: false
     };
 
-    // @ts-ignore
     const { data, error } = await supabase
       .from('rooms')
       .insert(newRoomData)
       .select()
-      .single();
+      .single() as { data: SupabaseRoom | null; error: any };
 
     if (error) {
       console.error('Gagal buat room:', error);
@@ -770,15 +808,24 @@ const App: React.FC = () => {
     }
     
     if (window.confirm(`Yakin ingin menghapus room "${roomToDelete.name}"? Ini akan menghapus semua pesan di dalamnya.`)) {
-      // @ts-ignore
-      const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', roomId).single();
-      if (!roomData) { alert('Room tidak ditemukan untuk dihapus.'); return; }
+      const { data: roomData, error: roomError } = await supabase
+        .from('rooms')
+        .select('id')
+        .eq('room_id', roomId)
+        .single() as { data: SupabaseRoom | null; error: any };
       
-      // @ts-ignore
+      if (roomError || !roomData) { 
+        alert('Room tidak ditemukan untuk dihapus.'); 
+        return; 
+      }
+      
       const { error } = await supabase.from('rooms').delete().eq('id', roomData.id); 
       
-      if (error) { alert(`Gagal menghapus room: ${error.message}`); }
-      else { if (currentRoom?.id === roomId) handleLeaveRoom(); }
+      if (error) { 
+        alert(`Gagal menghapus room: ${error.message}`); 
+      } else { 
+        if (currentRoom?.id === roomId) handleLeaveRoom(); 
+      }
     }
   }, [currentUser, supabaseUser, rooms, currentRoom, handleLeaveRoom]);
 
@@ -789,9 +836,13 @@ const App: React.FC = () => {
     const room = rooms.find(r => r.id === currentRoom.id);
     if (!room) return;
 
-    // @ts-ignore
-    const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', room.id).single();
-    if (!roomData) return;
+    const { data: roomData, error: roomError } = await supabase
+      .from('rooms')
+      .select('id')
+      .eq('room_id', room.id)
+      .single() as { data: SupabaseRoom | null; error: any };
+    
+    if (roomError || !roomData) return;
 
     const messageToSend = {
       room_id: roomData.id,
@@ -805,8 +856,10 @@ const App: React.FC = () => {
       reactions: {}
     };
 
-    // @ts-ignore
-    const { error } = await supabase.from('messages').insert(messageToSend);
+    const { error } = await supabase
+      .from('messages')
+      .insert(messageToSend) as { error: any };
+
     if (error) {
       console.error("Gagal kirim pesan:", error);
       alert(`Gagal mengirim pesan: ${error.message}`);
@@ -820,13 +873,13 @@ const App: React.FC = () => {
     const messagePk = parseInt(messageId, 10);
     if (isNaN(messagePk)) return;
 
-    // @ts-ignore
-    const { data } = await supabase
+    const { data, error } = await supabase
       .from('messages')
       .select('reactions')
       .eq('id', messagePk)
-      .single();
-    if (!data) return;
+      .single() as { data: SupabaseMessage | null; error: any };
+    
+    if (error || !data) return;
 
     const currentReactions = data.reactions || {};
     const usersForEmoji: string[] = currentReactions[emoji] || [];
@@ -848,22 +901,20 @@ const App: React.FC = () => {
       reactions: currentReactions
     };
 
-    // @ts-ignore
     await supabase
       .from('messages')
       .update(updateData)
-      .eq('id', messagePk);
+      .eq('id', messagePk) as { error: any };
   }, [currentRoom, currentUser]);
   
   const handleDeleteMessage = useCallback(async (roomId: string, messageId: string) => {
     const messagePk = parseInt(messageId, 10);
     if (isNaN(messagePk)) return;
 
-    // @ts-ignore
     const { error } = await supabase
       .from('messages')
       .delete()
-      .eq('id', messagePk);
+      .eq('id', messagePk) as { error: any };
       
     if (error) {
       alert(`Gagal menghapus pesan: ${error.message}`);
