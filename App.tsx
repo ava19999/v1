@@ -1,21 +1,30 @@
 // App.tsx - Volume notifikasi Web API diatur ke 80%
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
-import { GoogleOAuthProvider, CredentialResponse } from '@react-oauth/google';
-import { jwtDecode } from 'jwt-decode';
+// HAPUS import Google
+// import { GoogleOAuthProvider, CredentialResponse } from '@react-oauth/google';
+// HAPUS import jwtDecode
+// import { jwtDecode } from 'jwt-decode';
 import {
   getAuth,
   onAuthStateChanged,
   signOut,
-  GoogleAuthProvider,
-  signInWithCredential,
-  User as FirebaseUser
+  // HAPUS import Google Auth
+  // GoogleAuthProvider,
+  // signInWithCredential,
+  User as FirebaseUser,
+  // TAMBAHKAN import untuk Email/Pass Auth
+  signInWithEmailAndPassword,
+  createUserWithEmailAndPassword,
+  updateProfile
 } from 'firebase/auth';
 
 // Impor Komponen
 import Header from './components/Header';
 import Footer from './components/Footer';
-import LoginPage from './components/LoginPage';
-import CreateIdPage from './components/CreateIdPage';
+// HAPUS import LoginPage
+// import LoginPage from './components/LoginPage'; 
+// HAPUS import CreateIdPage
+// import CreateIdPage from './components/CreateIdPage'; 
 import HomePage from './components/HomePage';
 import ForumPage from './components/ForumPage';
 import AboutPage from './components/AboutPage';
@@ -32,7 +41,8 @@ import type {
   Currency,
   NewsArticle,
   User,
-  GoogleProfile,
+  // HAPUS import GoogleProfile
+  // GoogleProfile, 
   NotificationSettings,
   RoomUserCounts,
   TypingStatus,
@@ -113,7 +123,10 @@ const AppContent: React.FC = () => {
   const [isRateLoading, setIsRateLoading] = useState(true);
   const [users, setUsers] = useState<{ [email: string]: User }>({});
   const [currentUser, setCurrentUser] = useState<User | null>(null);
-  const [pendingGoogleUser, setPendingGoogleUser] = useState<GoogleProfile | null>(null);
+  
+  // HAPUS state pendingGoogleUser
+  // const [pendingGoogleUser, setPendingGoogleUser] = useState<GoogleProfile | null>(null);
+  
   const [firebaseUser, setFirebaseUser] = useState<FirebaseUser | null>(null);
   const [authError, setAuthError] = useState<string | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -363,11 +376,14 @@ const AppContent: React.FC = () => {
     const unsubscribe = onAuthStateChanged(auth, (user) => {
       setFirebaseUser(user);
       if (user) {
+        // Cari user di state 'users' kita
         const appUser = Object.values(users).find(u => u.email === user.email);
+        
         if (appUser) {
           if (!currentUser || currentUser.email !== appUser.email) {
             setCurrentUser(appUser);
-            setPendingGoogleUser(null);
+            // HAPUS setPendingGoogleUser
+            // setPendingGoogleUser(null); 
              if (database && currentRoom?.id) {
                try {
                  const typingRef = safeRef(`typing/${currentRoom.id}/${user.uid}`);
@@ -376,17 +392,23 @@ const AppContent: React.FC = () => {
                } catch(e) { console.error("[AUTH] Error setting onDisconnect for typing status:", e); }
              }
           }
-        } else if (!pendingGoogleUser) {
-          console.warn('Auth listener: Firebase user exists but no matching app user found and not pending.');
+        } else {
+          // Jika user Firebase ada TAPI user aplikasi (dari state 'users') tidak ada
+          // Ini bisa terjadi saat registrasi, user Firebase dibuat lebih dulu
+          // Kita akan menanganinya di handleRegister
+          console.warn('Auth listener: Firebase user exists but no matching app user found.');
         }
       } else {
         if (currentUser !== null) setCurrentUser(null);
-        setPendingGoogleUser(null);
+        // HAPUS setPendingGoogleUser
+        // setPendingGoogleUser(null);
       }
       setIsAuthLoading(false);
     });
     return () => unsubscribe();
-  }, [users, currentUser, pendingGoogleUser, database, currentRoom]);
+  // HAPUS dependensi pendingGoogleUser
+  }, [users, currentUser, database, currentRoom]);
+
 
   useEffect(() => {
     try { localStorage.setItem('cryptoUsers', JSON.stringify(users)); } catch (e) { console.error('Gagal simpan users', e); }
@@ -728,64 +750,97 @@ const AppContent: React.FC = () => {
     };
   }, [database, joinedRoomIds, firebaseUser?.uid, currentUser]);
 
+  
+  // HAPUS 'handleGoogleRegisterSuccess'
+  // const handleGoogleRegisterSuccess = useCallback(...)
 
-  const handleGoogleRegisterSuccess = useCallback(async (credentialResponse: CredentialResponse) => {
+  // HAPUS 'handleProfileComplete'
+  // const handleProfileComplete = useCallback(...)
+
+  // FUNGSI BARU: handleLogin (menggunakan username)
+  const handleLogin = useCallback(async (username: string, password: string): Promise<string | void> => {
     setAuthError(null);
-    if (!credentialResponse.credential) { setAuthError('Credential Google tidak ditemukan.'); return; }
-    try {
-      const decoded: { email: string; name: string; picture: string } = jwtDecode(credentialResponse.credential) as any;
-      const { email, name, picture } = decoded;
-      const auth = getAuth();
-      const googleCredential = GoogleAuthProvider.credential(credentialResponse.credential);
-      signInWithCredential(auth, googleCredential)
-        .then((userCredential) => {
-          const existingAppUser = Object.values(users).find(u => u.email === email);
-          if (existingAppUser) {
-            setCurrentUser(existingAppUser);
-            setPendingGoogleUser(null);
-          } else {
-            setPendingGoogleUser({ email, name, picture });
-            if (currentUser) setCurrentUser(null);
-          }
-        })
-        .catch((error) => {
-          console.error('Firebase signInWithCredential error:', error);
-          let errMsg = 'Gagal menghubungkan login Google ke Firebase.';
-          if ((error as any).code === 'auth/account-exists-with-different-credential') errMsg = 'Akun dengan email ini sudah ada, gunakan metode login lain.';
-          else if ((error as any).message) errMsg += ` (${(error as any).message})`;
-          setAuthError(errMsg);
-          if (currentUser) setCurrentUser(null);
-        });
-    } catch (error) {
-      console.error('Google login decode/Firebase error:', error);
-      setAuthError('Error memproses login Google.');
-      if (currentUser) setCurrentUser(null);
+    
+    // 1. Cari user berdasarkan username di state 'users'
+    const appUser = Object.values(users).find(u => u.username.toLowerCase() === username.toLowerCase());
+
+    // 2. Jika username tidak ditemukan
+    if (!appUser) {
+      const errMsg = 'Username atau kata sandi salah.';
+      setAuthError(errMsg);
+      return errMsg;
     }
-  }, [users, currentUser]);
 
-  const handleProfileComplete = useCallback(async (username: string, password: string): Promise<string | void> => {
+    // 3. Dapatkan email dari user yang ditemukan
+    const email = appUser.email;
+
+    const auth = getAuth();
+    try {
+      // 4. Login ke Firebase menggunakan email yang ditemukan
+      await signInWithEmailAndPassword(auth, email, password);
+      // onAuthStateChanged akan menangani sisanya
+    } catch (error: any) {
+      console.error('Firebase signIn error:', error);
+      let errMsg = 'Login gagal.';
+      // Jika username-nya benar tapi password salah
+      if (error.code === 'auth/wrong-password' || error.code === 'auth/invalid-credential') {
+        errMsg = 'Username atau kata sandi salah.';
+      }
+      setAuthError(errMsg);
+      return errMsg;
+    }
+  }, [users]); // Tambahkan 'users' sebagai dependensi
+
+  // FUNGSI BARU: handleRegister
+  const handleRegister = useCallback(async (username: string, email: string, password: string): Promise<string | void> => {
     setAuthError(null);
-    if (!pendingGoogleUser) { setAuthError('Data Google tidak ditemukan untuk melengkapi profil.'); return 'Data Google tidak ditemukan.'; }
-    if (!firebaseUser) { setAuthError('Sesi login Firebase tidak aktif untuk melengkapi profil.'); return 'Sesi login Firebase tidak aktif.'; }
+    
+    // Cek duplikat username di state 'users'
     if (Object.values(users).some(u => u.username.toLowerCase() === username.toLowerCase())) {
       const errorMsg = 'Username sudah digunakan. Pilih username lain.';
       setAuthError(errorMsg);
       return errorMsg;
     }
+    
+    const auth = getAuth();
+    try {
+      // 1. Buat user di Firebase Auth
+      const userCredential = await createUserWithEmailAndPassword(auth, email, password);
+      
+      // 2. Update profil Firebase Auth (username)
+      if (userCredential.user) {
+        await updateProfile(userCredential.user, { displayName: username });
+      }
+      
+      // 3. Buat objek User aplikasi kita
+      const newUser: User = {
+        email: email,
+        username: username,
+        password: password, // Pertimbangkan untuk tidak menyimpan password di state/localStorage
+        googleProfilePicture: `https://api.dicebear.com/7.x/pixel-art/svg?seed=${username}`, // Avatar default
+        createdAt: Date.now()
+      };
+      
+      // 4. Simpan user baru ke state 'users'
+      setUsers(prev => ({ ...prev, [newUser.email]: newUser }));
+      
+      // 5. Set currentUser secara manual agar langsung login
+      // (Meskipun onAuthStateChanged juga akan jalan)
+      setCurrentUser(newUser);
 
-    const newUser: User = {
-      email: pendingGoogleUser.email,
-      username,
-      password,
-      googleProfilePicture: pendingGoogleUser.picture,
-      createdAt: Date.now()
-    };
+    } catch (error: any) {
+      console.error('Firebase register error:', error);
+      let errMsg = 'Registrasi gagal.';
+      if (error.code === 'auth/email-already-in-use') {
+        errMsg = 'Email ini sudah terdaftar. Silakan login.';
+      } else if (error.code === 'auth/weak-password') {
+        errMsg = 'Kata sandi terlalu lemah.';
+      }
+      setAuthError(errMsg);
+      return errMsg;
+    }
+  }, [users]);
 
-    setUsers(prev => ({ ...prev, [newUser.email]: newUser }));
-    setCurrentUser(newUser);
-    setPendingGoogleUser(null);
-    setActivePage('home');
-  }, [users, pendingGoogleUser, firebaseUser]);
 
   const handleLogout = useCallback(() => {
     leaveCurrentRoom();
@@ -1294,35 +1349,18 @@ const AppContent: React.FC = () => {
     return <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Memverifikasi sesi Anda...</div>;
   }
 
-  let contentToRender;
-  if (firebaseUser) {
-    if (pendingGoogleUser) {
-      contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
-    } else if (currentUser && currentUser.username) {
-      contentToRender = (
-        <>
-          <Header userProfile={currentUser} onLogout={handleLogout} activePage={activePage} onNavigate={handleNavigate} currency={currency} onCurrencyChange={setCurrency} hotCoin={hotCoinForHeader} idrRate={idrRate} />
-          <main className="flex-grow">{renderActivePage()}</main>
-          <Footer />
-        </>
-      );
-    } else if (currentUser && !currentUser.username) {
-      console.warn('User logged in but missing username, showing CreateIdPage again.');
-      if (currentUser.googleProfilePicture && currentUser.email) {
-        contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={{ email: currentUser.email, name: currentUser.email, picture: currentUser.googleProfilePicture }} />;
-      } else {
-        console.error('Cannot show CreateIdPage: missing Google profile data. Forcing logout.');
-        handleLogout();
-        contentToRender = <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} />;
-      }
-    } else {
-      console.error('Invalid state: Firebase user exists but no local user or pending Google user. Forcing logout.');
-      handleLogout();
-      contentToRender = <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} />;
-    }
-  } else {
-    contentToRender = <LoginPage onGoogleRegisterSuccess={handleGoogleRegisterSuccess} />;
-  }
+  // --- LOGIKA RENDER YANG DIPERBARUI ---
+  // Selalu tampilkan Beranda, bahkan jika belum login.
+  // Aplikasi Android akan memanggil fungsi login secara eksternal.
+  let contentToRender = (
+    <>
+      <Header userProfile={currentUser} onLogout={handleLogout} activePage={activePage} onNavigate={handleNavigate} currency={currency} onCurrencyChange={setCurrency} hotCoin={hotCoinForHeader} idrRate={idrRate} />
+      <main className="flex-grow">{renderActivePage()}</main>
+      <Footer />
+    </>
+  );
+  // --- AKHIR LOGIKA RENDER YANG DIPERBARUI ---
+
 
   return (
     <div className="min-h-screen bg-transparent text-white font-sans flex flex-col">
@@ -1338,9 +1376,10 @@ const AppContent: React.FC = () => {
 };
 
 const App: React.FC = () => {
-  const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
+  // HAPUS googleClientId
+  // const googleClientId = process.env.GOOGLE_CLIENT_ID || '';
 
-  if (!database && googleClientId) {
+  if (!database) {
     return (
       <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}>
         <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}>
@@ -1353,23 +1392,18 @@ const App: React.FC = () => {
     );
   }
 
+  // HAPUS pengecekan googleClientId
+  /*
   if (!googleClientId) {
     return (
-      <div style={{ color: 'white', backgroundColor: '#0A0A0A', height: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '20px', fontFamily: 'sans-serif' }}>
-        <div style={{ border: '1px solid #FF00FF', padding: '20px', borderRadius: '8px', textAlign: 'center', maxWidth: '500px' }}>
-          <h1 style={{ color: '#FF00FF', fontSize: '24px' }}>Kesalahan Konfigurasi</h1>
-          <p style={{ marginTop: '10px', lineHeight: '1.6' }}>
-            Variabel lingkungan <strong>GOOGLE_CLIENT_ID</strong> tidak ditemukan.
-          </p>
-        </div>
-      </div>
+      ...
     );
   }
+  */
 
+  // HAPUS wrapper <GoogleOAuthProvider>
   return (
-    <GoogleOAuthProvider clientId={googleClientId}>
-      <AppContent />
-    </GoogleOAuthProvider>
+    <AppContent />
   );
 };
 
