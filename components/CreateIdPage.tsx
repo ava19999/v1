@@ -1,9 +1,11 @@
+// ava19999/v1/v1-1e0a8198e325d409dd8ea26e029e0b4dd5c5e986/components/CreateIdPage.tsx
 import React, { useState } from 'react';
 import type { CreateIdPageProps } from '../types';
 
 const CreateIdPage: React.FC<CreateIdPageProps> = ({ onProfileComplete, googleProfile }) => {
     const [username, setUsername] = useState('');
-    const [password, setPassword] = useState('');
+    // Hapus state password
+    // const [password, setPassword] = useState(''); 
     const [error, setError] = useState('');
     const [isLoading, setIsLoading] = useState(false);
 
@@ -11,8 +13,9 @@ const CreateIdPage: React.FC<CreateIdPageProps> = ({ onProfileComplete, googlePr
         e.preventDefault();
         const trimmedUsername = username.trim();
 
-        if (!trimmedUsername || !password) {
-            setError('Username dan kata sandi tidak boleh kosong.');
+        // Hapus validasi password
+        if (!trimmedUsername) {
+            setError('Username tidak boleh kosong.');
             return;
         }
         if (trimmedUsername.length < 3) {
@@ -27,14 +30,12 @@ const CreateIdPage: React.FC<CreateIdPageProps> = ({ onProfileComplete, googlePr
             setError('Username hanya boleh berisi huruf, angka, dan garis bawah (_).');
             return;
         }
-        if (password.length < 6) {
-            setError('Kata sandi minimal harus 6 karakter.');
-            return;
-        }
+        // Hapus validasi password.length < 6
         
         setError('');
         setIsLoading(true);
-        const result = await onProfileComplete(trimmedUsername, password);
+        // Kirim HANYA username. Password tidak ada di alur OAuth
+        const result = await onProfileComplete(trimmedUsername);
         if (result) {
             setError(result);
         }
@@ -50,7 +51,7 @@ const CreateIdPage: React.FC<CreateIdPageProps> = ({ onProfileComplete, googlePr
                 </h1>
 
                 <p className="text-md text-gray-400 mt-2 mb-6">
-                    Satu langkah terakhir. Buat username dan kata sandi untuk akun forum Anda.
+                    Satu langkah terakhir. Buat username unik untuk akun forum Anda.
                 </p>
                 
                 <form onSubmit={handleSubmit} className="w-full space-y-4">
@@ -62,23 +63,15 @@ const CreateIdPage: React.FC<CreateIdPageProps> = ({ onProfileComplete, googlePr
                             placeholder="Buat Username Anda"
                             className="w-full bg-white/5 border border-white/10 rounded-lg py-3 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all text-center"
                             aria-label="Buat Username"
+                            maxLength={15}
                         />
                     </div>
-                     <div>
-                        <input
-                            type="password"
-                            value={password}
-                            onChange={(e) => setPassword(e.target.value)}
-                            placeholder="Buat Kata Sandi"
-                            className="w-full bg-white/5 border border-white/10 rounded-lg py-3 px-4 text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-electric transition-all text-center"
-                            aria-label="Buat Kata Sandi"
-                        />
-                    </div>
+                     {/* HAPUS INPUT PASSWORD */}
                     {error && <p className="text-magenta text-sm mt-2">{error}</p>}
                     <button
                         type="submit"
                         className="w-full bg-electric hover:bg-electric/80 text-white font-bold py-3 px-6 rounded-lg transition-all duration-300 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-offset-gray-900 focus:ring-electric disabled:bg-gray-600 disabled:cursor-not-allowed flex items-center justify-center"
-                        disabled={!username.trim() || !password.trim() || isLoading}
+                        disabled={!username.trim() || isLoading} // Hapus cek password
                     >
                         {isLoading ? (
                             <svg className="animate-spin h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

@@ -1,3 +1,4 @@
+// ava19999/v1/v1-1e0a8198e325d409dd8ea26e029e0b4dd5c5e986/types.ts
 // types.ts
 import type { CredentialResponse } from '@react-oauth/google';
 
@@ -15,12 +16,13 @@ export interface GoogleProfile {
 export interface User {
   email: string;
   username: string;
-  password?: string;
+  // Hapus password, ditangani oleh Supabase Auth
+  // password?: string;
   googleProfilePicture?: string;
   createdAt: number;
 }
 
-// --- Crypto Data Types ---
+// --- Crypto Data Types (Tidak Berubah) ---
 export interface CryptoData {
   id: string;
   name: string;
@@ -35,7 +37,6 @@ export interface CryptoData {
   low_24h: number;
   market_cap: number;
 }
-
 export interface AnalysisResult {
   position: 'Long' | 'Short';
   entryPrice: string;
@@ -44,38 +45,36 @@ export interface AnalysisResult {
   confidence: string;
   reasoning: string;
 }
-
 export interface ExchangeTicker {
   name: string;
   logo: string;
   price: number;
   tradeUrl: string;
 }
-
 export interface CoinListItem {
   id: string;
   symbol: string;
   name: string;
   image: string;
 }
-
 export interface MarketDominance {
   btc: number;
   usdt: number;
   alts: number;
 }
 
-// --- Forum Types ---
+// --- Forum Types (Disesuaikan) ---
 export interface Room {
-  id: string;
+  // id (string) sekarang adalah room_id unik kita, bukan PK
+  id: string; // misal: 'berita-kripto' atau 'room-12345'
   name: string;
-  userCount: number;
-  createdBy?: string;
-  isDefaultRoom?: boolean; // Ditambahkan untuk identifikasi room default
+  userCount: number; // Ini akan di-supply oleh Supabase Presence
+  createdBy?: string; // Ini adalah UUID dari tabel profiles
+  isDefaultRoom?: boolean;
 }
 
 export interface NewsArticle {
-  id: string;
+  id: string; // Akan diisi dengan URL
   type: 'news';
   title: string;
   url: string;
@@ -87,11 +86,11 @@ export interface NewsArticle {
 }
 
 export interface ChatMessage {
-  id: string;
+  id: string; // Ini adalah PK (bigint) dari tabel, di-cast ke string
   type: 'user' | 'system';
-  uid?: string;
+  uid?: string; // Ini adalah UUID user dari auth.users
   text?: string;
-  sender: string;
+  sender: string; // username
   timestamp: number;
   fileURL?: string;
   fileName?: string;
@@ -104,45 +103,36 @@ export type ForumMessageItem = NewsArticle | ChatMessage;
 // --- Typing Indicator Types ---
 export interface TypingStatus {
   username: string;
-  userCreationDate: number | null; // Tambahkan ini
+  userCreationDate: number | null;
   timestamp: number;
 }
 
 export interface TypingUsersMap {
   [roomId: string]: {
-    [userId: string]: TypingStatus;
+    [username: string]: TypingStatus; // Gunakan username sebagai key
   };
 }
 
-
-// --- Notification Types ---
+// --- Notification & Count Types ---
 export interface NotificationSettings {
   [roomId: string]: boolean;
 }
-
-// --- User Count Types ---
 export interface RoomUserCounts {
   [roomId: string]: number;
 }
 
-// --- User Activity Types ---
-export interface UserActivityData {
-  [roomId: string]: {
-    users: string[];
-    lastUpdated: number;
-  };
-}
-
-// --- Type Guards ---
+// --- Type Guards (Tidak Berubah) ---
 export const isNewsArticle = (item: ForumMessageItem | null | undefined): item is NewsArticle => {
     return !!item && item.type === 'news' && typeof (item as NewsArticle).published_on === 'number';
 };
-
 export const isChatMessage = (item: ForumMessageItem | null | undefined): item is ChatMessage => {
      return !!item && (item.type === 'user' || item.type === 'system') && typeof (item as ChatMessage).timestamp === 'number';
 };
 
-// --- Component Props Interfaces ---
+// --- Component Props Interfaces (Disesuaikan) ---
+
+// HeaderProps, HomePageProps, dll. tetap sama karena App.tsx akan
+// memformat data dari Supabase agar sesuai dengan prop ini.
 export interface HeaderProps {
   userProfile: User | null;
   onLogout: () => void;
@@ -153,7 +143,6 @@ export interface HeaderProps {
   hotCoin: { name: string; logo: string; price: number; change: number; } | null;
   idrRate: number | null;
 }
-
 export interface HomePageProps {
   idrRate: number | null;
   isRateLoading: boolean;
@@ -169,7 +158,6 @@ export interface HomePageProps {
   onSelectCoin: (coinId: string) => void;
   onReloadTrending: () => void;
 }
-
 export interface ForumPageProps {
   room: Room | null;
   messages: ForumMessageItem[];
@@ -178,14 +166,10 @@ export interface ForumPageProps {
   onLeaveRoom: () => void;
   onReact: (messageId: string, emoji: string) => void;
   onDeleteMessage: (roomId: string, messageId: string) => void;
-  // forumActiveUsers?: number; // <-- DIHAPUS
-  // Tambahkan props untuk typing indicator
   typingUsers: TypingStatus[];
   onStartTyping: () => void;
   onStopTyping: () => void;
 }
-
-
 export interface RoomsListPageProps {
   rooms: Room[];
   onJoinRoom: (room: Room) => void;
@@ -201,7 +185,6 @@ export interface RoomsListPageProps {
   onToggleNotification: (roomId: string, enabled: boolean) => void;
   notificationSettings: NotificationSettings;
 }
-
 export interface RoomListItemProps {
   room: Room;
   currentUser: User | null;
@@ -214,21 +197,18 @@ export interface RoomListItemProps {
   unreadCount: number;
   notificationEnabled: boolean;
 }
-
 export interface HeroCoinProps {
   crypto: CryptoData;
   onAnalyze: (crypto: CryptoData) => void;
   idrRate: number | null;
   currency: Currency;
 }
-
 export interface CryptoCardProps {
   crypto: CryptoData;
   onAnalyze: (crypto: CryptoData) => void;
   idrRate: number | null;
   currency: Currency;
 }
-
 export interface AnalysisModalProps {
   isOpen: boolean;
   onClose: () => void;
@@ -243,36 +223,30 @@ export interface AnalysisModalProps {
   currency: Currency;
 }
 
+// Prop LoginPage diubah. Tidak perlu callback.
 export interface LoginPageProps {
-  onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void;
+  // Kosong, karena Supabase menangani redirect
 }
 
+// Prop CreateIdPage diubah.
 export interface CreateIdPageProps {
-  onProfileComplete: (username: string, password: string) => Promise<string | void>;
+  // Hanya butuh username. Password tidak ada di alur OAuth.
+  onProfileComplete: (username: string) => Promise<string | void>;
   googleProfile: GoogleProfile;
 }
 
-// --- Reaction Types ---
+// --- Tipe sisanya tidak berubah ---
 export interface ReactionPickerProps {
   onSelect: (emoji: string) => void;
   onClose: () => void;
 }
-
 export interface ReactionsProps {
   message: NewsArticle | ChatMessage | undefined | null;
   username: string;
   onReact: (emoji: string) => void;
 }
-
-export interface DeleteButtonProps {
-  onClick: (e: React.MouseEvent) => void;
-}
-
-export interface ReactButtonProps {
-  onClick: (e: React.MouseEvent) => void;
-}
-
-// --- Message Component Types ---
+export interface DeleteButtonProps { onClick: (e: React.MouseEvent) => void; }
+export interface ReactButtonProps { onClick: (e: React.MouseEvent) => void; }
 export interface NewsMessageProps {
   article: NewsArticle;
   username: string;
@@ -285,7 +259,6 @@ export interface NewsMessageProps {
   onReactButtonClick: (e: React.MouseEvent) => void;
   onImageClick: (url: string) => void;
 }
-
 export interface UserMessageProps {
   message: ChatMessage;
   userProfile: User | null;
@@ -298,267 +271,14 @@ export interface UserMessageProps {
   onReactButtonClick: (e: React.MouseEvent) => void;
   onImageClick: (url: string) => void;
 }
-
-export interface SystemMessageProps {
-  message: ChatMessage;
-}
-
-export interface AnnouncementMessageProps {
-  message: ChatMessage;
-}
-
-// --- User Tag Types ---
+export interface SystemMessageProps { message: ChatMessage; }
+export interface AnnouncementMessageProps { message: ChatMessage; }
 export interface UserTagProps {
   sender: string;
   userCreationDate: number | null;
 }
-
-// --- User Tag Info Type ---
 export interface UserTagInfo {
   tagName: string;
   tagColor: string;
   icon?: React.ReactNode;
 }
-
-// --- App State Types ---
-export interface AppState {
-  activePage: Page;
-  currency: Currency;
-  idrRate: number | null;
-  isRateLoading: boolean;
-  users: { [email: string]: User };
-  currentUser: User | null;
-  pendingGoogleUser: GoogleProfile | null;
-  firebaseUser: any | null;
-  authError: string | null;
-  isAuthLoading: boolean;
-  analysisCounts: { [key: string]: number };
-  fullCoinList: CoinListItem[];
-  isCoinListLoading: boolean;
-  coinListError: string | null;
-  trendingCoins: CryptoData[];
-  isTrendingLoading: boolean;
-  trendingError: string | null;
-  searchedCoin: CryptoData | null;
-  rooms: Room[];
-  currentRoom: Room | null;
-  joinedRoomIds: Set<string>;
-  unreadCounts: { [key: string]: number };
-  firebaseMessages: { [roomId: string]: ForumMessageItem[] };
-  lastMessageTimestamps: { [roomId: string]: number };
-  userLastVisit: { [roomId: string]: number };
-  newsArticles: NewsArticle[];
-  notificationSettings: NotificationSettings;
-  roomUserCounts: RoomUserCounts;
-  // forumActiveUsers: number; // <-- DIHAPUS
-  userActivities: UserActivityData; // Ditambahkan untuk tracking user aktif per room
-  typingUsers: TypingUsersMap; // Tambahkan state untuk typing users
-}
-
-
-// --- Firebase Types ---
-export interface FirebaseMessageData {
-  [key: string]: {
-    type: 'user' | 'system' | 'news';
-    uid?: string;
-    sender?: string;
-    text?: string;
-    timestamp?: number;
-    published_on?: number;
-    fileURL?: string;
-    fileName?: string;
-    reactions?: { [key: string]: string[] };
-    userCreationDate?: number;
-    title?: string;
-    url?: string;
-    imageurl?: string;
-    source?: string;
-    body?: string;
-  };
-}
-
-export interface FirebaseRoomData {
-  [key: string]: {
-    name: string;
-    userCount: number;
-    createdBy?: string;
-    createdAt?: number;
-    isDefaultRoom?: boolean;
-  };
-}
-
-export interface FirebaseUserActivityData {
-  [roomId: string]: {
-    [userId: string]: {
-      username: string;
-      joinedAt: number;
-      lastActive: number;
-    };
-  };
-}
-
-export interface FirebaseTypingStatusData {
-  [roomId: string]: {
-    [userId: string]: TypingStatus | null; // Null indicates stopped typing
-  };
-}
-
-
-// --- API Service Types ---
-export interface CacheItem {
-  data: any;
-  expiry: number;
-}
-
-// --- Environment Configuration Types ---
-export interface FirebaseConfig {
-  apiKey: string;
-  authDomain: string;
-  databaseURL: string;
-  projectId: string;
-  storageBucket: string;
-  messagingSenderId: string;
-  appId: string;
-  measurementId?: string;
-}
-
-// --- Event Handler Types ---
-export interface NavigationHandlers {
-  onNavigate: (page: Page) => void;
-  onLogout: () => void;
-  onJoinRoom: (room: Room) => void;
-  onLeaveRoom: () => void;
-  onLeaveJoinedRoom: (roomId: string) => void;
-  onCreateRoom: (roomName: string) => void;
-  onDeleteRoom: (roomId: string) => void;
-  onSendMessage: (message: Partial<ChatMessage>) => void;
-  onReact: (messageId: string, emoji: string) => void;
-  onDeleteMessage: (roomId: string, messageId: string) => void;
-  onSelectCoin: (coinId: string) => void;
-  onReloadTrending: () => void;
-  onIncrementAnalysisCount: (coinId: string) => void;
-  onToggleNotification: (roomId: string, enabled: boolean) => void;
-  onCurrencyChange: (currency: Currency) => void;
-  onGoogleRegisterSuccess: (credentialResponse: CredentialResponse) => void;
-  onProfileComplete: (username: string, password: string) => Promise<string | void>;
-  onUpdateUserActivity?: (roomId: string, userId: string, username: string) => void; // Ditambahkan
-  onStartTyping: () => void; // Tambahkan handler
-  onStopTyping: () => void; // Tambahkan handler
-}
-
-
-// --- Local Storage Types ---
-export interface LocalStorageData {
-  cryptoUsers: string;
-  currentUser: string;
-  joinedRoomIds: string;
-  unreadCounts: string;
-  userLastVisit: string;
-  analysisCounts: string;
-  lastAnalysisResetDate: string;
-  cryptoNews: string;
-  lastNewsFetch: string;
-  roomNotificationSettings: string;
-  userActivities: string;
-}
-
-// --- Extended Props for RoomsListPage ---
-export interface ExtendedRoomsListPageProps extends RoomsListPageProps {
-  onToggleNotification: (roomId: string, enabled: boolean) => void;
-  notificationSettings: NotificationSettings;
-}
-
-// --- Room Management Types ---
-export interface RoomCreationData {
-  name: string;
-  userCount: number;
-  createdBy: string;
-  createdAt: number;
-  isDefaultRoom?: boolean;
-}
-
-export interface RoomDeletionData {
-  roomId: string;
-  roomName: string;
-  deletedBy: string;
-  timestamp: number;
-}
-
-// --- User Activity Management ---
-export interface UserJoinData {
-  roomId: string;
-  userId: string;
-  username: string;
-  timestamp: number;
-}
-
-export interface UserLeaveData {
-  roomId: string;
-  userId: string;
-  timestamp: number;
-}
-
-// --- Validation Types ---
-export interface RoomValidationResult {
-  isValid: boolean;
-  error?: string;
-}
-
-export interface UserCountValidationResult {
-  isValid: boolean;
-  actualCount: number;
-  expectedCount: number;
-}
-
-// --- Firebase Operation Results ---
-export interface FirebaseOperationResult {
-  success: boolean;
-  error?: string;
-  data?: any;
-}
-
-export interface UserCountOperationResult {
-  success: boolean;
-  roomId: string;
-  newCount: number;
-  previousCount: number;
-  error?: string;
-}
-
-// --- Room Filtering and Sorting ---
-export interface RoomFilterOptions {
-  searchQuery: string;
-  showJoined: boolean;
-  showPublic: boolean;
-  sortBy: 'name' | 'userCount' | 'recent';
-}
-
-// --- Room List Display ---
-export interface RoomListDisplay {
-  myRooms: Room[];
-  publicRooms: Room[];
-  filteredRooms: Room[];
-}
-
-// --- Extended ForumPageProps untuk menerima forumActiveUsers ---
-export interface ExtendedForumPageProps extends ForumPageProps {
-  // forumActiveUsers?: number; // <-- DIHAPUS
-}
-
-// --- User Count Display Configuration ---
-export interface UserCountDisplayConfig {
-  showForDefaultRooms: boolean;
-  showForCustomRooms: boolean;
-  updateInterval: number;
-  minUsers: number;
-  maxUsers: number;
-}
-
-// Default configuration
-export const DEFAULT_USER_COUNT_CONFIG: UserCountDisplayConfig = {
-  showForDefaultRooms: false, // Room default tidak menampilkan user count
-  showForCustomRooms: true,   // Room custom menampilkan user count
-  updateInterval: 30000,      // 30 detik
-  minUsers: 1,                // Minimum 1 user
-  maxUsers: 1000              // Maximum 1000 user
-};
