@@ -1,15 +1,21 @@
-// api/getAnalysis.ts
-// Impor tipe Handler dari Vercel (atau gunakan 'any' jika tidak menginstal @vercel/node)
-import type { VercelRequest, VercelResponse } from '@vercel/node'; 
+// functions/api/getAnalysis.ts
+// TIDAK perlu import VercelRequest/VercelResponse
 import { GoogleGenAI, Type } from "@google/genai";
-// Pastikan path ke file types.ts Anda benar dari folder /api
-import type { AnalysisResult } from '../types'; 
+// Path ini mungkin perlu disesuaikan tergantung struktur Anda, 
+// tapi jika 'types.ts' ada di root, ini mungkin perlu diubah.
+// Asumsi 'types.ts' ada di 'src/types.ts' atau './types.ts' di root
+// Mari kita asumsikan path-nya relatif dari root:
+import type { AnalysisResult } from '../../types'; 
 
-// 1. AMBIL API KEY DARI VERCEL ENVIRONMENT VARIABLES (AMAN)
-// Ini HANYA berjalan di server, tidak pernah terlihat oleh klien
-const ai = new GoogleGenAI({ apiKey: process.env.API_KEY || "" });
+// 1. Definisikan Tipe untuk Environment Variables di Cloudflare
+interface Env {
+  API_KEY: string;
+  // Tambahkan variabel Firebase Anda di sini jika fungsi ini membutuhkannya
+  // (Saat ini tidak, tapi ini cara melakukannya)
+  // FIREBASE_API_KEY: string; 
+}
 
-// 2. Salin skema yang sama dari geminiService.ts lama Anda
+// 2. Salin skema yang sama
 const analysisSchema = {
   type: Type.OBJECT,
   properties: {
@@ -41,29 +47,29 @@ const analysisSchema = {
   required: ['position', 'entryPrice', 'stopLoss', 'takeProfit', 'confidence', 'reasoning'],
 };
 
-// 3. Buat handler untuk Vercel
-export default async function handler(
-  req: VercelRequest,
-  res: VercelResponse
-) {
-  // Hanya izinkan metode POST
-  if (req.method !== 'POST') {
-    res.setHeader('Allow', ['POST']);
-    return res.status(405).end(`Method ${req.method} Not Allowed`);
-  }
-
+// 3. Buat handler untuk Cloudflare Pages
+// Ini adalah pengganti dari "export default async function handler(...)"
+export const onRequestPost: PagesFunction<Env> = async (context) => {
   try {
-    // 4. Ambil data dari body permintaan (client)
-    const { cryptoName, currentPrice } = req.body;
+    // 4. Ambil data dari body permintaan (cara Cloudflare)
+    const { cryptoName, currentPrice } = await context.request.json<{ cryptoName: string, currentPrice: number }>();
 
     if (!cryptoName || currentPrice === undefined) {
-      return res.status(400).json({ error: 'cryptoName dan currentPrice diperlukan' });
+      const errorResponse = { error: 'cryptoName dan currentPrice diperlukan' };
+      return new Response(JSON.stringify(errorResponse), {
+        status: 400,
+        headers: { 'Content-Type': 'application/json' },
+      });
+    }
+
+    // 5. Ambil API Key dari Cloudflare Environment (context.env)
+    const apiKey = context.env.API_KEY;
+    if (!apiKey) {
+      throw new Error("Kunci API Gemini tidak dikonfigurasi di Cloudflare.");
     }
     
-    // 5. Pastikan API Key ada di server
-    if (!process.env.API_KEY) {
-        throw new Error("Kunci API Gemini tidak dikonfigurasi di Vercel.");
-    }
+    // Inisialisasi AI di dalam handler
+    const ai = new GoogleGenAI({ apiKey: apiKey });
 
     // 6. Salin logika prompt Anda
     const formattedPrice = currentPrice < 0.01 ? currentPrice.toFixed(8) : currentPrice.toFixed(4);
@@ -82,9 +88,9 @@ export default async function handler(
     -   Untuk 'position' dan 'confidence', GUNAKAN nilai bahasa Inggris seperti yang dicontohkan dalam skema (misalnya, "Long", "Short", "High", "Medium", "Low").
     -   Untuk 'reasoning', berikan penjelasan singkat dan padat dalam **Bahasa Indonesia**, seolah-olah Anda sedang memberi pengarahan kepada seorang trader profesional. Jelaskan logika teknis di balik titik masuk, stop loss, dan target profit.
     -   Pastikan semua titik harga yang direkomendasikan masuk akal relatif terhadap harga saat ini.
-  `;
+    `;
 
-    // 7. Panggil API Gemini (secara aman di server)
+    // 7. Panggil API Gemini
     const response = await ai.models.generateContent({
       model: 'gemini-flash-latest',
       contents: prompt,
@@ -102,12 +108,19 @@ export default async function handler(
     
     const result = JSON.parse(jsonString) as AnalysisResult;
 
-    // 8. Kembalikan hasil ke client
-    return res.status(200).json(result);
+    // 8. Kembalikan hasil (cara Cloudflare)
+    return new Response(JSON.stringify(result), {
+      status: 200,
+      headers: { 'Content-Type': 'application/json' },
+    });
 
   } catch (error) {
-    console.error("Error di Vercel function (api/getAnalysis):", error);
+    console.error("Error di Cloudflare function:", error);
     const message = error instanceof Error ? error.message : "Gagal mendapatkan analisis dari AI.";
-    return res.status(500).json({ error: message });
+    const errorResponse = { error: message };
+    return new Response(JSON.stringify(errorResponse), {
+      status: 500,
+      headers: { 'Content-Type': 'application/json' },
+    });
   }
 }
