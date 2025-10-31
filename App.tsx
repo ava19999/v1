@@ -608,13 +608,15 @@ const App: React.FC = () => {
       setAuthError(msg); return msg;
     }
 
-    // PERBAIKAN: Gunakan approach yang lebih sederhana untuk update
+    // FIX: Gunakan type assertion yang tepat
+    const updateData = {
+      username: username,
+      google_profile_picture: pendingGoogleUser.picture
+    };
+
     const { data, error } = await supabase
       .from('profiles')
-      .update({
-        username: username,
-        google_profile_picture: pendingGoogleUser.picture
-      } as any) // Gunakan any untuk menghindari error tipe
+      .update(updateData)
       .eq('id', session.user.id)
       .select()
       .single<ProfileRow>();
@@ -724,7 +726,7 @@ const App: React.FC = () => {
 
     const newRoomIdString = `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    // PERBAIKAN: Gunakan any untuk menghindari error tipe kompleks
+    // FIX: Gunakan type assertion yang tepat untuk insert
     const newRoomData = {
       room_id: newRoomIdString,
       name: trimmedName,
@@ -734,7 +736,7 @@ const App: React.FC = () => {
 
     const { data, error } = await supabase
       .from('rooms')
-      .insert([newRoomData] as any) // Gunakan any untuk insert
+      .insert(newRoomData)
       .select()
       .single<RoomRow>();
 
@@ -788,7 +790,7 @@ const App: React.FC = () => {
     const { data: roomData } = await supabase.from('rooms').select('id').eq('room_id', room.id).single<RoomRow>();
     if (!roomData) return;
 
-    // PERBAIKAN: Gunakan any untuk menghindari error tipe kompleks
+    // FIX: Gunakan type assertion yang tepat untuk insert
     const messageToSend = {
       room_id: roomData.id,
       user_id: session.user.id,
@@ -801,7 +803,7 @@ const App: React.FC = () => {
       reactions: {}
     };
 
-    const { error } = await supabase.from('messages').insert([messageToSend] as any); // Gunakan any untuk insert
+    const { error } = await supabase.from('messages').insert(messageToSend);
     if (error) {
       console.error("Gagal kirim pesan:", error);
       alert(`Gagal mengirim pesan: ${error.message}`);
@@ -838,10 +840,14 @@ const App: React.FC = () => {
       currentReactions[emoji] = updatedUsers;
     }
 
-    // PERBAIKAN: Gunakan any untuk update
+    // FIX: Gunakan type assertion yang tepat untuk update
+    const updateData = {
+      reactions: currentReactions
+    };
+
     await supabase
       .from('messages')
-      .update({ reactions: currentReactions } as any)
+      .update(updateData)
       .eq('id', messagePk);
   }, [currentRoom, currentUser]);
   

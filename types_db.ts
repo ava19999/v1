@@ -1,3 +1,4 @@
+// types_db.ts
 export type Json =
   | string
   | number

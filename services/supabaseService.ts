@@ -10,4 +10,5 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
+// FIX: Gunakan type assertion untuk menghindari error tipe kompleks
 export const supabase = createClient<Database>(supabaseUrl, supabaseAnonKey);
