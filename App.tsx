@@ -175,53 +175,61 @@ const App: React.FC = () => {
   // --- EFEK AUTH SUPABASE ---
   useEffect(() => {
     setIsAuthLoading(true);
-    
-    // ===== PERBAIKAN DIMULAI =====
-    // HAPUS panggilan `supabase.auth.getSession()` yang berlebihan.
-    // `onAuthStateChange` sudah menangani sesi awal saat halaman dimuat.
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (_event, session) => {
-        setSession(session);
-        setSupabaseUser(session?.user ?? null);
         
-        if (session) {
-          // [FIX] Gunakan cast manual untuk SELECT
-          const { data: profile, error } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single() as { data: SupabaseProfile | null; error: any };
+        // ===== PERBAIKAN DIMULAI =====
+        try {
+          setSession(session);
+          setSupabaseUser(session?.user ?? null);
+          
+          if (session) {
+            // [FIX] Gunakan cast manual untuk SELECT
+            const { data: profile, error } = await supabase
+              .from('profiles')
+              .select('*')
+              .eq('id', session.user.id)
+              .single() as { data: SupabaseProfile | null; error: any };
 
-          if (error && error.code !== 'PGRST116') { // Abaikan error "no rows"
-            console.error('Error fetching profile:', error);
-          } else if (profile && profile.username) {
-            setCurrentUser({
-                email: session.user.email || '',
-                username: profile.username,
-                googleProfilePicture: profile.google_profile_picture || undefined,
-                createdAt: new Date(profile.created_at).getTime()
-            });
-            setPendingGoogleUser(null);
-          } else if (session.user) {
-            setPendingGoogleUser({
-               email: session.user.email || '',
-               name: session.user.user_metadata?.full_name || 'User',
-               // [FIX] Tambahkan pengecekan null untuk profile
-               picture: session.user.user_metadata?.picture || (profile ? profile.google_profile_picture : '') || ''
-            });
+            if (error && error.code !== 'PGRST116') { // Abaikan error "no rows"
+              console.error('Error fetching profile:', error);
+            } else if (profile && profile.username) {
+              setCurrentUser({
+                  email: session.user.email || '',
+                  username: profile.username,
+                  googleProfilePicture: profile.google_profile_picture || undefined,
+                  createdAt: new Date(profile.created_at).getTime()
+              });
+              setPendingGoogleUser(null);
+            } else if (session.user) {
+              setPendingGoogleUser({
+                 email: session.user.email || '',
+                 name: session.user.user_metadata?.full_name || 'User',
+                 // [FIX] Tambahkan pengecekan null untuk profile
+                 picture: session.user.user_metadata?.picture || (profile ? profile.google_profile_picture : '') || ''
+              });
+              setCurrentUser(null);
+            }
+          } else {
             setCurrentUser(null);
+            setPendingGoogleUser(null);
           }
-        } else {
-          setCurrentUser(null);
-          setPendingGoogleUser(null);
+        } catch (e) {
+            console.error("Error during auth state change:", e);
+            setAuthError(e instanceof Error ? e.message : "Terjadi kesalahan otentikasi");
+            // Set state ke non-login jika ada error
+            setCurrentUser(null);
+            setPendingGoogleUser(null);
+            setSession(null);
+            setSupabaseUser(null);
+        } finally {
+            // Ini akan SELALU berjalan, baik sukses maupun gagal
+            setIsAuthLoading(false);
         }
-        // Pindahkan `setIsAuthLoading(false)` ke sini.
-        // Ini akan selalu dipanggil setelah sesi awal selesai diperiksa.
-        setIsAuthLoading(false);
+        // ===== PERBAIKAN SELESAI =====
       }
     );
-    // ===== PERBAIKAN SELESAI =====
 
     return () => subscription.unsubscribe();
   }, []);
