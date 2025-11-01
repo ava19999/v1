@@ -1,4 +1,4 @@
-// types_db.ts (Alternatif Perbaikan)
+// types_db.ts
 export type Json =
   | string
   | number
@@ -10,7 +10,6 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
-      // ... (definisi tabel profiles, rooms, messages tetap sama) ...
       profiles: {
         Row: {
           id: string
