@@ -1,4 +1,4 @@
-// types_db.ts
+// types_db.ts (Alternatif Perbaikan)
 export type Json =
   | string
   | number
@@ -10,6 +10,7 @@ export type Json =
 export interface Database {
   public: {
     Tables: {
+      // ... (definisi tabel profiles, rooms, messages tetap sama) ...
       profiles: {
         Row: {
           id: string
@@ -98,7 +99,8 @@ export interface Database {
         }
       }
     }
-    Views: { [_ in never]: never }
-    Functions: { [_ in never]: never }
+    // [FIX] Ganti tipe 'never' dengan objek kosong
+    Views: {}
+    Functions: {}
   }
 }
