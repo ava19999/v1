@@ -28,8 +28,8 @@ import type {
   NotificationSettings,
   RoomUserCounts,
   TypingStatus,
-  TypingUsersMap,
-  Json // Tipe Json sekarang diimpor dari types.ts
+  TypingUsersMap
+  // [FIX] Tipe Json dihapus dari impor './types'
 } from './types';
 import { isNewsArticle, isChatMessage } from './types';
 import {
@@ -48,6 +48,9 @@ import type {
   MessageInsert,
   MessageUpdate
 } from './supabaseTypes';
+
+// [FIX] Impor tipe Json yang BENAR dari types_db
+import type { Json } from './types_db';
 
 // [FIX] Definisikan tipe lokal untuk hasil SELECT
 interface SupabaseProfile {
@@ -678,7 +681,7 @@ const App: React.FC = () => {
     // [FIX] Gunakan cast manual untuk SELECT
     const { data, error } = await supabase
       .from('profiles')
-      .update(updateData) // Tipe 'never' error terjadi di sini
+      .update(updateData) 
       .eq('id', session.user.id)
       .select()
       .single() as { data: SupabaseProfile | null; error: any };
@@ -799,7 +802,7 @@ const App: React.FC = () => {
     // [FIX] Gunakan cast manual untuk SELECT
     const { data, error } = await supabase
       .from('rooms')
-      .insert(newRoomData) // Tipe 'never' error terjadi di sini
+      .insert(newRoomData) 
       .select()
       .single() as { data: SupabaseRoom | null; error: any };
 
@@ -892,7 +895,7 @@ const App: React.FC = () => {
     // [FIX] Hapus typo underscore
     const { error } = await supabase
       .from('messages')
-      .insert(messageToSend); // Tipe 'never' error terjadi di sini
+      .insert(messageToSend); 
 
     if (error) {
       console.error("Gagal kirim pesan:", error);
@@ -940,7 +943,7 @@ const App: React.FC = () => {
     // [FIX] Hapus typo underscore
     await supabase
       .from('messages')
-      .update(updateData) // Tipe 'never' error terjadi di sini
+      .update(updateData) 
       .eq('id', messagePk);
   }, [currentRoom, currentUser]);
   
