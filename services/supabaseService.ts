@@ -8,12 +8,13 @@ if (!supabaseUrl || !supabaseAnonKey) {
   throw new Error('Missing Supabase environment variables');
 }
 
-// [FIX] Mengatasi masalah Token Revocation dengan menonaktifkan auto-refresh.
-// Ini adalah SOLUSI BARU berdasarkan petunjuk Anda.
+// [PERBAIKAN V4 - SOLUSI TOKEN REUSE]
+// Menonaktifkan autoRefreshToken untuk mencegah konflik dengan
+// pengaturan "Token Revocation" di dashboard Supabase Anda.
 export const supabase = createClient(supabaseUrl, supabaseAnonKey, {
   auth: {
     persistSession: true,
-    autoRefreshToken: false, // Nonaktifkan refresh otomatis
-    detectSessionInUrl: true, // Tetap diperlukan untuk Google OAuth
+    autoRefreshToken: false, // <-- INI KUNCINYA
+    detectSessionInUrl: true, // Diperlukan untuk Google OAuth
   }
 });
