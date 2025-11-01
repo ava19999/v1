@@ -29,7 +29,6 @@ import type {
   RoomUserCounts,
   TypingStatus,
   TypingUsersMap
-  // [FIX] Tipe Json dihapus dari impor './types'
 } from './types';
 import { isNewsArticle, isChatMessage } from './types';
 import {
@@ -672,8 +671,8 @@ const App: React.FC = () => {
       setAuthError(msg); return msg;
     }
 
-    // [FIX] Terapkan tipe ProfileUpdate
-    const updateData: ProfileUpdate = {
+    // [FIX] Hapus anotasi tipe ProfileUpdate
+    const updateData = {
       username: username,
       google_profile_picture: pendingGoogleUser.picture
     };
@@ -791,8 +790,8 @@ const App: React.FC = () => {
 
     const newRoomIdString = `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
-    // [FIX] Terapkan tipe RoomInsert
-    const newRoomData: RoomInsert = {
+    // [FIX] Hapus anotasi tipe RoomInsert
+    const newRoomData = {
       room_id: newRoomIdString,
       name: trimmedName,
       created_by: supabaseUser.id,
@@ -879,8 +878,8 @@ const App: React.FC = () => {
       return;
     }
 
-    // [FIX] Terapkan tipe MessageInsert
-    const messageToSend: MessageInsert = {
+    // [FIX] Hapus anotasi tipe MessageInsert
+    const messageToSend = {
       room_id: roomData.id, // roomData.id sekarang adalah number (PK)
       user_id: session.user.id,
       sender_username: currentUser.username,
@@ -935,8 +934,8 @@ const App: React.FC = () => {
       currentReactions[emoji] = updatedUsers;
     }
 
-    // [FIX] Terapkan tipe MessageUpdate
-    const updateData: MessageUpdate = {
+    // [FIX] Hapus anotasi tipe MessageUpdate
+    const updateData = {
       reactions: currentReactions // Ini sesuai dengan tipe Json
     };
 
