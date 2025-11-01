@@ -184,147 +184,86 @@ const App: React.FC = () => {
   // [FIX AUDIO] Ref untuk melacak interaksi pengguna
   const userHasInteracted = useRef(false);
 
-  // --- EFEK AUTH SUPABASE (SOLUSI v3: PEMISAHAN LOGIKA) ---
+  // --- [SOLUSI BARU v4] EFEK AUTH SUPABASE ---
   useEffect(() => {
-    // 1. Fungsi untuk menangani login/logout di MASA DEPAN (oleh listener)
+    // 1. Set loading true saat pertama kali App mount
+    setIsAuthLoading(true);
+    setAuthError(null);
+  
+    // 2. onAuthStateChange akan menangani SEMUA kasus:
+    //    - event 'INITIAL_SESSION' (saat refresh, ini yang penting)
+    //    - event 'SIGNED_IN' (saat login)
+    //    - event 'SIGNED_OUT' (saat logout)
     const { data: { subscription } } = supabase.auth.onAuthStateChange(
       async (event, session) => {
-        // Hanya bereaksi pada login atau logout aktual
-        if (event === 'SIGNED_IN') {
-          // Pengguna baru saja login, kita perlu ambil profilnya
-          setIsAuthLoading(true); // Tampilkan loading saat profil diambil
-          setSession(session);
-          setSupabaseUser(session?.user ?? null);
-          
-          try {
+        
+        // Kita set loading true setiap kali ada perubahan,
+        // KECUALI jika itu hanya refresh token (yang sudah kita matikan)
+        if (event !== 'TOKEN_REFRESHED' && event !== 'USER_UPDATED') {
+          setIsAuthLoading(true);
+        }
+        
+        setSession(session);
+        setSupabaseUser(session?.user ?? null);
+
+        try {
+          if (session) {
+            // Sesi ada (baik initial atau login baru)
+            // Kita HARUS mengambil profil
             const { data: profile, error } = await supabase
               .from('profiles')
               .select('*')
-              .eq('id', session!.user.id)
+              .eq('id', session.user.id)
               .single() as { data: SupabaseProfile | null; error: any };
+            
+            if (error && error.code !== 'PGRST116') {
+              // Error serius saat ambil profil
+              console.error("Gagal mengambil profil:", error);
+              throw error;
+            }
 
             if (profile && profile.username) {
+              // Kasus 1: Pengguna ada dan punya profil
               setCurrentUser({
-                email: session!.user.email || '',
+                email: session.user.email || '',
                 username: profile.username,
                 googleProfilePicture: profile.google_profile_picture || undefined,
                 createdAt: new Date(profile.created_at).getTime()
               });
               setPendingGoogleUser(null);
-            } else if (session?.user) { // Pastikan session.user ada
-              // Sesi ada, tapi profil tidak ada -> arahkan ke CreateIdPage
+            } else if (session.user) {
+              // Kasus 2: Pengguna ada tapi belum buat username
               setPendingGoogleUser({
-                email: session!.user.email || '',
-                name: session!.user.user_metadata?.full_name || 'User',
-                picture: session!.user.user_metadata?.picture || (profile ? profile.google_profile_picture : '') || ''
+                email: session.user.email || '',
+                name: session.user.user_metadata?.full_name || 'User',
+                picture: session.user.user_metadata?.picture || (profile ? profile.google_profile_picture : '') || ''
               });
               setCurrentUser(null);
-            } else {
-              // Skenario aneh, anggap sebagai logout
-              throw new Error("Sesi SIGNED_IN tapi user null");
             }
-          } catch (e) {
-              console.error("Error fetching profile after SIGNED_IN:", e);
-              setAuthError(e instanceof Error ? e.message : "Gagal mengambil profil.");
-              await supabase.auth.signOut(); // Paksa logout jika error
-              // State akan di-clear oleh event SIGNED_OUT
-          } finally {
-            setIsAuthLoading(false);
+          } else {
+            // Kasus 3: Tidak ada sesi (logout atau initial load tanpa sesi)
+            setCurrentUser(null);
+            setPendingGoogleUser(null);
           }
-          
-        } else if (event === 'SIGNED_OUT') {
-          // Pengguna baru saja logout
+        } catch (e) {
+          // Kasus 4: Terjadi error
+          console.error("Error dalam onAuthStateChange:", e);
+          setAuthError(e instanceof Error ? e.message : "Gagal memproses sesi.");
+          // Paksa reset state
           setSession(null);
           setSupabaseUser(null);
           setCurrentUser(null);
           setPendingGoogleUser(null);
-          setAuthError(null);
-          // Pastikan loading selesai jika user logout
-          setIsAuthLoading(false); 
+          // Coba sign out jika ada error, untuk membersihkan state
+          if (session) await supabase.auth.signOut(); 
+        } finally {
+          // 3. Selesai loading HANYA setelah semua logic di atas selesai
+          setIsAuthLoading(false);
         }
-        // Kita abaikan event lain seperti TOKEN_REFRESHED atau INITIAL_SESSION
-        // agar tidak bentrok dengan pengecekan manual kita
       }
     );
 
-    // 2. Fungsi untuk memeriksa sesi SAAT INI (saat refresh halaman)
-    const checkInitialSession = async () => {
-      setIsAuthLoading(true); // Mulai loading
-      setAuthError(null);
-      
-      try {
-        // Ambil sesi saat ini dari local storage
-        const { data: { session }, error } = await supabase.auth.getSession();
-
-        if (error) {
-          console.error("Error getting initial session:", error);
-          throw error;
-        }
-
-        if (session) {
-          // Sesi ada, ambil profil
-          setSession(session);
-          setSupabaseUser(session.user);
-          
-          const { data: profile, error: profileError } = await supabase
-            .from('profiles')
-            .select('*')
-            .eq('id', session.user.id)
-            .single() as { data: SupabaseProfile | null; error: any };
-
-          if (profileError && profileError.code !== 'PGRST116') {
-            console.error('Error fetching initial profile:', profileError);
-            throw profileError; // Lemparkan error agar ditangkap catch
-          }
-
-          if (profile && profile.username) {
-            // Pengguna ada dan punya profil
-            setCurrentUser({
-              email: session.user.email || '',
-              username: profile.username,
-              googleProfilePicture: profile.google_profile_picture || undefined,
-              createdAt: new Date(profile.created_at).getTime()
-            });
-            setPendingGoogleUser(null);
-          } else if (session.user) { // Tambahkan pengecekan session.user di sini
-            // Pengguna ada tapi belum buat username
-            setPendingGoogleUser({
-              email: session.user.email || '',
-              name: session.user.user_metadata?.full_name || 'User',
-              picture: session.user.user_metadata?.picture || (profile ? profile.google_profile_picture : '') || ''
-            });
-            setCurrentUser(null);
-          } else {
-             // Skenario aneh: sesi ada tapi user null? Anggap sebagai logout.
-            setSession(null);
-            setSupabaseUser(null);
-            setCurrentUser(null);
-            setPendingGoogleUser(null);
-          }
-        } else {
-          // Tidak ada sesi, pengguna logout
-          setSession(null);
-          setSupabaseUser(null);
-          setCurrentUser(null);
-          setPendingGoogleUser(null);
-        }
-      } catch (e) {
-        console.error("Gagal total checkInitialSession:", e);
-        setAuthError(e instanceof Error ? e.message : "Gagal memverifikasi sesi.");
-        setSession(null);
-        setSupabaseUser(null);
-        setCurrentUser(null);
-        setPendingGoogleUser(null);
-      } finally {
-        // 3. Selesai loading SETELAH semua logic (termasuk fetch profil) selesai
-        setIsAuthLoading(false);
-      }
-    };
-
-    // 4. Jalankan pengecekan awal
-    checkInitialSession();
-
-    // 5. Cleanup listener
+    // 4. Cleanup listener
     return () => {
       subscription.unsubscribe();
     };
