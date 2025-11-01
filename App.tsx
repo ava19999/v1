@@ -1,3 +1,5 @@
+// ava19999/v1/v1-e8a1b4e9de665d5638638e310d572395dcb9bc7f/App.tsx
+
 // App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Session, User as SupabaseUser, RealtimeChannel } from '@supabase/supabase-js';
@@ -85,9 +87,19 @@ interface SupabaseMessage {
 const DEFAULT_ROOM_IDS = ['berita-kripto', 'pengumuman-aturan'];
 const TYPING_TIMEOUT = 5000;
 
+// [FIX AUDIO] Pindahkan ref untuk AudioContext ke level atas
+const audioContextRef = React.createRef<AudioContext | null>();
+
 const playNotificationSound = () => {
   try {
-    const audioContext = new (window.AudioContext || (window as any).webkitAudioContext)();
+    // [FIX AUDIO] Hanya jalankan jika context sudah ada dan berjalan
+    const audioContext = audioContextRef.current;
+    if (!audioContext || audioContext.state !== 'running') {
+      console.log('AudioContext belum siap, notifikasi suara dilewati.');
+      return;
+    }
+    
+    // Logika pemutaran suara tetap sama
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
     oscillator.connect(gainNode);
@@ -171,68 +183,96 @@ const App: React.FC = () => {
   const prevTotalUnreadRef = useRef<number>(0);
   const lastSoundPlayTimeRef = useRef<number>(0);
   const roomListenersRef = useRef<{ [roomId: string]: RealtimeChannel }>({});
+  // [FIX AUDIO] Ref untuk melacak interaksi pengguna
+  const userHasInteracted = useRef(false);
 
-  // --- EFEK AUTH SUPABASE ---
+  // [FIX SESSION STUCK]
+  // Fungsi terpisah untuk menangani logika sesi
+  const handleSession = async (session: Session | null) => {
+    try {
+      setSession(session);
+      setSupabaseUser(session?.user ?? null);
+
+      if (session) {
+        const { data: profile, error } = (await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single()) as { data: SupabaseProfile | null; error: any };
+
+        if (error && error.code !== 'PGRST116') {
+          console.error('Error fetching profile:', error);
+        } else if (profile && profile.username) {
+          setCurrentUser({
+            email: session.user.email || '',
+            username: profile.username,
+            googleProfilePicture: profile.google_profile_picture || undefined,
+            createdAt: new Date(profile.created_at).getTime(),
+          });
+          setPendingGoogleUser(null);
+        } else if (session.user) {
+          setPendingGoogleUser({
+            email: session.user.email || '',
+            name: session.user.user_metadata?.full_name || 'User',
+            picture:
+              session.user.user_metadata?.picture ||
+              (profile ? profile.google_profile_picture : '') ||
+              '',
+          });
+          setCurrentUser(null);
+        }
+      } else {
+        setCurrentUser(null);
+        setPendingGoogleUser(null);
+      }
+    } catch (e) {
+      console.error('Error processing session:', e);
+      setAuthError(
+        e instanceof Error ? e.message : 'Terjadi kesalahan otentikasi'
+      );
+      setCurrentUser(null);
+      setPendingGoogleUser(null);
+      setSession(null);
+      setSupabaseUser(null);
+    }
+  };
+
+  // --- EFEK AUTH SUPABASE (VERSI PERBAIKAN) ---
   useEffect(() => {
     setIsAuthLoading(true);
 
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (_event, session) => {
+    const checkInitialSession = async () => {
+      try {
+        const {
+          data: { session },
+          error,
+        } = await supabase.auth.getSession();
         
-        // ===== PERBAIKAN DIMULAI =====
-        try {
-          setSession(session);
-          setSupabaseUser(session?.user ?? null);
-          
-          if (session) {
-            // [FIX] Gunakan cast manual untuk SELECT
-            const { data: profile, error } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single() as { data: SupabaseProfile | null; error: any };
-
-            if (error && error.code !== 'PGRST116') { // Abaikan error "no rows"
-              console.error('Error fetching profile:', error);
-            } else if (profile && profile.username) {
-              setCurrentUser({
-                  email: session.user.email || '',
-                  username: profile.username,
-                  googleProfilePicture: profile.google_profile_picture || undefined,
-                  createdAt: new Date(profile.created_at).getTime()
-              });
-              setPendingGoogleUser(null);
-            } else if (session.user) {
-              setPendingGoogleUser({
-                 email: session.user.email || '',
-                 name: session.user.user_metadata?.full_name || 'User',
-                 // [FIX] Tambahkan pengecekan null untuk profile
-                 picture: session.user.user_metadata?.picture || (profile ? profile.google_profile_picture : '') || ''
-              });
-              setCurrentUser(null);
-            }
-          } else {
-            setCurrentUser(null);
-            setPendingGoogleUser(null);
-          }
-        } catch (e) {
-            console.error("Error during auth state change:", e);
-            setAuthError(e instanceof Error ? e.message : "Terjadi kesalahan otentikasi");
-            // Set state ke non-login jika ada error
-            setCurrentUser(null);
-            setPendingGoogleUser(null);
-            setSession(null);
-            setSupabaseUser(null);
-        } finally {
-            // Ini akan SELALU berjalan, baik sukses maupun gagal
-            setIsAuthLoading(false);
+        if (error) {
+           console.error("Error getting initial session:", error);
         }
-        // ===== PERBAIKAN SELESAI =====
+        
+        await handleSession(session);
+        
+      } catch (e) {
+        console.error('Error in checkInitialSession:', e);
+        await handleSession(null);
+      } finally {
+        setIsAuthLoading(false);
       }
-    );
+    };
+
+    checkInitialSession();
+
+    const {
+      data: { subscription },
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      await handleSession(session);
+    });
 
     return () => subscription.unsubscribe();
   }, []);
+  // [SELESAI FIX SESSION STUCK]
 
   // --- EFEK DATA ROOMS (REALTIME) ---
   useEffect(() => {
@@ -624,6 +664,7 @@ const App: React.FC = () => {
     const previousTotal = prevTotalUnreadRef.current;
     const now = Date.now();
     if (currentTotal > previousTotal && (now - lastSoundPlayTimeRef.current) > 1000) {
+      // [FIX AUDIO] Panggil fungsi playNotificationSound yang sudah diperbarui
       playNotificationSound();
       lastSoundPlayTimeRef.current = now;
     }
@@ -631,6 +672,26 @@ const App: React.FC = () => {
   }, [unreadCounts, notificationSettings, currentRoom]);
 
   // --- HANDLER FUNGSI ---
+  
+  // [FIX AUDIO] Handler untuk inisialisasi AudioContext saat interaksi pertama
+  const initAudioContext = useCallback(() => {
+    if (userHasInteracted.current) return;
+    userHasInteracted.current = true;
+    
+    try {
+      let context = audioContextRef.current;
+      if (!context) {
+        context = new (window.AudioContext || (window as any).webkitAudioContext)();
+        (audioContextRef as React.MutableRefObject<AudioContext | null>).current = context;
+      }
+      if (context.state === 'suspended') {
+        context.resume().catch(e => console.warn('Gagal resume AudioContext:', e));
+      }
+    } catch (error) {
+      console.error('Gagal inisialisasi AudioContext:', error);
+    }
+  }, []);
+  
   const handleProfileComplete = useCallback(async (username: string): Promise<string | void> => {
     setAuthError(null);
     if (!pendingGoogleUser || !session) {
@@ -1083,7 +1144,11 @@ const App: React.FC = () => {
   }
 
   return (
-    <div className="min-h-screen bg-transparent text-white font-sans flex flex-col">
+    // [FIX AUDIO] Tambahkan onClickCapture untuk inisialisasi AudioContext
+    <div 
+      className="min-h-screen bg-transparent text-white font-sans flex flex-col"
+      onClickCapture={initAudioContext}
+    >
       <Particles />
       {contentToRender}
       {authError && (
