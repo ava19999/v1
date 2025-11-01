@@ -1,4 +1,4 @@
-// ava19999/v1/v1-338adb07b5750b06ca79935da38b76bec78276f7/App.tsx
+// ava19999/v1/v1-e8a1b4e9de665d5638638e310d572395dcb9bc7f/App.tsx
 
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Session, User as SupabaseUser, RealtimeChannel } from '@supabase/supabase-js';
@@ -49,10 +49,10 @@ import type {
   MessageUpdate
 } from './supabaseTypes';
 
-// Impor tipe Json yang BENAR dari types_db
+// [FIX] Impor tipe Json yang BENAR dari types_db
 import type { Json } from './types_db';
 
-// Definisikan tipe lokal untuk hasil SELECT
+// [FIX] Definisikan tipe lokal untuk hasil SELECT
 interface SupabaseProfile {
   id: string;
   username: string | null;
@@ -184,95 +184,144 @@ const App: React.FC = () => {
   // [FIX AUDIO] Ref untuk melacak interaksi pengguna
   const userHasInteracted = useRef(false);
 
-  // --- [SOLUSI BARU v4] EFEK AUTH SUPABASE ---
+  // --- PERBAIKAN EFEK AUTH SUPABASE (VERSI SANGAT SEDERHANA) ---
   useEffect(() => {
-    // 1. Set loading true saat pertama kali App mount
-    setIsAuthLoading(true);
-    setAuthError(null);
-  
-    // 2. onAuthStateChange akan menangani SEMUA kasus:
-    //    - event 'INITIAL_SESSION' (saat refresh, ini yang penting)
-    //    - event 'SIGNED_IN' (saat login)
-    //    - event 'SIGNED_OUT' (saat logout)
-    const { data: { subscription } } = supabase.auth.onAuthStateChange(
-      async (event, session) => {
+    let isMounted = true;
+    let authCheckCompleted = false;
+    
+    const completeAuthCheck = () => {
+      if (isMounted && !authCheckCompleted) {
+        authCheckCompleted = true;
+        setIsAuthLoading(false);
+      }
+    };
+
+    // Timeout safety net - pasti berhenti loading setelah 5 detik
+    const timeoutId = setTimeout(() => {
+      console.log('Auth check timeout - forcing completion');
+      completeAuthCheck();
+    }, 5000);
+
+    const initializeAuth = async () => {
+      try {
+        console.log('Memulai inisialisasi auth...');
         
-        // Kita set loading true setiap kali ada perubahan,
-        // KECUALI jika itu hanya refresh token (yang sudah kita matikan)
-        if (event !== 'TOKEN_REFRESHED' && event !== 'USER_UPDATED') {
-          setIsAuthLoading(true);
+        // 1. Dapatkan sesi saat ini
+        const { data: { session }, error } = await supabase.auth.getSession();
+        
+        if (!isMounted) return;
+        
+        if (error) {
+          console.error("Error getting session:", error);
+          completeAuthCheck();
+          return;
         }
         
+        console.log('Session ditemukan:', !!session);
         setSession(session);
         setSupabaseUser(session?.user ?? null);
 
-        try {
-          if (session) {
-            // Sesi ada (baik initial atau login baru)
-            // Kita HARUS mengambil profil
-            const { data: profile, error } = await supabase
-              .from('profiles')
-              .select('*')
-              .eq('id', session.user.id)
-              .single() as { data: SupabaseProfile | null; error: any };
-            
-            if (error && error.code !== 'PGRST116') {
-              // Error serius saat ambil profil
-              console.error("Gagal mengambil profil:", error);
-              throw error;
-            }
-
-            if (profile && profile.username) {
-              // Kasus 1: Pengguna ada dan punya profil
-              setCurrentUser({
-                email: session.user.email || '',
-                username: profile.username,
-                googleProfilePicture: profile.google_profile_picture || undefined,
-                createdAt: new Date(profile.created_at).getTime()
-              });
-              setPendingGoogleUser(null);
-            } else if (session.user) {
-              // Kasus 2: Pengguna ada tapi belum buat username
-              setPendingGoogleUser({
-                email: session.user.email || '',
-                name: session.user.user_metadata?.full_name || 'User',
-                picture: session.user.user_metadata?.picture || (profile ? profile.google_profile_picture : '') || ''
-              });
-              setCurrentUser(null);
-            }
-          } else {
-            // Kasus 3: Tidak ada sesi (logout atau initial load tanpa sesi)
-            setCurrentUser(null);
-            setPendingGoogleUser(null);
-          }
-        } catch (e) {
-          // Kasus 4: Terjadi error
-          console.error("Error dalam onAuthStateChange:", e);
-          setAuthError(e instanceof Error ? e.message : "Gagal memproses sesi.");
-          // Paksa reset state
-          setSession(null);
-          setSupabaseUser(null);
+        if (!session) {
+          // Tidak ada sesi - user belum login
           setCurrentUser(null);
           setPendingGoogleUser(null);
-          // Coba sign out jika ada error, untuk membersihkan state
-          if (session) await supabase.auth.signOut(); 
-        } finally {
-          // 3. Selesai loading HANYA setelah semua logic di atas selesai
-          setIsAuthLoading(false);
+          completeAuthCheck();
+          return;
+        }
+
+        // 2. Jika ada sesi, ambil profil user
+        const { data: profile, error: profileError } = await supabase
+          .from('profiles')
+          .select('*')
+          .eq('id', session.user.id)
+          .single();
+
+        if (!isMounted) return;
+
+        if (profileError) {
+          // Error "no rows" adalah normal untuk user baru
+          if (profileError.code === 'PGRST116') {
+            console.log('User baru, perlu buat profil');
+            // User baru - perlu buat profil
+            setPendingGoogleUser({
+              email: session.user.email || '',
+              name: session.user.user_metadata?.full_name || 'User',
+              picture: session.user.user_metadata?.picture || '',
+            });
+            setCurrentUser(null);
+          } else {
+            console.error('Error fetching profile:', profileError);
+            // Untuk error lain, anggap user tidak memiliki profil
+            setPendingGoogleUser({
+              email: session.user.email || '',
+              name: session.user.user_metadata?.full_name || 'User',
+              picture: session.user.user_metadata?.picture || '',
+            });
+            setCurrentUser(null);
+          }
+        } else if (profile && profile.username) {
+          // User sudah ada dan memiliki profil lengkap
+          console.log('User existing dengan profil lengkap');
+          setCurrentUser({
+            email: session.user.email || '',
+            username: profile.username,
+            googleProfilePicture: profile.google_profile_picture || undefined,
+            createdAt: new Date(profile.created_at).getTime(),
+          });
+          setPendingGoogleUser(null);
+        } else {
+          // Profil ada tapi tidak lengkap
+          console.log('Profil ada tapi tidak lengkap');
+          setPendingGoogleUser({
+            email: session.user.email || '',
+            name: session.user.user_metadata?.full_name || 'User',
+            picture: session.user.user_metadata?.picture || '',
+          });
+          setCurrentUser(null);
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        if (isMounted) {
+          setAuthError('Gagal memuat sesi pengguna');
+          setCurrentUser(null);
+          setPendingGoogleUser(null);
+          setSession(null);
+          setSupabaseUser(null);
+        }
+      } finally {
+        completeAuthCheck();
+        clearTimeout(timeoutId);
+      }
+    };
+
+    initializeAuth();
+
+    // 3. Setup auth state change listener
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (event, session) => {
+        if (!isMounted) return;
+        
+        console.log('Auth state changed:', event);
+        
+        // Untuk event tertentu, kita perlu memproses ulang
+        if (event === 'SIGNED_IN' || event === 'SIGNED_OUT' || event === 'USER_UPDATED') {
+          setIsAuthLoading(true);
+          await initializeAuth();
         }
       }
     );
 
-    // 4. Cleanup listener
     return () => {
+      isMounted = false;
+      clearTimeout(timeoutId);
       subscription.unsubscribe();
     };
-  }, []); // <-- Dependensi kosong, hanya berjalan sekali saat App mount
-
+  }, []);
 
   // --- EFEK DATA ROOMS (REALTIME) ---
   useEffect(() => {
     const fetchRooms = async () => {
+      // [FIX] Gunakan cast manual untuk SELECT
       const { data, error } = await supabase
         .from('rooms')
         .select('*') as { data: SupabaseRoom[] | null; error: any };
@@ -334,6 +383,7 @@ const App: React.FC = () => {
     let channel: RealtimeChannel | null = null;
     
     const setupMessageListener = async () => {
+      // [FIX] Gunakan cast manual untuk SELECT
       const { data: roomData, error: roomError } = await supabase
         .from('rooms')
         .select('id')
@@ -347,6 +397,7 @@ const App: React.FC = () => {
       
       const roomPk = roomData.id;
 
+      // [FIX] Gunakan cast manual untuk SELECT
       const { data: messagesData, error } = await supabase
         .from('messages')
         .select('*')
@@ -368,6 +419,7 @@ const App: React.FC = () => {
           timestamp: new Date(msg.created_at).getTime(),
           fileURL: msg.file_url || undefined,
           fileName: msg.file_name || undefined,
+          // [FIX] Cast 'reactions' dari Json ke tipe yang diharapkan
           reactions: (msg.reactions as { [key: string]: string[] }) || {},
           userCreationDate: msg.user_creation_date ? new Date(msg.user_creation_date).getTime() : undefined,
         }));
@@ -395,6 +447,7 @@ const App: React.FC = () => {
                 timestamp: new Date(msg.created_at).getTime(),
                 fileURL: msg.file_url || undefined,
                 fileName: msg.file_name || undefined,
+                // [FIX] Cast 'reactions' dari Json ke tipe yang diharapkan
                 reactions: (msg.reactions as { [key: string]: string[] }) || {},
                 userCreationDate: msg.user_creation_date ? new Date(msg.user_creation_date).getTime() : undefined,
               };
@@ -412,6 +465,7 @@ const App: React.FC = () => {
                       ...prev,
                       [currentRoom.id!]: roomMessages.map(m => 
                           m.id === updatedMsg.id.toString() 
+                          // [FIX] Cast 'reactions' dari Json ke tipe yang diharapkan
                           ? { ...m, reactions: (updatedMsg.reactions as { [key: string]: string[] }) || {}, text: updatedMsg.text || undefined }
                           : m
                       )
@@ -515,6 +569,7 @@ const App: React.FC = () => {
       for (const roomId of joinedRoomIds) {
         if (roomId === currentRoom?.id || roomId === 'berita-kripto') continue;
 
+        // [FIX] Gunakan cast manual untuk SELECT
         const { data: roomData, error } = await supabase
           .from('rooms')
           .select('id')
@@ -688,6 +743,7 @@ const App: React.FC = () => {
       setAuthError(msg); return msg;
     }
     
+    // [FIX] Gunakan cast manual untuk SELECT
     const { data: existingUser, error: checkError } = await supabase
       .from('profiles')
       .select('id')
@@ -703,11 +759,13 @@ const App: React.FC = () => {
       setAuthError(msg); return msg;
     }
 
+    // [FIX] Hapus anotasi tipe ProfileUpdate
     const updateData = {
       username: username,
       google_profile_picture: pendingGoogleUser.picture
     };
 
+    // [FIX] Gunakan cast manual untuk SELECT
     const { data, error } = await supabase
       .from('profiles')
       .update(updateData) 
@@ -737,7 +795,7 @@ const App: React.FC = () => {
       setRoomChannel(null);
     }
     supabase.auth.signOut().then(() => {
-      // Listener onAuthStateChange akan menangani state
+      // Listener onAuthStateChange akan menangani sisa state
       setCurrentRoom(null);
       setActivePage('home');
     }).catch((error) => {
@@ -822,6 +880,7 @@ const App: React.FC = () => {
 
     const newRoomIdString = `room-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
     
+    // [FIX] Hapus anotasi tipe RoomInsert
     const newRoomData = {
       room_id: newRoomIdString,
       name: trimmedName,
@@ -829,6 +888,7 @@ const App: React.FC = () => {
       is_default_room: false
     };
 
+    // [FIX] Gunakan cast manual untuk SELECT
     const { data, error } = await supabase
       .from('rooms')
       .insert(newRoomData) 
@@ -846,7 +906,8 @@ const App: React.FC = () => {
         createdBy: data.created_by || undefined, // Ini akan menjadi Supabase ID
         isDefaultRoom: data.is_default_room || false
       };
-      // Panggil manual agar UX cepat (listener realtime butuh waktu)
+      // `handleJoinRoom` akan dipanggil oleh listener realtime 'rooms'
+      // Untuk UX yang lebih cepat, kita panggil manual
       handleJoinRoom(newRoom);
     }
   }, [rooms, currentUser, supabaseUser, handleJoinRoom]);
@@ -859,6 +920,7 @@ const App: React.FC = () => {
     if (!roomToDelete || roomToDelete.isDefaultRoom) return;
 
     const isAdmin = ADMIN_USERNAMES.includes(currentUser.username);
+    // [FIX] Cek created_by (string) dengan user.id (string)
     const isCreator = roomToDelete.createdBy === supabaseUser.id;
 
     if (!isAdmin && !isCreator) {
@@ -866,6 +928,7 @@ const App: React.FC = () => {
     }
     
     if (window.confirm(`Yakin ingin menghapus room "${roomToDelete.name}"? Ini akan menghapus semua pesan di dalamnya.`)) {
+      // [FIX] Gunakan cast manual untuk SELECT
       const { data: roomData, error: roomError } = await supabase
         .from('rooms')
         .select('id')
@@ -877,12 +940,14 @@ const App: React.FC = () => {
         return; 
       }
       
+      // [FIX] Hapus cast
       const { error } = await supabase.from('rooms').delete().eq('id', roomData.id); 
       
       if (error) { 
         alert(`Gagal menghapus room: ${error.message}`); 
       } else { 
         if (currentRoom?.id === roomId) handleLeaveRoom(); 
+        // Perubahan akan diambil oleh listener realtime 'rooms'
       }
     }
   }, [currentUser, supabaseUser, rooms, currentRoom, handleLeaveRoom]);
@@ -894,10 +959,11 @@ const App: React.FC = () => {
     const room = rooms.find(r => r.id === currentRoom.id);
     if (!room) return;
 
+    // [FIX] Gunakan cast manual untuk SELECT
     const { data: roomData, error: roomError } = await supabase
       .from('rooms')
-      .select('id') 
-      .eq('room_id', room.id) 
+      .select('id') // Ini adalah PK (number)
+      .eq('room_id', room.id) // room.id adalah room_id (string)
       .single() as { data: { id: number } | null; error: any };
     
     if (roomError || !roomData) {
@@ -905,8 +971,9 @@ const App: React.FC = () => {
       return;
     }
 
+    // [FIX] Hapus anotasi tipe MessageInsert
     const messageToSend = {
-      room_id: roomData.id, 
+      room_id: roomData.id, // roomData.id sekarang adalah number (PK)
       user_id: session.user.id,
       sender_username: currentUser.username,
       user_creation_date: new Date(currentUser.createdAt).toISOString(),
@@ -917,6 +984,7 @@ const App: React.FC = () => {
       reactions: {} // Tipe Json default
     };
 
+    // [FIX] Hapus typo underscore
     const { error } = await supabase
       .from('messages')
       .insert(messageToSend); 
@@ -934,6 +1002,7 @@ const App: React.FC = () => {
     const messagePk = parseInt(messageId, 10);
     if (isNaN(messagePk)) return;
 
+    // [FIX] Gunakan cast manual untuk SELECT
     const { data, error } = await supabase
       .from('messages')
       .select('reactions')
@@ -958,10 +1027,12 @@ const App: React.FC = () => {
       currentReactions[emoji] = updatedUsers;
     }
 
+    // [FIX] Hapus anotasi tipe MessageUpdate
     const updateData = {
       reactions: currentReactions // Ini sesuai dengan tipe Json
     };
 
+    // [FIX] Hapus typo underscore
     await supabase
       .from('messages')
       .update(updateData) 
@@ -972,6 +1043,7 @@ const App: React.FC = () => {
     const messagePk = parseInt(messageId, 10);
     if (isNaN(messagePk)) return;
 
+    // [FIX] Hapus typo underscore
     const { error } = await supabase
       .from('messages')
       .delete()
@@ -1089,29 +1161,48 @@ const App: React.FC = () => {
   // --- LOGIKA RENDER UTAMA ---
 
   if (isAuthLoading) {
-    return <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Memverifikasi sesi Anda...</div>;
+    return (
+      <div className="min-h-screen bg-transparent text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-electric mx-auto mb-4"></div>
+          <p>Memverifikasi sesi Anda...</p>
+        </div>
+      </div>
+    );
   }
 
   let contentToRender;
-  // Periksa apakah sesi ada DAN pengguna memiliki profil LENGKAP
-  if (session && currentUser && currentUser.username) {
-    // Kasus 1: Sesi ada, Profil ada -> Render Aplikasi Penuh
-    contentToRender = (
-      <>
-        <Header userProfile={currentUser} onLogout={handleLogout} activePage={activePage} onNavigate={handleNavigate} currency={currency} onCurrencyChange={setCurrency} hotCoin={hotCoinForHeader} idrRate={idrRate} />
-        <main className="flex-grow">{renderActivePage()}</main>
-        <Footer />
-      </>
-    );
-  } 
-  // Periksa apakah sesi ada tapi pengguna TERTUNDA (perlu buat username)
-  else if (session && pendingGoogleUser) {
-    // Kasus 2: Sesi ada, Profil TIDAK ada -> Render CreateIdPage
-    contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
-  } 
-  // Semua kasus lain (tidak ada sesi, atau error)
-  else {
-    // Kasus 3: Tidak ada sesi -> Render LoginPage
+  if (session && supabaseUser) {
+    if (pendingGoogleUser) {
+      // Kasus 2: Sesi ada, Profil TIDAK ada -> Render CreateIdPage
+      contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
+    } else if (currentUser && currentUser.username) {
+      // Kasus 1: Sesi ada, Profil ada -> Render Aplikasi Penuh
+      contentToRender = (
+        <>
+          <Header userProfile={currentUser} onLogout={handleLogout} activePage={activePage} onNavigate={handleNavigate} currency={currency} onCurrencyChange={setCurrency} hotCoin={hotCoinForHeader} idrRate={idrRate} />
+          <main className="flex-grow">{renderActivePage()}</main>
+          <Footer />
+        </>
+      );
+    } else {
+      // Kasus 3: Sesi ada, tapi profil GAGAL diambil (atau state aneh)
+      contentToRender = (
+        <div className="min-h-screen bg-transparent text-white flex items-center justify-center">
+          <div className="text-center">
+            <p>Terjadi error sinkronisasi. Silakan login ulang.</p>
+            <button 
+              onClick={handleLogout}
+              className="mt-4 px-4 py-2 bg-red-600 rounded-lg"
+            >
+              Login Ulang
+            </button>
+          </div>
+        </div>
+      );
+    }
+  } else {
+    // Kasus 4: Tidak ada sesi -> Render LoginPage
     contentToRender = <LoginPage />;
   }
 
