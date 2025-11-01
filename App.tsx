@@ -1,6 +1,5 @@
 // ava19999/v1/v1-e8a1b4e9de665d5638638e310d572395dcb9bc7f/App.tsx
 
-// App.tsx
 import React, { useState, useCallback, useRef, useEffect, useMemo } from 'react';
 import { Session, User as SupabaseUser, RealtimeChannel } from '@supabase/supabase-js';
 import { supabase } from './services/supabaseService';
@@ -99,7 +98,6 @@ const playNotificationSound = () => {
       return;
     }
     
-    // Logika pemutaran suara tetap sama
     const oscillator = audioContext.createOscillator();
     const gainNode = audioContext.createGain();
     oscillator.connect(gainNode);
@@ -186,23 +184,41 @@ const App: React.FC = () => {
   // [FIX AUDIO] Ref untuk melacak interaksi pengguna
   const userHasInteracted = useRef(false);
 
-  // [FIX SESSION STUCK]
-  // Fungsi terpisah untuk menangani logika sesi
-  const handleSession = async (session: Session | null) => {
-    try {
+
+  // --- EFEK AUTH SUPABASE (VERSI PERBAIKAN STUCK) ---
+  useEffect(() => {
+    // 1. Mulai loading
+    setIsAuthLoading(true);
+    setAuthError(null);
+
+    // 2. Fungsi untuk memproses sesi (baik dari listener atau getSession)
+    // Ini adalah logika inti untuk menentukan status pengguna
+    const processSession = async (session: Session | null) => {
       setSession(session);
       setSupabaseUser(session?.user ?? null);
 
-      if (session) {
+      if (!session) {
+        // Jika tidak ada sesi, kita selesai
+        setCurrentUser(null);
+        setPendingGoogleUser(null);
+        return; // Selesai
+      }
+
+      // Jika ada sesi, kita WAJIB mengambil profil
+      try {
         const { data: profile, error } = (await supabase
           .from('profiles')
           .select('*')
           .eq('id', session.user.id)
           .single()) as { data: SupabaseProfile | null; error: any };
 
-        if (error && error.code !== 'PGRST116') {
+        if (error && error.code !== 'PGRST116') { // Abaikan error "no rows"
           console.error('Error fetching profile:', error);
-        } else if (profile && profile.username) {
+          throw error; // Lemparkan error agar ditangkap catch
+        }
+        
+        if (profile && profile.username) {
+          // Kasus 1: Sesi ada, Profil ada -> Pengguna log in penuh
           setCurrentUser({
             email: session.user.email || '',
             username: profile.username,
@@ -211,6 +227,7 @@ const App: React.FC = () => {
           });
           setPendingGoogleUser(null);
         } else if (session.user) {
+          // Kasus 2: Sesi ada, Profil TIDAK ada -> Pengguna baru, perlu buat ID
           setPendingGoogleUser({
             email: session.user.email || '',
             name: session.user.user_metadata?.full_name || 'User',
@@ -221,58 +238,58 @@ const App: React.FC = () => {
           });
           setCurrentUser(null);
         }
-      } else {
+      } catch (e) {
+        // Kasus 3: Sesi ada, tapi GAGAL ambil profil
+        console.error('Gagal memproses profil:', e);
+        setAuthError(e instanceof Error ? e.message : 'Gagal mengambil data profil.');
+        // Paksa logout jika data profil gagal diambil
         setCurrentUser(null);
         setPendingGoogleUser(null);
+        setSession(null); 
+        setSupabaseUser(null);
+        // Jangan panggil supabase.auth.signOut() di sini agar tidak memicu loop
       }
-    } catch (e) {
-      console.error('Error processing session:', e);
-      setAuthError(
-        e instanceof Error ? e.message : 'Terjadi kesalahan otentikasi'
-      );
-      setCurrentUser(null);
-      setPendingGoogleUser(null);
-      setSession(null);
-      setSupabaseUser(null);
-    }
-  };
+    };
 
-  // --- EFEK AUTH SUPABASE (VERSI PERBAIKAN) ---
-  useEffect(() => {
-    setIsAuthLoading(true);
-
+    // 3. Cek sesi awal secara proaktif (untuk refresh halaman)
     const checkInitialSession = async () => {
       try {
-        const {
-          data: { session },
-          error,
-        } = await supabase.auth.getSession();
-        
+        const { data: { session }, error } = await supabase.auth.getSession();
         if (error) {
-           console.error("Error getting initial session:", error);
+          console.error("Error getting initial session:", error);
+          throw error;
         }
-        
-        await handleSession(session);
-        
+        // Proses sesi awal
+        await processSession(session);
       } catch (e) {
-        console.error('Error in checkInitialSession:', e);
-        await handleSession(null);
+        console.error('Gagal di checkInitialSession:', e);
+        await processSession(null); // Pastikan logout jika gagal
       } finally {
+        // 4. SELALU set loading false setelah pengecekan awal selesai
         setIsAuthLoading(false);
       }
     };
 
+    // 5. Jalankan pengecekan awal
     checkInitialSession();
 
-    const {
-      data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      await handleSession(session);
-    });
+    // 6. Pasang listener untuk perubahan di masa depan (Login / Logout)
+    const { data: { subscription } } = supabase.auth.onAuthStateChange(
+      async (_event, session) => {
+        // Saat listener ini terpicu, kita set loading lagi
+        // karena kita perlu mengambil profil lagi (terutama untuk event SIGNED_IN)
+        setIsAuthLoading(true);
+        await processSession(session);
+        setIsAuthLoading(false);
+      }
+    );
 
-    return () => subscription.unsubscribe();
-  }, []);
-  // [SELESAI FIX SESSION STUCK]
+    // 7. Cleanup listener
+    return () => {
+      subscription.unsubscribe();
+    };
+  }, []); // <-- Dependensi kosong, hanya berjalan sekali saat App mount
+
 
   // --- EFEK DATA ROOMS (REALTIME) ---
   useEffect(() => {
@@ -658,7 +675,7 @@ const App: React.FC = () => {
   // --- EFEK SUARA NOTIFIKASI ---
   useEffect(() => {
     const currentTotal = Object.entries(unreadCounts).reduce((total, [roomId, count]) => {
-      if (notificationSettings[roomId] !== false && roomId !== currentRoom?.id) return total + count;
+      if (notificationSettings[roomId] !== false && roomId !== currentRoom?.id) return total + (count || 0); // Pastikan count adalah angka
       return total;
     }, 0);
     const previousTotal = prevTotalUnreadRef.current;
@@ -751,10 +768,12 @@ const App: React.FC = () => {
       setRoomChannel(null);
     }
     supabase.auth.signOut().then(() => {
+      // Listener onAuthStateChange akan menangani sisa state
       setCurrentRoom(null);
       setActivePage('home');
     }).catch((error) => {
       console.error('Gagal logout:', error);
+      // Fallback jika listener gagal
       setCurrentUser(null); setSession(null); setSupabaseUser(null);
       setActivePage('home');
     });
@@ -838,7 +857,7 @@ const App: React.FC = () => {
     const newRoomData = {
       room_id: newRoomIdString,
       name: trimmedName,
-      created_by: supabaseUser.id,
+      created_by: supabaseUser.id, // Simpan ID Supabase
       is_default_room: false
     };
 
@@ -857,9 +876,11 @@ const App: React.FC = () => {
         id: data.room_id,
         name: data.name,
         userCount: 0,
-        createdBy: data.created_by || undefined,
+        createdBy: data.created_by || undefined, // Ini akan menjadi Supabase ID
         isDefaultRoom: data.is_default_room || false
       };
+      // `handleJoinRoom` akan dipanggil oleh listener realtime 'rooms'
+      // Untuk UX yang lebih cepat, kita panggil manual
       handleJoinRoom(newRoom);
     }
   }, [rooms, currentUser, supabaseUser, handleJoinRoom]);
@@ -899,6 +920,7 @@ const App: React.FC = () => {
         alert(`Gagal menghapus room: ${error.message}`); 
       } else { 
         if (currentRoom?.id === roomId) handleLeaveRoom(); 
+        // Perubahan akan diambil oleh listener realtime 'rooms'
       }
     }
   }, [currentUser, supabaseUser, rooms, currentRoom, handleLeaveRoom]);
@@ -1109,6 +1131,8 @@ const App: React.FC = () => {
     }
   };
 
+  // --- LOGIKA RENDER UTAMA ---
+
   if (isAuthLoading) {
     return <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Memverifikasi sesi Anda...</div>;
   }
@@ -1116,8 +1140,10 @@ const App: React.FC = () => {
   let contentToRender;
   if (session && supabaseUser) {
     if (pendingGoogleUser) {
+      // Kasus 2: Sesi ada, Profil TIDAK ada -> Render CreateIdPage
       contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={pendingGoogleUser} />;
     } else if (currentUser && currentUser.username) {
+      // Kasus 1: Sesi ada, Profil ada -> Render Aplikasi Penuh
       contentToRender = (
         <>
           <Header userProfile={currentUser} onLogout={handleLogout} activePage={activePage} onNavigate={handleNavigate} currency={currency} onCurrencyChange={setCurrency} hotCoin={hotCoinForHeader} idrRate={idrRate} />
@@ -1126,20 +1152,14 @@ const App: React.FC = () => {
         </>
       );
     } else {
-      // [FIX] Periksa profile yang mungkin null saat membuat pendingGoogleUser
-      const profilePicture = session.user.user_metadata?.picture || '';
-      if (session.user.email) {
-         contentToRender = <CreateIdPage onProfileComplete={handleProfileComplete} googleProfile={{
-            email: session.user.email,
-            name: session.user.user_metadata?.full_name || 'User',
-            picture: profilePicture
-         }} />;
-      } else {
-        contentToRender = <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Sinkronisasi akun...</div>;
-        if (!isAuthLoading) setTimeout(handleLogout, 2000);
-      }
+      // Kasus 3: Sesi ada, tapi profil GAGAL diambil (atau state aneh)
+      // Ini seharusnya ditangani oleh logic di useEffect, tapi sebagai fallback:
+      contentToRender = <div className="min-h-screen bg-transparent text-white flex items-center justify-center">Terjadi error sinkronisasi. Memuat ulang...</div>;
+      // Coba paksa logout jika terjadi state aneh
+       if (!isAuthLoading) setTimeout(handleLogout, 2500);
     }
   } else {
+    // Kasus 4: Tidak ada sesi -> Render LoginPage
     contentToRender = <LoginPage />;
   }
 
