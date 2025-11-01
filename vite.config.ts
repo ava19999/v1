@@ -7,8 +7,9 @@ export default defineConfig(({ mode }) => {
   return {
     plugins: [react()],
     define: {
-      'process.env.VITE_SUPABASE_URL': JSON.stringify(env.VITE_SUPABASE_URL),
-      'process.env.VITE_SUPABASE_ANON_KEY': JSON.stringify(env.VITE_SUPABASE_ANON_KEY),
+      // [FIX] Mengubah nama variabel agar sesuai permintaan Anda
+      'import.meta.env.SUPABASE_URL': JSON.stringify(env.SUPABASE_URL),
+      'import.meta.env.SUPABASE_ANON_KEY': JSON.stringify(env.SUPABASE_ANON_KEY),
     },
     build: {
       chunkSizeWarningLimit: 1000,
