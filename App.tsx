@@ -131,6 +131,21 @@ const Particles: React.FC = () => (
   </div>
 );
 
+// Komponen Loading dengan tema yang sesuai
+const LoadingSpinner: React.FC = () => (
+  <div className="min-h-screen bg-transparent text-white flex items-center justify-center">
+    <div className="text-center">
+      <div className="relative">
+        <div className="w-16 h-16 border-4 border-electric/30 rounded-full animate-spin"></div>
+        <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-t-electric rounded-full animate-spin"></div>
+        <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-r-magenta rounded-full animate-spin" style={{ animationDuration: '2s' }}></div>
+        <div className="absolute top-0 left-0 w-16 h-16 border-4 border-transparent border-b-lime rounded-full animate-spin" style={{ animationDuration: '1.5s' }}></div>
+      </div>
+      <p className="mt-4 text-electric font-semibold">Loading...</p>
+    </div>
+  </div>
+);
+
 const App: React.FC = () => {
   // State Halaman & UI
   const [activePage, setActivePage] = useState<Page>('home');
@@ -143,7 +158,6 @@ const App: React.FC = () => {
   const [supabaseUser, setSupabaseUser] = useState<SupabaseUser | null>(null);
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [pendingGoogleUser, setPendingGoogleUser] = useState<GoogleProfile | null>(null);
-  const [authError, setAuthError] = useState<string | null>(null);
 
   // State Data Koin
   const [analysisCounts, setAnalysisCounts] = useState<{ [key: string]: number }>({});
@@ -263,7 +277,6 @@ const App: React.FC = () => {
       } catch (error) {
         console.error('Auth initialization error:', error);
         if (isMounted) {
-          setAuthError('Gagal memuat sesi pengguna');
           setCurrentUser(null);
           setPendingGoogleUser(null);
           setSession(null);
@@ -718,10 +731,9 @@ const App: React.FC = () => {
   }, []);
   
   const handleProfileComplete = useCallback(async (username: string): Promise<string | void> => {
-    setAuthError(null);
     if (!pendingGoogleUser || !session) {
       const msg = 'Sesi tidak valid untuk melengkapi profil.';
-      setAuthError(msg); return msg;
+      return msg;
     }
     
     // [FIX] Gunakan cast manual untuk SELECT
@@ -737,7 +749,7 @@ const App: React.FC = () => {
     
     if (existingUser) {
       const msg = 'Username sudah digunakan. Pilih username lain.';
-      setAuthError(msg); return msg;
+      return msg;
     }
 
     // [FIX] Hapus anotasi tipe ProfileUpdate
@@ -755,7 +767,7 @@ const App: React.FC = () => {
       .single() as { data: SupabaseProfile | null; error: any };
 
     if (error) {
-      setAuthError(error.message); return error.message;
+      return error.message;
     }
     if (data) {
       setCurrentUser({
@@ -1159,20 +1171,8 @@ const App: React.FC = () => {
         </>
       );
     } else {
-      // Kasus 3: Sesi ada, tapi profil GAGAL diambil (atau state aneh)
-      contentToRender = (
-        <div className="min-h-screen bg-transparent text-white flex items-center justify-center">
-          <div className="text-center">
-            <p>Terjadi error sinkronisasi. Silakan login ulang.</p>
-            <button 
-              onClick={handleLogout}
-              className="mt-4 px-4 py-2 bg-red-600 rounded-lg"
-            >
-              Login Ulang
-            </button>
-          </div>
-        </div>
-      );
+      // Kasus 3: Sesi ada, tapi profil GAGAL diambil - Tampilkan loading saja
+      contentToRender = <LoadingSpinner />;
     }
   } else {
     // Kasus 4: Tidak ada sesi -> Render LoginPage
@@ -1187,11 +1187,6 @@ const App: React.FC = () => {
     >
       <Particles />
       {contentToRender}
-      {authError && (
-        <div className="fixed bottom-4 right-4 bg-red-600 text-white p-3 rounded-lg shadow-lg z-50">
-          Error: {authError} <button onClick={() => setAuthError(null)} className="ml-2 text-sm underline">Tutup</button>
-        </div>
-      )}
     </div>
   );
 };
